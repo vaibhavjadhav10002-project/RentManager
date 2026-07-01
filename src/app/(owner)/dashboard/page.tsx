@@ -1,0 +1,205 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useProperty } from '@/components/shared/PropertyContext'
+import { getDashboardStats, getTenants, getPayments } from '@/lib/supabase/queries'
+import { formatINR, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg } from '@/lib/utils'
+import { BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home } from 'lucide-react'
+import type { DashboardStats, Tenant } from '@/types'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts'
+
+const REVENUE_DATA = [
+  { month: 'Jan', revenue: 52000, expenses: 28000 },
+  { month: 'Feb', revenue: 58000, expenses: 29500 },
+  { month: 'Mar', revenue: 61000, expenses: 31000 },
+  { month: 'Apr', revenue: 59000, expenses: 30000 },
+  { month: 'May', revenue: 63000, expenses: 32000 },
+  { month: 'Jun', revenue: 65000, expenses: 28700 },
+]
+
+function StatCard({ icon: Icon, label, value, sub, color }: {
+  icon: React.ElementType; label: string; value: string; sub?: string; color: string
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${color}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="text-2xl font-extrabold text-gray-900">{value}</div>
+      <div className="text-xs text-gray-500 font-medium mt-1">{label}</div>
+      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
+export default function DashboardPage() {
+  const { activeId, active, properties } = useProperty()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number })[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        if (activeId === 'all') {
+          // Aggregate across all properties
+          const results = await Promise.all(properties.map(p => getDashboardStats(p.id)))
+          const agg: DashboardStats = results.reduce((acc, s) => ({
+            totalRooms: acc.totalRooms + s.totalRooms,
+            totalBeds: acc.totalBeds + s.totalBeds,
+            occupiedBeds: acc.occupiedBeds + s.occupiedBeds,
+            vacantBeds: acc.vacantBeds + s.vacantBeds,
+            monthlyRevenue: acc.monthlyRevenue + s.monthlyRevenue,
+            pendingRent: acc.pendingRent + s.pendingRent,
+            openComplaints: acc.openComplaints + s.openComplaints,
+            totalTenants: acc.totalTenants + s.totalTenants,
+          }), { totalRooms: 0, totalBeds: 0, occupiedBeds: 0, vacantBeds: 0, monthlyRevenue: 0, pendingRent: 0, openComplaints: 0, totalTenants: 0 })
+          setStats(agg)
+
+          // Pending tenants across all props
+          const allTenants = (await Promise.all(properties.map(p => getTenants(p.id)))).flat()
+          buildPending(allTenants)
+        } else {
+          const [s, tenants] = await Promise.all([
+            getDashboardStats(activeId),
+            getTenants(activeId),
+          ])
+          setStats(s)
+          buildPending(tenants)
+        }
+      } catch {}
+      setLoading(false)
+    }
+
+    function buildPending(tenants: Tenant[]) {
+      const today = new Date()
+      const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+      const pending = tenants
+        .filter(t => t.status === 'active')
+        .map(t => ({
+          ...t,
+          dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
+          overdueDays: getOverdueDays(t.joining_date, today),
+        }))
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      setPendingTenants(pending)
+    }
+
+    if (properties.length > 0 || activeId !== 'all') load()
+  }, [activeId, properties])
+
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="h-8 w-48 bg-gray-200 rounded-xl animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {[...Array(6)].map((_, i) => <div key={i} className="h-32 bg-gray-200 rounded-2xl animate-pulse" />)}
+      </div>
+    </div>
+  )
+
+  const occupancyPct = stats ? Math.round((stats.occupiedBeds / (stats.totalBeds || 1)) * 100) : 0
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-extrabold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {activeId === 'all' ? `All ${properties.length} properties overview` : `${active?.name} — ${active?.city}`}
+        </p>
+      </div>
+
+      {/* Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <StatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} color="bg-blue-50 text-blue-600" />
+          <StatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} color="bg-purple-50 text-purple-600" />
+          <StatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} color="bg-green-50 text-green-600" />
+          <StatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} color="bg-blue-50 text-blue-600" />
+          <StatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} color="bg-yellow-50 text-yellow-600" />
+          <StatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} color="bg-red-50 text-red-600" />
+        </div>
+      )}
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Revenue chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="font-bold text-sm text-gray-900 mb-1">Revenue vs Expenses</div>
+          <div className="text-xs text-gray-400 mb-4">Last 6 months</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={REVENUE_DATA} barGap={2}>
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
+              <Tooltip formatter={(v: number) => formatINR(v)} />
+              <Bar dataKey="revenue" fill="#2563EB" radius={[4, 4, 0, 0]} name="Revenue" />
+              <Bar dataKey="expenses" fill="#7C3AED44" radius={[4, 4, 0, 0]} name="Expenses" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Occupancy donut */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex flex-col items-center justify-center">
+          <div className="font-bold text-sm text-gray-900 mb-1 self-start">Occupancy</div>
+          <div className="text-xs text-gray-400 mb-4 self-start">Beds occupied</div>
+          <PieChart width={140} height={140}>
+            <Pie data={[{ value: occupancyPct }, { value: 100 - occupancyPct }]}
+              cx={65} cy={65} innerRadius={45} outerRadius={65} startAngle={90} endAngle={-270} dataKey="value">
+              <Cell fill="#2563EB" />
+              <Cell fill="#E2E8F0" />
+            </Pie>
+          </PieChart>
+          <div className="text-3xl font-extrabold text-gray-900 -mt-2">{occupancyPct}%</div>
+          <div className="text-xs text-gray-400">{stats?.occupiedBeds}/{stats?.totalBeds} beds</div>
+        </div>
+      </div>
+
+      {/* Pending Rent (date-sorted) */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-bold text-sm text-gray-900">Pending Rent</div>
+            <div className="text-xs text-gray-400">Sorted by due date — oldest first</div>
+          </div>
+          <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2.5 py-1 rounded-full">
+            {pendingTenants.length} tenants
+          </span>
+        </div>
+        {pendingTenants.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 text-sm">🎉 All caught up — no pending rent!</div>
+        ) : (
+          <div className="space-y-2">
+            {pendingTenants.map(t => (
+              <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl ${t.overdueDays > 5 ? 'bg-red-50' : 'bg-yellow-50'}`}>
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  {t.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 truncate">{t.name}</div>
+                  <div className="text-xs text-gray-500">Room {t.room?.room_number} · Due {t.dueDate}</div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-sm font-bold text-gray-900">{formatINR(t.monthly_rent)}</div>
+                  <span className={`text-xs font-bold ${t.overdueDays > 5 ? 'text-red-600' : 'text-yellow-600'}`}>
+                    {t.overdueDays}d overdue
+                  </span>
+                </div>
+                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, active?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="p-2 bg-green-100 rounded-xl hover:bg-green-200 transition flex-shrink-0" title="WhatsApp Reminder">
+                  <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+                  </svg>
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
