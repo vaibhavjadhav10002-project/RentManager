@@ -90,10 +90,10 @@ export default function Sidebar({ open, onClose, userName }: Props) {
         {/* User + Logout */}
         <div className="p-3 border-t border-gray-100 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-            {userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+            {(userName || 'PG Owner').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-gray-900 truncate">{userName}</div>
+            <div className="text-xs font-semibold text-gray-900 truncate">{userName || 'PG Owner'}</div>
             <div className="text-[10px] text-gray-400">PG Owner</div>
           </div>
           <button onClick={logout} className="text-gray-400 hover:text-red-500 transition-colors p-1">

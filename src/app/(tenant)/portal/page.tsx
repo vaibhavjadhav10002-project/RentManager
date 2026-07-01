@@ -90,7 +90,7 @@ export default function TenantPortal() {
       <header className="bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs">
-            {tenant.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+            {(tenant.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
           </div>
           <div>
             <div className="text-sm font-bold text-gray-900">{tenant.property?.name}</div>
@@ -107,10 +107,10 @@ export default function TenantPortal() {
         {/* Greeting */}
         <div className="flex items-center gap-3 mt-2">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-extrabold text-xl flex-shrink-0">
-            {tenant.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+            {(tenant.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
           </div>
           <div>
-            <div className="text-lg font-extrabold text-gray-900">Hi, {tenant.name.split(' ')[0]} 👋</div>
+            <div className="text-lg font-extrabold text-gray-900">Hi, {(tenant.name || 'there').split(' ')[0]} 👋</div>
             <div className="text-sm text-gray-500">Room {tenant.room?.room_number} · Bed {tenant.bed_label}</div>
           </div>
         </div>

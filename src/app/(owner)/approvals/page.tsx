@@ -102,7 +102,7 @@ export default function ApprovalsPage() {
               <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                    {p.tenant?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                    {(p.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </div>
                   <div>
                     <div className="font-bold text-gray-900">{p.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
@@ -140,7 +140,7 @@ export default function ApprovalsPage() {
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {t.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                      {(t.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-gray-900">{t.name}</div>

@@ -92,7 +92,7 @@ export default function AdminPage() {
               {owners.map(o => (
                 <div key={o.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-sm flex items-center justify-center flex-shrink-0">
-                    {o.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                    {(o.full_name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-gray-900">{o.full_name}</div>

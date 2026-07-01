@@ -175,7 +175,7 @@ export default function DashboardPage() {
             {pendingTenants.map(t => (
               <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl ${t.overdueDays > 5 ? 'bg-red-50' : 'bg-yellow-50'}`}>
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                  {t.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  {(t.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate">{t.name}</div>

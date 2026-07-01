@@ -140,7 +140,7 @@ export default function TenantsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                          {t.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          {(t.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
                           <div className="font-semibold text-gray-900">{t.name}</div>
