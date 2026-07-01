@@ -94,44 +94,61 @@ export async function getAllTenants() {
 
 export async function addTenantByOwner(input: AddTenantInput) {
   const sb = createClient()
-  const { password, ...tenantData } = input
+  const { password, rent_paid_now, ...tenantData } = input
 
-  // 1. Create auth account for tenant using admin-style invite
-  const { data: { user }, error: authError } = await sb.auth.signUp({
-    email: `${input.phone}@pgmanager.local`,   // synthetic email using phone
-    password,
-    options: {
-      data: { full_name: input.name, role: 'tenant' },
-    },
+  // 1. Create tenant login via SQL RPC (bypasses GoTrue signup endpoint)
+  const { data: newUserId, error: authError } = await sb.rpc('create_tenant_login', {
+    p_phone: input.phone,
+    p_password: password,
+    p_full_name: input.name,
   })
   if (authError) throw authError
 
   // 2. Insert tenant row linked to the new auth user
   const { data, error } = await sb.from('tenants').insert({
     ...tenantData,
-    auth_user_id: user?.id ?? null,
+    auth_user_id: newUserId ?? null,
     status: 'active',
     submitted_via: 'owner_added',
   }).select().single()
   if (error) throw error
+
+  // 3. If rent was collected at joining, record it as a payment
+  if (rent_paid_now && rent_paid_now > 0) {
+    const forMonth = new Date(input.joining_date).toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+    const { error: payError } = await sb.from('payments').insert({
+      tenant_id: data.id,
+      property_id: data.property_id,
+      type: 'rent',
+      for_month: forMonth,
+      total_due: input.monthly_rent,
+      amount_received: rent_paid_now,
+      method: 'cash',
+      approval_status: 'approved',
+      submitted_by_tenant: false,
+      payment_date: input.joining_date,
+    })
+    if (payError) throw payError
+  }
+
   return data
 }
 
 export async function approveTenant(tenantId: string, password: string, tenantData: Tenant) {
   const sb = createClient()
 
-  // Create auth login for the approved QR-submitted tenant
-  const { data: { user }, error: authError } = await sb.auth.signUp({
-    email: `${tenantData.phone}@pgmanager.local`,
-    password,
-    options: { data: { full_name: tenantData.name, role: 'tenant' } },
+  // Create auth login for the approved QR-submitted tenant via SQL RPC
+  const { data: newUserId, error: authError } = await sb.rpc('create_tenant_login', {
+    p_phone: tenantData.phone,
+    p_password: password,
+    p_full_name: tenantData.name,
   })
   if (authError) throw authError
 
   const { data: { user: me } } = await sb.auth.getUser()
   const { data, error } = await sb.from('tenants').update({
     status: 'active',
-    auth_user_id: user?.id,
+    auth_user_id: newUserId,
     approved_by: me?.id,
     approved_at: new Date().toISOString(),
   }).eq('id', tenantId).select().single()

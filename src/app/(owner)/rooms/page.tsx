@@ -53,7 +53,10 @@ export default function RoomsPage() {
       setModal(false)
       setForm({ property_id: '', room_number: '', floor: '1', sharing_type: '2 Sharing', total_beds: '2', monthly_rent: '', notes: '' })
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) {
+      if (e.code === '23505') toast.error('A room with this number already exists in this property')
+      else toast.error(e.message)
+    }
     setSaving(false)
   }
 

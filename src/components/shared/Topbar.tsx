@@ -1,8 +1,10 @@
 'use client'
 import { useState } from 'react'
-import { Menu, Search, Bell, Sun, Moon, ChevronDown, Building2, Layers, Plus } from 'lucide-react'
+import { Menu, Search, Bell, Sun, Moon, ChevronDown, Building2, Layers, Plus, Loader2 } from 'lucide-react'
 import { useProperty } from './PropertyContext'
 import { cn } from '@/lib/utils'
+import { addProperty } from '@/lib/supabase/queries'
+import { toast } from 'sonner'
 
 interface Props {
   onMenuClick: () => void
@@ -11,9 +13,29 @@ interface Props {
 }
 
 export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
-  const { properties, activeId, setActiveId, active } = useProperty()
+  const { properties, activeId, setActiveId, active, refresh } = useProperty()
   const [propOpen, setPropOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ name: '', address: '', city: '', upi_id: '' })
+
+  async function handleAddProperty() {
+    if (!form.name.trim()) { toast.error('Property name is required'); return }
+    setSaving(true)
+    try {
+      const created = await addProperty(form)
+      toast.success('Property added!')
+      setForm({ name: '', address: '', city: '', upi_id: '' })
+      setAddOpen(false)
+      setPropOpen(false)
+      await refresh()
+      if (created?.id) setActiveId(created.id)
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to add property')
+    }
+    setSaving(false)
+  }
 
   return (
     <header className="h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3 sticky top-0 z-30 shadow-sm">
@@ -65,7 +87,8 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
               </button>
             ))}
             <div className="border-t border-gray-100">
-              <button className="w-full flex items-center gap-2 px-4 py-2.5 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition">
+              <button onClick={() => { setAddOpen(true); setPropOpen(false) }}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition">
                 <Plus className="w-4 h-4" /> Add Property
               </button>
             </div>
@@ -94,6 +117,44 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
         </button>
       </div>
+
+      {/* Add Property Modal */}
+      {addOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">Add Property</h2>
+              <button onClick={() => setAddOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {[
+                { key: 'name', label: 'Property Name *' },
+                { key: 'address', label: 'Address' },
+                { key: 'city', label: 'City' },
+                { key: 'upi_id', label: 'UPI ID' },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+                  <input value={(form as any)[key]}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={handleAddProperty} disabled={saving}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {saving ? 'Adding…' : 'Add Property'}
+              </button>
+              <button onClick={() => setAddOpen(false)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

@@ -177,6 +177,7 @@ export interface AddTenantInput {
   monthly_rent: number
   deposit_amount: number
   deposit_paid: number
+  rent_paid_now?: number     // rent amount owner collected at the time of joining
   notice_period_days: number
   password: string           // owner sets this for tenant login
 }

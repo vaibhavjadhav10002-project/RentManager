@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getTenants, getAllTenants, addTenantByOwner } from '@/lib/supabase/queries'
+import { getTenants, getAllTenants, addTenantByOwner, updateTenant } from '@/lib/supabase/queries'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2 } from 'lucide-react'
@@ -28,11 +28,50 @@ export default function TenantsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [viewTenant, setViewTenant] = useState<Tenant | null>(null)
+  const [editTenant, setEditTenant] = useState<Tenant | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: '', phone: '', email: '', emergency_contact: '', bed_label: '',
+    monthly_rent: '', deposit_amount: '', deposit_paid: '', notice_period_days: '', status: 'active',
+  })
+  const [editSaving, setEditSaving] = useState(false)
+
+  function openEdit(t: Tenant) {
+    setEditTenant(t)
+    setEditForm({
+      name: t.name, phone: t.phone, email: t.email ?? '', emergency_contact: t.emergency_contact ?? '',
+      bed_label: t.bed_label ?? '', monthly_rent: String(t.monthly_rent), deposit_amount: String(t.deposit_amount),
+      deposit_paid: String(t.deposit_paid), notice_period_days: String(t.notice_period_days), status: t.status,
+    })
+  }
+
+  async function handleEditSave() {
+    if (!editTenant) return
+    setEditSaving(true)
+    try {
+      await updateTenant(editTenant.id, {
+        name: editForm.name,
+        phone: editForm.phone,
+        email: editForm.email || undefined,
+        emergency_contact: editForm.emergency_contact || undefined,
+        bed_label: editForm.bed_label || undefined,
+        monthly_rent: Number(editForm.monthly_rent),
+        deposit_amount: Number(editForm.deposit_amount),
+        deposit_paid: Number(editForm.deposit_paid),
+        notice_period_days: Number(editForm.notice_period_days),
+        status: editForm.status as Tenant['status'],
+      })
+      toast.success('Tenant updated!')
+      setEditTenant(null)
+      load()
+    } catch (e: any) { toast.error(e.message ?? 'Failed to update tenant') }
+    setEditSaving(false)
+  }
 
   const [form, setForm] = useState({
     property_id: '', room_id: '', bed_label: '', name: '', phone: '',
     email: '', emergency_contact: '', joining_date: '', monthly_rent: '',
-    deposit_amount: '', deposit_paid: '', notice_period_days: '30', password: '',
+    deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '',
   })
 
   const load = useCallback(async () => {
@@ -73,12 +112,13 @@ export default function TenantsPage() {
         monthly_rent: Number(form.monthly_rent),
         deposit_amount: Number(form.deposit_amount),
         deposit_paid: Number(form.deposit_paid || 0),
+        rent_paid_now: Number(form.rent_paid_now || 0),
         notice_period_days: Number(form.notice_period_days),
         password: form.password,
       })
       toast.success('Tenant added & login created!')
       setModalOpen(false)
-      setForm({ property_id: '', room_id: '', bed_label: '', name: '', phone: '', email: '', emergency_contact: '', joining_date: '', monthly_rent: '', deposit_amount: '', deposit_paid: '', notice_period_days: '30', password: '' })
+      setForm({ property_id: '', room_id: '', bed_label: '', name: '', phone: '', email: '', emergency_contact: '', joining_date: '', monthly_rent: '', deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '' })
       load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -192,8 +232,8 @@ export default function TenantsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <button className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
-                        <button className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => setViewTenant(t)} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => openEdit(t)} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
                       </div>
                     </td>
                   </tr>
@@ -237,6 +277,7 @@ export default function TenantsPage() {
                 { key: 'monthly_rent', label: 'Monthly Rent (₹)', required: true, type: 'number' },
                 { key: 'deposit_amount', label: 'Total Deposit (₹)', type: 'number' },
                 { key: 'deposit_paid', label: 'Deposit Paid Now (₹)', type: 'number' },
+                { key: 'rent_paid_now', label: 'Rent Paid Now (₹)', type: 'number' },
               ].map(({ key, label, required, type }) => (
                 <div key={key}>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">{label}{required && ' *'}</label>
@@ -270,6 +311,99 @@ export default function TenantsPage() {
                 {saving ? 'Adding…' : 'Add Tenant & Create Login'}
               </button>
               <button onClick={() => setModalOpen(false)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Tenant Modal */}
+      {viewTenant && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">Tenant Details</h2>
+              <button onClick={() => setViewTenant(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="p-6 space-y-3 text-sm">
+              {[
+                ['Name', viewTenant.name],
+                ['Phone', viewTenant.phone],
+                ['Email', viewTenant.email || '—'],
+                ['Emergency Contact', viewTenant.emergency_contact || '—'],
+                ['Room', viewTenant.room ? `Room ${viewTenant.room.room_number}` : '—'],
+                ['Bed', viewTenant.bed_label || '—'],
+                ['Joining Date', formatDate(viewTenant.joining_date)],
+                ['Monthly Rent', formatINR(viewTenant.monthly_rent)],
+                ['Deposit', `${formatINR(viewTenant.deposit_paid)} / ${formatINR(viewTenant.deposit_amount)}`],
+                ['Notice Period', `${viewTenant.notice_period_days} days`],
+                ['Status', viewTenant.status.replace('_', ' ')],
+                ['Aadhaar KYC', viewTenant.aadhaar_status],
+                ['PAN KYC', viewTenant.pan_status],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-gray-500">{label}</span>
+                  <span className="font-semibold text-gray-900 capitalize">{value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setViewTenant(null)}
+                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Tenant Modal */}
+      {editTenant && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl my-4">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">Edit Tenant</h2>
+              <button onClick={() => setEditTenant(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto max-h-[75vh]">
+              {[
+                { key: 'name', label: 'Full Name' },
+                { key: 'phone', label: 'Mobile Number', type: 'tel' },
+                { key: 'email', label: 'Email' },
+                { key: 'emergency_contact', label: 'Emergency Contact', type: 'tel' },
+                { key: 'bed_label', label: 'Bed Label (A/B/C)' },
+                { key: 'monthly_rent', label: 'Monthly Rent (₹)', type: 'number' },
+                { key: 'deposit_amount', label: 'Total Deposit (₹)', type: 'number' },
+                { key: 'deposit_paid', label: 'Deposit Paid (₹)', type: 'number' },
+                { key: 'notice_period_days', label: 'Notice Period (days)', type: 'number' },
+              ].map(({ key, label, type }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+                  <input type={type ?? 'text'} value={(editForm as any)[key]}
+                    onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
+                <select value={editForm.status}
+                  onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  {['active', 'leaving', 'left', 'pending_approval'].map(s => (
+                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={handleEditSave} disabled={editSaving}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                {editSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button onClick={() => setEditTenant(null)}
                 className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
                 Cancel
               </button>

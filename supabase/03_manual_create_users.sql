@@ -3,8 +3,8 @@
 -- which uses the Admin/Management API — this instead inserts directly into
 -- the database, which is not affected by Admin API issues)
 --
--- BEFORE RUNNING: replace 'CHANGE_ME_PASSWORD_1' and 'CHANGE_ME_PASSWORD_2'
--- below with the actual passwords you want to use.
+-- Password for both accounts is set to: Pass@123
+-- (change it later from within the app once you're logged in)
 --
 -- Run this in Supabase Dashboard → SQL Editor → New Query → Run
 -- ============================================================================
@@ -25,7 +25,7 @@ begin
     'authenticated',
     'authenticated',
     'vaibhavjadhav10002@gmail.com',
-    crypt('CHANGE_ME_PASSWORD_1', gen_salt('bf')),
+    crypt('Pass@123', gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"full_name":"Vaibhav Jadhav","role":"super_admin"}',
@@ -57,7 +57,7 @@ begin
     'authenticated',
     'authenticated',
     'demo2@gmail.com',
-    crypt('CHANGE_ME_PASSWORD_2', gen_salt('bf')),
+    crypt('Pass@123', gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"full_name":"Demo Owner","role":"pg_owner"}',
