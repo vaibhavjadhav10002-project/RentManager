@@ -1,10 +1,12 @@
 'use client'
 import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Building2, CheckCircle, Loader2 } from 'lucide-react'
 
-export default function JoinPage({ params }: { params: { slug: string } }) {
+export default function JoinPage() {
+  const params = useParams<{ slug: string }>()
   const [step, setStep] = useState<'form' | 'done'>('form')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
