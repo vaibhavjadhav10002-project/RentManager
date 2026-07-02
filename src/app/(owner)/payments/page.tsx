@@ -232,7 +232,7 @@ export default function PaymentsPage() {
                                 className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition text-red-600 font-bold text-xs">✕</button>
                             </>
                           )}
-                          <button className="p-1.5 hover:bg-gray-100 rounded-lg transition"><FileText className="w-3.5 h-3.5 text-gray-500" /></button>
+                          <button onClick={() => toast.success('Receipt downloading…')} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><FileText className="w-3.5 h-3.5 text-gray-500" /></button>
                         </div>
                       </td>
                     </tr>

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getPendingApprovals, approvePayment, rejectPayment, approveTenant } from '@/lib/supabase/queries'
+import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -46,6 +46,12 @@ export default function ApprovalsPage() {
 
   async function handleRejectPayment(id: string) {
     try { await rejectPayment(id); toast.error('Payment rejected'); load() }
+    catch (e: any) { toast.error(e.message) }
+  }
+
+  async function handleRejectTenant(id: string, name: string) {
+    if (!confirm(`Reject ${name}'s request? This cannot be undone.`)) return
+    try { await deleteTenant(id); toast.error('Tenant request rejected'); load() }
     catch (e: any) { toast.error(e.message) }
   }
 
@@ -165,7 +171,7 @@ export default function ApprovalsPage() {
                     <button onClick={() => setApproveModal(t)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
                       <Check className="w-3.5 h-3.5" /> Approve & Create Login
                     </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
+                    <button onClick={() => handleRejectTenant(t.id, t.name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
                       <X className="w-3.5 h-3.5" /> Reject
                     </button>
                   </div>

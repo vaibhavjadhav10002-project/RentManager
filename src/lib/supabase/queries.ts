@@ -184,6 +184,12 @@ export async function addCollector(propertyId: string, name: string) {
   return data
 }
 
+export async function deleteCollector(id: string) {
+  const sb = createClient()
+  const { error } = await sb.from('collectors').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ─── Payments ─────────────────────────────────────────────────────────────────
 export async function getPayments(propertyId: string) {
   const sb = createClient()

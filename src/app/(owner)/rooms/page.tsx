@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getRooms, addRoom, deleteRoom } from '@/lib/supabase/queries'
+import { getRooms, addRoom, updateRoom, deleteRoom } from '@/lib/supabase/queries'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Trash2, Pencil, Loader2, BedDouble } from 'lucide-react'
@@ -19,6 +19,7 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     property_id: '', room_number: '', floor: '1',
     sharing_type: '2 Sharing', total_beds: '2', monthly_rent: '', notes: '',
@@ -36,11 +37,27 @@ export default function RoomsPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function handleAdd() {
+  function openEdit(room: Room) {
+    setEditingId(room.id)
+    setForm({
+      property_id: room.property_id, room_number: room.room_number, floor: String(room.floor),
+      sharing_type: room.sharing_type, total_beds: String(room.total_beds),
+      monthly_rent: String(room.monthly_rent), notes: room.notes ?? '',
+    })
+    setModal(true)
+  }
+
+  function closeModal() {
+    setModal(false)
+    setEditingId(null)
+    setForm({ property_id: '', room_number: '', floor: '1', sharing_type: '2 Sharing', total_beds: '2', monthly_rent: '', notes: '' })
+  }
+
+  async function handleSave() {
     if (!form.room_number || !form.monthly_rent) { toast.error('Fill required fields'); return }
     setSaving(true)
     try {
-      await addRoom({
+      const payload = {
         property_id: form.property_id || (activeId !== 'all' ? activeId : ''),
         room_number: form.room_number,
         floor: Number(form.floor),
@@ -48,10 +65,15 @@ export default function RoomsPage() {
         total_beds: Number(form.total_beds),
         monthly_rent: Number(form.monthly_rent),
         notes: form.notes,
-      })
-      toast.success('Room added!')
-      setModal(false)
-      setForm({ property_id: '', room_number: '', floor: '1', sharing_type: '2 Sharing', total_beds: '2', monthly_rent: '', notes: '' })
+      }
+      if (editingId) {
+        await updateRoom(editingId, payload)
+        toast.success('Room updated!')
+      } else {
+        await addRoom(payload)
+        toast.success('Room added!')
+      }
+      closeModal()
       load()
     } catch (e: any) {
       if (e.code === '23505') toast.error('A room with this number already exists in this property')
@@ -107,7 +129,7 @@ export default function RoomsPage() {
                 </div>
                 {room.notes && <p className="text-xs text-gray-400 mb-3 truncate">{room.notes}</p>}
                 <div className="flex gap-2 pt-3 border-t border-gray-100">
-                  <button className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-xl text-xs font-semibold text-gray-600 transition">
+                  <button onClick={() => openEdit(room)} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-gray-50 hover:bg-gray-100 rounded-xl text-xs font-semibold text-gray-600 transition">
                     <Pencil className="w-3 h-3" /> Edit
                   </button>
                   <button onClick={() => handleDelete(room.id)} className="p-1.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition">
@@ -124,8 +146,8 @@ export default function RoomsPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold">Add Room</h2>
-              <button onClick={() => setModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+              <h2 className="text-base font-bold">{editingId ? 'Edit Room' : 'Add Room'}</h2>
+              <button onClick={closeModal} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
               {activeId === 'all' && (
@@ -167,10 +189,10 @@ export default function RoomsPage() {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Add Room
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />} {editingId ? 'Save Changes' : 'Add Room'}
               </button>
-              <button onClick={() => setModal(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
+              <button onClick={closeModal} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { updateProperty, addCollector, getCollectors } from '@/lib/supabase/queries'
+import { updateProperty, addCollector, deleteCollector, getCollectors } from '@/lib/supabase/queries'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
@@ -53,6 +53,16 @@ export default function SettingsPage() {
     } catch (e: any) { toast.error(e.message) }
   }
 
+  async function handleDeleteCollector(id: string) {
+    if (!active) return
+    if (!confirm('Remove this collector?')) return
+    try {
+      await deleteCollector(id)
+      toast.success('Collector removed')
+      getCollectors(active.id).then(setCollectors)
+    } catch (e: any) { toast.error(e.message) }
+  }
+
   async function changePassword() {
     if (pwForm.newPw !== pwForm.confirm) { toast.error('Passwords do not match'); return }
     if (pwForm.newPw.length < 6) { toast.error('Min 6 characters'); return }
@@ -96,7 +106,7 @@ export default function SettingsPage() {
           {collectors.map(c => (
             <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
               <span className="text-sm text-gray-800">{c.name}</span>
-              <button className="text-gray-400 hover:text-red-500 transition p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button onClick={() => handleDeleteCollector(c.id)} className="text-gray-400 hover:text-red-500 transition p-1"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
           ))}
         </div>
