@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants } from '@/lib/supabase/queries'
+import { generateReceiptPDF } from '@/lib/pdf'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Check, MessageCircle, Phone, Loader2, FileText } from 'lucide-react'
@@ -232,7 +233,19 @@ export default function PaymentsPage() {
                                 className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition text-red-600 font-bold text-xs">✕</button>
                             </>
                           )}
-                          <button onClick={() => toast.success('Receipt downloading…')} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><FileText className="w-3.5 h-3.5 text-gray-500" /></button>
+                          <button onClick={() => generateReceiptPDF({
+                            tenantName: p.tenant?.name ?? 'Tenant',
+                            propertyName: active?.name ?? properties.find(pr => pr.id === p.property_id)?.name ?? 'PG',
+                            roomNumber: p.tenant?.room?.room_number,
+                            forMonth: p.for_month,
+                            type: p.type,
+                            totalDue: p.total_due,
+                            amountReceived: p.amount_received,
+                            method: p.method,
+                            paymentDate: p.payment_date,
+                            approvalStatus: p.approval_status,
+                            receiptNo: p.id.slice(0, 8).toUpperCase(),
+                          })} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><FileText className="w-3.5 h-3.5 text-gray-500" /></button>
                         </div>
                       </td>
                     </tr>

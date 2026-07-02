@@ -18,7 +18,8 @@ export default function ApprovalsPage() {
   const [approveModal, setApproveModal] = useState<any>(null)
   const [newPassword, setNewPassword] = useState('')
   const [saving, setSaving] = useState(false)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://yourapp.vercel.app'
+  const [appUrl, setAppUrl] = useState('')
+  useEffect(() => { setAppUrl(window.location.origin) }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,7 +69,7 @@ export default function ApprovalsPage() {
     setSaving(false)
   }
 
-  const joinLink = active ? `${appUrl}/join/${active.qr_slug}` : `${appUrl}/join/select-property`
+  const joinLink = active ? `${appUrl}/join/${active.qr_slug}` : ''
 
   return (
     <div className="space-y-5">
@@ -77,7 +78,7 @@ export default function ApprovalsPage() {
           <h1 className="text-xl font-extrabold text-gray-900">Approvals</h1>
           <p className="text-sm text-gray-500">Review payment claims and new tenant requests</p>
         </div>
-        <button onClick={() => setQrModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition">
+        <button onClick={() => { if (!active) { toast.error('Select a specific property first (not "All Properties")'); return } setQrModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition">
           <QrCode className="w-4 h-4" /> Tenant Join Link / QR
         </button>
       </div>

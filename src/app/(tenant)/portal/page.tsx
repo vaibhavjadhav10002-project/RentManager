@@ -3,13 +3,15 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatINR, formatDate, whatsappLink } from '@/lib/utils'
 import { toast } from 'sonner'
-import { LogOut, Loader2, CheckCircle, Clock, FileText, MessageCircle, Lock } from 'lucide-react'
+import { LogOut, Loader2, CheckCircle, Clock, FileText, MessageCircle, Lock, Download, AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { generateAgreementPDF, generateReceiptPDF } from '@/lib/pdf'
 
 export default function TenantPortal() {
   const router = useRouter()
   const [tenant, setTenant] = useState<any>(null)
   const [payments, setPayments] = useState<any[]>([])
+  const [complaints, setComplaints] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [payModal, setPayModal] = useState(false)
   const [pwModal, setPwModal] = useState(false)
@@ -27,12 +29,16 @@ export default function TenantPortal() {
       const { data: { user } } = await sb.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, upi_id)').eq('auth_user_id', user.id).single()
+      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id)').eq('auth_user_id', user.id).single()
       if (!t) { router.push('/login'); return }
       setTenant(t)
 
       const { data: p } = await sb.from('payments').select('*').eq('tenant_id', t.id).order('payment_date', { ascending: false })
       setPayments(p ?? [])
+
+      const { data: c } = await sb.from('complaints').select('*').eq('tenant_id', t.id).order('created_at', { ascending: false })
+      setComplaints(c ?? [])
+
       setLoading(false)
     }
     load()
@@ -40,6 +46,56 @@ export default function TenantPortal() {
 
   const thisMonth = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
   const thisMonthPaid = payments.some(p => p.for_month === thisMonth && p.approval_status === 'approved')
+
+  // Build a month-by-month rent ledger from joining date to the current month
+  const monthlyLedger = (() => {
+    if (!tenant?.joining_date) return []
+    const months: { label: string; status: 'paid' | 'pending' | 'partial' }[] = []
+    const start = new Date(tenant.joining_date)
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+    const end = new Date()
+    while (cursor <= end) {
+      const label = cursor.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+      const monthPayments = payments.filter(p => p.for_month === label && p.type === 'rent' && p.approval_status === 'approved')
+      const totalPaid = monthPayments.reduce((s, p) => s + p.amount_received, 0)
+      const status = totalPaid >= tenant.monthly_rent ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+      months.push({ label, status })
+      cursor.setMonth(cursor.getMonth() + 1)
+    }
+    return months.reverse()
+  })()
+
+  function downloadAgreement() {
+    generateAgreementPDF({
+      tenantName: tenant.name,
+      tenantPhone: tenant.phone,
+      propertyName: tenant.property?.name ?? 'PG',
+      propertyAddress: tenant.property?.address,
+      roomNumber: tenant.room?.room_number,
+      bedLabel: tenant.bed_label,
+      joiningDate: tenant.joining_date,
+      monthlyRent: tenant.monthly_rent,
+      depositAmount: tenant.deposit_amount,
+      noticePeriodDays: tenant.notice_period_days,
+    })
+    toast.success('Agreement downloaded')
+  }
+
+  function downloadReceipt(p: any) {
+    generateReceiptPDF({
+      tenantName: tenant.name,
+      propertyName: tenant.property?.name ?? 'PG',
+      roomNumber: tenant.room?.room_number,
+      forMonth: p.for_month,
+      type: p.type,
+      totalDue: p.total_due,
+      amountReceived: p.amount_received,
+      method: p.method,
+      paymentDate: p.payment_date,
+      approvalStatus: p.approval_status,
+      receiptNo: p.id.slice(0, 8).toUpperCase(),
+    })
+  }
 
   async function submitPayment() {
     setSaving(true)
@@ -61,8 +117,11 @@ export default function TenantPortal() {
     setSaving(true)
     try {
       const sb = createClient()
-      await sb.from('complaints').insert({ property_id: tenant.property_id, tenant_id: tenant.id, room_id: tenant.room_id, ...complaint })
+      const { data, error } = await sb.from('complaints').insert({ property_id: tenant.property_id, tenant_id: tenant.id, room_id: tenant.room_id, ...complaint }).select().single()
+      if (error) throw error
+      setComplaints(prev => [data, ...prev])
       toast.success('Complaint submitted!'); setComplaintModal(false)
+      setComplaint({ issue_type: 'Plumbing', description: '', priority: 'medium' })
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
@@ -157,8 +216,8 @@ export default function TenantPortal() {
           <p className="text-xs text-gray-500 leading-relaxed">
             Monthly rent of {formatINR(tenant.monthly_rent)}, deposit {formatINR(tenant.deposit_amount)}, with a {tenant.notice_period_days}-day notice period required before vacating.
           </p>
-          <button onClick={() => toast.success('Agreement downloaded')} className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 font-semibold hover:underline">
-            <FileText className="w-3.5 h-3.5" /> Download Agreement
+          <button onClick={downloadAgreement} className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 font-semibold hover:underline">
+            <Download className="w-3.5 h-3.5" /> Download Agreement
           </button>
         </div>
 
@@ -174,12 +233,66 @@ export default function TenantPortal() {
                   <div className="text-sm font-semibold text-gray-900">{p.for_month}</div>
                   <div className="text-xs text-gray-400">{formatDate(p.payment_date)} · {p.method?.replace('_', ' ')}</div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {p.approval_status.replace('_', ' ')}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {p.approval_status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  {p.approval_status === 'approved' && (
+                    <button onClick={() => downloadReceipt(p)} className="p-1.5 hover:bg-gray-100 rounded-lg transition flex-shrink-0" title="Download receipt">
+                      <Download className="w-3.5 h-3.5 text-gray-400" />
+                    </button>
+                  )}
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Monthly Rent Ledger */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <div className="font-bold text-sm text-gray-900 mb-1">Monthly Rent Status</div>
+          <p className="text-xs text-gray-400 mb-3">Every month since you joined, at a glance</p>
+          <div className="space-y-2">
+            {monthlyLedger.map(m => (
+              <div key={m.label} className="flex items-center justify-between py-1.5">
+                <span className="text-sm text-gray-700">{m.label}</span>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                  m.status === 'paid' ? 'bg-green-100 text-green-700'
+                  : m.status === 'partial' ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-red-100 text-red-700'
+                }`}>
+                  {m.status === 'paid' ? '✓ Paid' : m.status === 'partial' ? 'Partially Paid' : 'Pending'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* My Complaints */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <div className="font-bold text-sm text-gray-900 mb-3">My Complaints</div>
+          <div className="space-y-3">
+            {complaints.length === 0 ? (
+              <div className="text-xs text-gray-400 text-center py-4">No complaints raised yet</div>
+            ) : complaints.map(c => (
+              <div key={c.id} className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" /> {c.issue_type}
+                  </div>
+                  {c.description && <div className="text-xs text-gray-500 mt-0.5">{c.description}</div>}
+                  <div className="text-xs text-gray-400 mt-1">{formatDate(c.created_at)}</div>
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                  c.status === 'resolved' ? 'bg-green-100 text-green-700'
+                  : c.status === 'in_progress' ? 'bg-blue-100 text-blue-700'
+                  : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {c.status.replace('_', ' ')}
+                </span>
               </div>
             ))}
           </div>
