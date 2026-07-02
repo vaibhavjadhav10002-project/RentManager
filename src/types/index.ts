@@ -165,9 +165,7 @@ export interface AddRoomInput {
   notes?: string
 }
 
-export interface AddTenantInput {
-  property_id: string
-  room_id: string
+  room_id: string | null
   bed_label: string
   name: string
   phone: string

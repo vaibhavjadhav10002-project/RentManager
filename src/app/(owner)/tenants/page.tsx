@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getTenants, getAllTenants, addTenantByOwner, updateTenant } from '@/lib/supabase/queries'
+import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms } from '@/lib/supabase/queries'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2 } from 'lucide-react'
@@ -27,6 +27,7 @@ export default function TenantsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [modalOpen, setModalOpen] = useState(false)
+  const [roomOptions, setRoomOptions] = useState<{ id: string; room_number: string; sharing_type: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [viewTenant, setViewTenant] = useState<Tenant | null>(null)
   const [editTenant, setEditTenant] = useState<Tenant | null>(null)
@@ -74,6 +75,12 @@ export default function TenantsPage() {
     deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '',
   })
 
+  const effectivePropertyId = activeId === 'all' ? form.property_id : activeId
+  useEffect(() => {
+    if (!effectivePropertyId) { setRoomOptions([]); return }
+    getRooms(effectivePropertyId).then(setRoomOptions).catch(() => setRoomOptions([]))
+  }, [effectivePropertyId])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -102,7 +109,7 @@ export default function TenantsPage() {
     try {
       await addTenantByOwner({
         property_id: form.property_id || activeId,
-        room_id: form.room_id,
+        room_id: form.room_id || null,
         bed_label: form.bed_label,
         name: form.name,
         phone: form.phone,
@@ -265,12 +272,24 @@ export default function TenantsPage() {
                 </div>
               )}
 
+              {/* Room selector — dropdown of actual rooms, not a free-text UUID field */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Room</label>
+                <select value={form.room_id} onChange={e => setForm(f => ({ ...f, room_id: e.target.value }))}
+                  disabled={!effectivePropertyId}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-400">
+                  <option value="">{effectivePropertyId ? 'No room / unassigned' : 'Select a property first'}</option>
+                  {roomOptions.map(r => (
+                    <option key={r.id} value={r.id}>Room {r.room_number} ({r.sharing_type})</option>
+                  ))}
+                </select>
+              </div>
+
               {[
                 { key: 'name', label: 'Full Name', required: true },
                 { key: 'phone', label: 'Mobile Number', required: true, type: 'tel' },
                 { key: 'email', label: 'Email' },
                 { key: 'emergency_contact', label: 'Emergency Contact', type: 'tel' },
-                { key: 'room_id', label: 'Room ID (from Rooms page)' },
                 { key: 'bed_label', label: 'Bed Label (A/B/C)' },
                 { key: 'joining_date', label: 'Joining Date', required: true, type: 'date' },
                 { key: 'notice_period_days', label: 'Notice Period (days)' },
