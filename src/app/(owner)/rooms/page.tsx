@@ -54,13 +54,18 @@ export default function RoomsPage() {
   }
 
   async function handleSave() {
-    if (!form.room_number || !form.monthly_rent) { toast.error('Fill required fields'); return }
+    const propertyId = form.property_id || (activeId !== 'all' ? activeId : '')
+    if (!propertyId) { toast.error('Select a property'); return }
+    if (!form.room_number.trim()) { toast.error('Room number is required'); return }
+    if (!form.monthly_rent || Number(form.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
+    if (!form.total_beds || Number(form.total_beds) <= 0) { toast.error('Total beds must be at least 1'); return }
+    if (form.floor && Number(form.floor) < 0) { toast.error('Floor cannot be negative'); return }
     setSaving(true)
     try {
       const payload = {
-        property_id: form.property_id || (activeId !== 'all' ? activeId : ''),
-        room_number: form.room_number,
-        floor: Number(form.floor),
+        property_id: propertyId,
+        room_number: form.room_number.trim(),
+        floor: Number(form.floor) || 0,
         sharing_type: form.sharing_type as Room['sharing_type'],
         total_beds: Number(form.total_beds),
         monthly_rent: Number(form.monthly_rent),

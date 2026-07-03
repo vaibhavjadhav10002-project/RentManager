@@ -1,15 +1,22 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Building2, Lock, User, LogIn } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('deactivated') === '1') {
+      toast.error('Your account has been deactivated. Contact your admin.')
+    }
+  }, [searchParams])
 
   async function handleLogin() {
     if (!username || !password) { toast.error('Please fill all fields'); return }
@@ -97,5 +104,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

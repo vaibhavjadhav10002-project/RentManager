@@ -16,6 +16,7 @@ export interface Profile {
   phone: string | null
   email: string | null
   is_active: boolean
+  must_change_password: boolean
   created_at: string
 }
 
@@ -69,6 +70,9 @@ export interface Tenant {
   monthly_rent: number
   deposit_amount: number
   deposit_paid: number
+  deposit_refunded: number
+  deposit_refund_date: string | null
+  deposit_deduction_notes: string | null
   status: TenantStatus
   submitted_via: 'owner_added' | 'qr_link'
   approved_by: string | null

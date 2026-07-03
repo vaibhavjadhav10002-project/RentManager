@@ -34,6 +34,7 @@ export default function TenantsPage() {
   const [editForm, setEditForm] = useState({
     name: '', phone: '', email: '', emergency_contact: '', bed_label: '',
     monthly_rent: '', deposit_amount: '', deposit_paid: '', notice_period_days: '', status: 'active',
+    deposit_refunded: '', deposit_refund_date: '', deposit_deduction_notes: '',
   })
   const [editSaving, setEditSaving] = useState(false)
 
@@ -43,23 +44,36 @@ export default function TenantsPage() {
       name: t.name, phone: t.phone, email: t.email ?? '', emergency_contact: t.emergency_contact ?? '',
       bed_label: t.bed_label ?? '', monthly_rent: String(t.monthly_rent), deposit_amount: String(t.deposit_amount),
       deposit_paid: String(t.deposit_paid), notice_period_days: String(t.notice_period_days), status: t.status,
+      deposit_refunded: String(t.deposit_refunded ?? 0), deposit_refund_date: t.deposit_refund_date ?? '',
+      deposit_deduction_notes: t.deposit_deduction_notes ?? '',
     })
   }
 
   async function handleEditSave() {
     if (!editTenant) return
+    if (!editForm.name.trim()) { toast.error('Name is required'); return }
+    if (editForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) { toast.error('Enter a valid email address'); return }
+    if (!editForm.monthly_rent || Number(editForm.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
+    const refundAmt = Number(editForm.deposit_refunded || 0)
+    const depositPaidAmt = Number(editForm.deposit_paid || 0)
+    if (refundAmt > depositPaidAmt) { toast.error('Refund amount cannot exceed deposit paid'); return }
     setEditSaving(true)
     try {
       await updateTenant(editTenant.id, {
-        name: editForm.name,
-        phone: editForm.phone,
+        name: editForm.name.trim(),
+        // Phone is intentionally NOT editable here once a login exists —
+        // the tenant's login email is derived from their original phone
+        // number, so changing it here would silently break their login.
         email: editForm.email || undefined,
         emergency_contact: editForm.emergency_contact || undefined,
         bed_label: editForm.bed_label || undefined,
         monthly_rent: Number(editForm.monthly_rent),
-        deposit_amount: Number(editForm.deposit_amount),
-        deposit_paid: Number(editForm.deposit_paid),
-        notice_period_days: Number(editForm.notice_period_days),
+        deposit_amount: Number(editForm.deposit_amount || 0),
+        deposit_paid: depositPaidAmt,
+        deposit_refunded: refundAmt,
+        deposit_refund_date: editForm.deposit_refund_date || undefined,
+        deposit_deduction_notes: editForm.deposit_deduction_notes || undefined,
+        notice_period_days: Number(editForm.notice_period_days || 30),
         status: editForm.status as Tenant['status'],
       })
       toast.success('Tenant updated!')
@@ -102,25 +116,31 @@ export default function TenantsPage() {
   )
 
   async function handleAdd() {
-    if (!form.name || !form.phone || !form.joining_date || !form.password) {
+    if (!form.name.trim() || !form.phone || !form.joining_date || !form.password) {
       toast.error('Fill all required fields'); return
     }
+    if (!effectivePropertyId) { toast.error('Select a property'); return }
+    const digitsOnly = form.phone.replace(/\D/g, '')
+    if (digitsOnly.length < 10) { toast.error('Enter a valid 10-digit mobile number'); return }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Enter a valid email address'); return }
+    if (!form.monthly_rent || Number(form.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
+    if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
     setSaving(true)
     try {
       await addTenantByOwner({
-        property_id: form.property_id || activeId,
+        property_id: effectivePropertyId,
         room_id: form.room_id || null,
         bed_label: form.bed_label,
-        name: form.name,
+        name: form.name.trim(),
         phone: form.phone,
         email: form.email,
         emergency_contact: form.emergency_contact,
         joining_date: form.joining_date,
         monthly_rent: Number(form.monthly_rent),
-        deposit_amount: Number(form.deposit_amount),
+        deposit_amount: Number(form.deposit_amount || 0),
         deposit_paid: Number(form.deposit_paid || 0),
         rent_paid_now: Number(form.rent_paid_now || 0),
-        notice_period_days: Number(form.notice_period_days),
+        notice_period_days: Number(form.notice_period_days || 30),
         password: form.password,
       })
       toast.success('Tenant added & login created!')
@@ -239,8 +259,8 @@ export default function TenantsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <button onClick={() => setViewTenant(t)} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
-                        <button onClick={() => openEdit(t)} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => setViewTenant(t)} aria-label={`View ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => openEdit(t)} aria-label={`Edit ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
                       </div>
                     </td>
                   </tr>
@@ -264,8 +284,9 @@ export default function TenantsPage() {
               {/* Property selector (only when "all" is selected) */}
               {activeId === 'all' && (
                 <div className="sm:col-span-2">
-                  <label className="label">Property *</label>
-                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))} className="input">
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
+                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
                     <option value="">Select Property</option>
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -387,9 +408,14 @@ export default function TenantsPage() {
               <button onClick={() => setEditTenant(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto max-h-[75vh]">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Mobile Number (login username)</label>
+                <input type="tel" value={editForm.phone} disabled
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-400 cursor-not-allowed" />
+                <p className="text-xs text-gray-400 mt-1">Can't be changed here — it's tied to the tenant's login.</p>
+              </div>
               {[
                 { key: 'name', label: 'Full Name' },
-                { key: 'phone', label: 'Mobile Number', type: 'tel' },
                 { key: 'email', label: 'Email' },
                 { key: 'emergency_contact', label: 'Emergency Contact', type: 'tel' },
                 { key: 'bed_label', label: 'Bed Label (A/B/C)' },
@@ -415,6 +441,35 @@ export default function TenantsPage() {
                   ))}
                 </select>
               </div>
+
+              {(editForm.status === 'leaving' || editForm.status === 'left') && (
+                <div className="sm:col-span-2 bg-amber-50 rounded-xl p-4 space-y-3">
+                  <div className="text-xs font-bold text-amber-800">Deposit Refund / Adjustment</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Amount Refunded (₹)</label>
+                      <input type="number" value={editForm.deposit_refunded}
+                        onChange={e => setEditForm(f => ({ ...f, deposit_refunded: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Refund Date</label>
+                      <input type="date" value={editForm.deposit_refund_date}
+                        onChange={e => setEditForm(f => ({ ...f, deposit_refund_date: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Deduction Notes (damages, dues, etc.)</label>
+                    <textarea rows={2} value={editForm.deposit_deduction_notes}
+                      onChange={e => setEditForm(f => ({ ...f, deposit_deduction_notes: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Deposit paid: {formatINR(Number(editForm.deposit_paid || 0))} · Remaining to refund: {formatINR(Math.max(0, Number(editForm.deposit_paid || 0) - Number(editForm.deposit_refunded || 0)))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
               <button onClick={handleEditSave} disabled={editSaving}

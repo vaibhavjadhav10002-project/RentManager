@@ -37,10 +37,13 @@ export default function ExpensesPage() {
   const byCategory = CATEGORIES.map(cat => ({ cat, total: expenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0) })).filter(c => c.total > 0)
 
   async function handleAdd() {
-    if (!form.amount) { toast.error('Enter amount'); return }
+    const propertyId = form.property_id || (activeId !== 'all' ? activeId : '')
+    if (!propertyId) { toast.error('Select a property'); return }
+    if (!form.amount || Number(form.amount) <= 0) { toast.error('Enter a valid amount'); return }
+    if (!form.expense_date) { toast.error('Select a date'); return }
     setSaving(true)
     try {
-      await addExpense({ property_id: form.property_id || (activeId !== 'all' ? activeId : ''), category: form.category, amount: Number(form.amount), notes: form.notes, expense_date: form.expense_date })
+      await addExpense({ property_id: propertyId, category: form.category, amount: Number(form.amount), notes: form.notes, expense_date: form.expense_date })
       toast.success('Expense added!'); setModal(false); load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)

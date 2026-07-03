@@ -109,6 +109,9 @@ create table tenants (
   monthly_rent numeric(10,2) not null,
   deposit_amount numeric(10,2) not null default 0,
   deposit_paid numeric(10,2) not null default 0,
+  deposit_refunded numeric(10,2) not null default 0,
+  deposit_refund_date date,
+  deposit_deduction_notes text,
   status tenant_status not null default 'pending_approval',
   submitted_via text default 'owner_added',
   approved_by uuid references profiles(id),
@@ -259,8 +262,8 @@ create policy "View tenants of own properties or self" on tenants for select
   using (get_my_role() = 'super_admin' or owns_property(property_id) or auth_user_id = auth.uid());
 create policy "Owners add tenants" on tenants for insert
   with check (owns_property(property_id) or get_my_role() = 'super_admin');
-create policy "Owners update tenants, tenants update own row" on tenants for update
-  using (owns_property(property_id) or auth_user_id = auth.uid() or get_my_role() = 'super_admin');
+create policy "Owners update tenants" on tenants for update
+  using (owns_property(property_id) or get_my_role() = 'super_admin');
 create policy "Owners delete tenants" on tenants for delete
   using (owns_property(property_id) or get_my_role() = 'super_admin');
 
@@ -328,6 +331,27 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
+
+-- ============================================================================
+-- 12. PREVENT SELF PRIVILEGE ESCALATION (trigger)
+-- Blocks a non-super-admin from changing their own `role` or `is_active`
+-- even though they're otherwise allowed to update their own profile row.
+-- ============================================================================
+create or replace function prevent_profile_privilege_escalation() returns trigger as $$
+begin
+  if new.role is distinct from old.role and get_my_role() <> 'super_admin' then
+    raise exception 'You are not allowed to change your own role';
+  end if;
+  if new.is_active is distinct from old.is_active and get_my_role() <> 'super_admin' then
+    raise exception 'You are not allowed to change your own active status';
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger trg_prevent_profile_privilege_escalation
+  before update on profiles
+  for each row execute function prevent_profile_privilege_escalation();
 
 -- ============================================================================
 -- DONE — schema created successfully

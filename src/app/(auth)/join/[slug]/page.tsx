@@ -16,9 +16,13 @@ export default function JoinPage() {
   })
 
   async function handleSubmit() {
-    if (!form.name || !form.phone || !form.joining_date || !form.monthly_rent) {
+    if (!form.name.trim() || !form.phone || !form.joining_date || !form.monthly_rent) {
       toast.error('Please fill all required fields'); return
     }
+    const digitsOnly = form.phone.replace(/\D/g, '')
+    if (digitsOnly.length < 10) { toast.error('Enter a valid 10-digit mobile number'); return }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Enter a valid email address'); return }
+    if (Number(form.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
     setSaving(true)
     try {
       const sb = createClient()
@@ -29,7 +33,7 @@ export default function JoinPage() {
 
       const { error } = await sb.from('tenants').insert({
         property_id: property.id,
-        name: form.name,
+        name: form.name.trim(),
         phone: form.phone,
         email: form.email || null,
         emergency_contact: form.emergency_contact || null,

@@ -112,7 +112,7 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
         </button>
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-gray-500">
+        <button aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-gray-500">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
         </button>

@@ -44,13 +44,30 @@ export default function PaymentsPage() {
 
   useEffect(() => { if (properties.length > 0 || activeId !== 'all') load() }, [load])
 
-  // Pending rent sorted by due date
+  // Pending rent sorted by due date — accounts for partial payments and
+  // only counts actual rent payments (not deposit/advance) toward "paid"
   const today = new Date()
   const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-  const paidTenantIds = new Set(payments.filter(p => p.for_month === thisMonth && p.approval_status === 'approved').map(p => p.tenant_id))
+  const rentPaidThisMonthByTenant = new Map<string, number>()
+  payments.forEach(p => {
+    if (p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent') {
+      rentPaidThisMonthByTenant.set(p.tenant_id, (rentPaidThisMonthByTenant.get(p.tenant_id) ?? 0) + p.amount_received)
+    }
+  })
+  const paidTenantIds = new Set(
+    [...rentPaidThisMonthByTenant.entries()].filter(([tid, amt]) => {
+      const t = tenants.find(x => x.id === tid)
+      return t && amt >= t.monthly_rent
+    }).map(([tid]) => tid)
+  )
   const pendingRentSorted = tenants
-    .filter(t => t.status === 'active' && !paidTenantIds.has(t.id))
-    .map(t => ({ ...t, dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10), overdueDays: getOverdueDays(t.joining_date, today) }))
+    .filter(t => t.status === 'active' && (rentPaidThisMonthByTenant.get(t.id) ?? 0) < t.monthly_rent)
+    .map(t => ({
+      ...t,
+      dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
+      overdueDays: getOverdueDays(t.joining_date, today),
+      remainingDue: t.monthly_rent - (rentPaidThisMonthByTenant.get(t.id) ?? 0),
+    }))
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
 
   const tabFiltered = {
@@ -62,11 +79,13 @@ export default function PaymentsPage() {
     ledger: payments,
   }[tab]
 
-  const totalCollected = payments.filter(p => p.approval_status === 'approved' && p.for_month === thisMonth).reduce((s, p) => s + p.amount_received, 0)
-  const totalPending = pendingRentSorted.reduce((s, t) => s + t.monthly_rent, 0)
+  const totalCollected = payments.filter(p => p.approval_status === 'approved' && p.for_month === thisMonth && p.type === 'rent').reduce((s, p) => s + p.amount_received, 0)
+  const totalPending = pendingRentSorted.reduce((s, t) => s + t.remainingDue, 0)
 
   async function handleRecord() {
     if (!form.tenant_id || !form.amount_received) { toast.error('Fill required fields'); return }
+    if (Number(form.amount_received) <= 0) { toast.error('Amount must be greater than 0'); return }
+    if (!form.payment_date) { toast.error('Select a payment date'); return }
     setSaving(true)
     try {
       const propId = activeId === 'all'
@@ -157,10 +176,13 @@ export default function PaymentsPage() {
                         {t.overdueDays}d overdue
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold text-gray-900">{formatINR(t.monthly_rent)}</td>
+                    <td className="px-4 py-3 font-bold text-gray-900">
+                      {formatINR(t.remainingDue)}
+                      {t.remainingDue < t.monthly_rent && <span className="block text-xs font-normal text-gray-400">of {formatINR(t.monthly_rent)}</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? 'PG'))}
+                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
                           target="_blank" rel="noreferrer" className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition">
                           <MessageCircle className="w-3.5 h-3.5 text-green-600" />
                         </a>
@@ -170,7 +192,7 @@ export default function PaymentsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.monthly_rent), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
+                      <button onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
                         <Check className="w-3.5 h-3.5" /> Record
                       </button>
@@ -237,11 +259,11 @@ export default function PaymentsPage() {
                             tenantName: p.tenant?.name ?? 'Tenant',
                             propertyName: active?.name ?? properties.find(pr => pr.id === p.property_id)?.name ?? 'PG',
                             roomNumber: p.tenant?.room?.room_number,
-                            forMonth: p.for_month,
+                            forMonth: p.for_month ?? undefined,
                             type: p.type,
                             totalDue: p.total_due,
                             amountReceived: p.amount_received,
-                            method: p.method,
+                            method: p.method ?? undefined,
                             paymentDate: p.payment_date,
                             approvalStatus: p.approval_status,
                             receiptNo: p.id.slice(0, 8).toUpperCase(),

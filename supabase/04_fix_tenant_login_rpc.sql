@@ -24,8 +24,13 @@ as $$
 declare
   new_user_id uuid;
   caller_role user_role;
-  synthetic_email text := p_phone || '@pgmanager.local';
+  clean_phone text := regexp_replace(p_phone, '[^0-9]', '', 'g');
+  synthetic_email text := clean_phone || '@pgmanager.local';
 begin
+  if length(clean_phone) < 10 then
+    raise exception 'Invalid phone number';
+  end if;
+
   -- only PG owners / super admins may create tenant logins
   select role into caller_role from profiles where id = auth.uid();
   if caller_role is null or caller_role not in ('pg_owner', 'super_admin') then

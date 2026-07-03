@@ -69,6 +69,7 @@ export default function SettingsPage() {
     const sb = createClient()
     const { error } = await sb.auth.updateUser({ password: pwForm.newPw })
     if (error) { toast.error(error.message); return }
+    if (profile?.id) await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
     toast.success('Password updated!')
     setPwForm({ current: '', newPw: '', confirm: '' })
   }

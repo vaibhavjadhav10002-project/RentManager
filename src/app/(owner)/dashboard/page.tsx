@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getDashboardStats, getTenants, getPayments } from '@/lib/supabase/queries'
+import { getDashboardStats, getTenants, getPayments, getFinancialHistory } from '@/lib/supabase/queries'
 import { formatINR, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg } from '@/lib/utils'
 import { BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
@@ -9,15 +9,6 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts'
-
-const REVENUE_DATA = [
-  { month: 'Jan', revenue: 52000, expenses: 28000 },
-  { month: 'Feb', revenue: 58000, expenses: 29500 },
-  { month: 'Mar', revenue: 61000, expenses: 31000 },
-  { month: 'Apr', revenue: 59000, expenses: 30000 },
-  { month: 'May', revenue: 63000, expenses: 32000 },
-  { month: 'Jun', revenue: 65000, expenses: 28700 },
-]
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
   icon: React.ElementType; label: string; value: string; sub?: string; color: string
@@ -37,13 +28,17 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
 export default function DashboardPage() {
   const { activeId, active, properties } = useProperty()
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number })[]>([])
+  const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number; remainingDue: number })[]>([])
+  const [chartData, setChartData] = useState<{ month: string; revenue: number; expenses: number }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
+        const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
+        getFinancialHistory(propIds).then(setChartData).catch(() => setChartData([]))
+
         if (activeId === 'all') {
           // Aggregate across all properties
           const results = await Promise.all(properties.map(p => getDashboardStats(p.id)))
@@ -60,29 +55,45 @@ export default function DashboardPage() {
           setStats(agg)
 
           // Pending tenants across all props
-          const allTenants = (await Promise.all(properties.map(p => getTenants(p.id)))).flat()
-          buildPending(allTenants)
+          const [allTenants, allPayments] = await Promise.all([
+            Promise.all(properties.map(p => getTenants(p.id))).then(r => r.flat()),
+            Promise.all(properties.map(p => getPayments(p.id))).then(r => r.flat()),
+          ])
+          buildPending(allTenants, allPayments)
         } else {
-          const [s, tenants] = await Promise.all([
+          const [s, tenants, payments] = await Promise.all([
             getDashboardStats(activeId),
             getTenants(activeId),
+            getPayments(activeId),
           ])
           setStats(s)
-          buildPending(tenants)
+          buildPending(tenants, payments)
         }
       } catch {}
       setLoading(false)
     }
 
-    function buildPending(tenants: Tenant[]) {
+    function buildPending(tenants: Tenant[], payments: any[]) {
       const today = new Date()
       const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+
+      // Sum actual approved rent payments per tenant for this month —
+      // a tenant who has fully paid should NOT appear in "Pending Rent",
+      // and a partial payer should only show their remaining balance.
+      const paidByTenant = new Map<string, number>()
+      payments.forEach(p => {
+        if (p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent') {
+          paidByTenant.set(p.tenant_id, (paidByTenant.get(p.tenant_id) ?? 0) + p.amount_received)
+        }
+      })
+
       const pending = tenants
-        .filter(t => t.status === 'active')
+        .filter(t => t.status === 'active' && (paidByTenant.get(t.id) ?? 0) < t.monthly_rent)
         .map(t => ({
           ...t,
           dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
           overdueDays: getOverdueDays(t.joining_date, today),
+          remainingDue: t.monthly_rent - (paidByTenant.get(t.id) ?? 0),
         }))
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       setPendingTenants(pending)
@@ -131,7 +142,7 @@ export default function DashboardPage() {
           <div className="font-bold text-sm text-gray-900 mb-1">Revenue vs Expenses</div>
           <div className="text-xs text-gray-400 mb-4">Last 6 months</div>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={REVENUE_DATA} barGap={2}>
+            <BarChart data={chartData} barGap={2}>
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
               <Tooltip formatter={(v: number) => formatINR(v)} />
@@ -182,12 +193,12 @@ export default function DashboardPage() {
                   <div className="text-xs text-gray-500">Room {t.room?.room_number} · Due {t.dueDate}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-gray-900">{formatINR(t.monthly_rent)}</div>
+                  <div className="text-sm font-bold text-gray-900">{formatINR(t.remainingDue)}</div>
                   <span className={`text-xs font-bold ${t.overdueDays > 5 ? 'text-red-600' : 'text-yellow-600'}`}>
                     {t.overdueDays}d overdue
                   </span>
                 </div>
-                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, active?.name ?? 'PG'))}
+                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
                   target="_blank" rel="noreferrer"
                   className="p-2 bg-green-100 rounded-xl hover:bg-green-200 transition flex-shrink-0" title="WhatsApp Reminder">
                   <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor">

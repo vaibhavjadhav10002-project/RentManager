@@ -41,10 +41,12 @@ export default function ComplaintsPage() {
   const filtered = filter === 'all' ? complaints : complaints.filter(c => c.status === filter)
 
   async function handleAdd() {
+    const propertyId = form.property_id || (activeId !== 'all' ? activeId : '')
+    if (!propertyId) { toast.error('Select a property'); return }
     if (!form.issue_type) { toast.error('Select issue type'); return }
     setSaving(true)
     try {
-      await addComplaint({ property_id: form.property_id || (activeId !== 'all' ? activeId : ''), issue_type: form.issue_type, description: form.description, priority: form.priority as any, assigned_to: form.assigned_to })
+      await addComplaint({ property_id: propertyId, issue_type: form.issue_type, description: form.description, priority: form.priority as any, assigned_to: form.assigned_to })
       toast.success('Complaint added!'); setModal(false); load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)

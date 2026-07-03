@@ -95,10 +95,14 @@ export async function getAllTenants() {
 export async function addTenantByOwner(input: AddTenantInput) {
   const sb = createClient()
   const { password, rent_paid_now, ...tenantData } = input
+  const normalizedPhone = input.phone.replace(/\D/g, '')
+  if (normalizedPhone.length < 10) throw new Error('Enter a valid 10-digit mobile number')
 
   // 1. Create tenant login via SQL RPC (bypasses GoTrue signup endpoint)
+  // Phone is normalized to digits-only so it always matches how the login
+  // page builds the synthetic email at sign-in time.
   const { data: newUserId, error: authError } = await sb.rpc('create_tenant_login', {
-    p_phone: input.phone,
+    p_phone: normalizedPhone,
     p_password: password,
     p_full_name: input.name,
   })
@@ -107,6 +111,7 @@ export async function addTenantByOwner(input: AddTenantInput) {
   // 2. Insert tenant row linked to the new auth user
   const { data, error } = await sb.from('tenants').insert({
     ...tenantData,
+    phone: normalizedPhone,
     auth_user_id: newUserId ?? null,
     status: 'active',
     submitted_via: 'owner_added',
@@ -136,10 +141,12 @@ export async function addTenantByOwner(input: AddTenantInput) {
 
 export async function approveTenant(tenantId: string, password: string, tenantData: Tenant) {
   const sb = createClient()
+  const normalizedPhone = tenantData.phone.replace(/\D/g, '')
+  if (normalizedPhone.length < 10) throw new Error('This tenant\'s phone number looks invalid — edit it before approving')
 
   // Create auth login for the approved QR-submitted tenant via SQL RPC
   const { data: newUserId, error: authError } = await sb.rpc('create_tenant_login', {
-    p_phone: tenantData.phone,
+    p_phone: normalizedPhone,
     p_password: password,
     p_full_name: tenantData.name,
   })
@@ -148,6 +155,7 @@ export async function approveTenant(tenantId: string, password: string, tenantDa
   const { data: { user: me } } = await sb.auth.getUser()
   const { data, error } = await sb.from('tenants').update({
     status: 'active',
+    phone: normalizedPhone,
     auth_user_id: newUserId,
     approved_by: me?.id,
     approved_at: new Date().toISOString(),
@@ -304,6 +312,48 @@ export async function updateComplaint(id: string, updates: { status?: string; as
   return data
 }
 
+// ─── Financial history (real revenue/expenses by month, for charts) ──────────
+export async function getFinancialHistory(propertyIds: string[], monthsBack = 6) {
+  const sb = createClient()
+  if (propertyIds.length === 0) return []
+
+  const since = new Date()
+  since.setMonth(since.getMonth() - (monthsBack - 1))
+  since.setDate(1)
+  const sinceStr = since.toISOString().slice(0, 10)
+
+  const [paymentsRes, expensesRes] = await Promise.all([
+    sb.from('payments').select('amount_received, payment_date')
+      .in('property_id', propertyIds).gte('payment_date', sinceStr)
+      .eq('approval_status', 'approved').eq('type', 'rent'),
+    sb.from('expenses').select('amount, expense_date')
+      .in('property_id', propertyIds).gte('expense_date', sinceStr),
+  ])
+  if (paymentsRes.error) throw paymentsRes.error
+  if (expensesRes.error) throw expensesRes.error
+
+  const buckets: { key: string; month: string; revenue: number; expenses: number }[] = []
+  const cursor = new Date(since)
+  for (let i = 0; i < monthsBack; i++) {
+    buckets.push({ key: `${cursor.getFullYear()}-${cursor.getMonth()}`, month: cursor.toLocaleString('en-IN', { month: 'short' }), revenue: 0, expenses: 0 })
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+  const bucketMap = new Map(buckets.map(b => [b.key, b]))
+
+  ;(paymentsRes.data ?? []).forEach(p => {
+    const d = new Date(p.payment_date)
+    const b = bucketMap.get(`${d.getFullYear()}-${d.getMonth()}`)
+    if (b) b.revenue += p.amount_received
+  })
+  ;(expensesRes.data ?? []).forEach(e => {
+    const d = new Date(e.expense_date)
+    const b = bucketMap.get(`${d.getFullYear()}-${d.getMonth()}`)
+    if (b) b.expenses += e.amount
+  })
+
+  return buckets.map(b => ({ month: b.month, revenue: b.revenue, expenses: b.expenses, profit: b.revenue - b.expenses }))
+}
+
 // ─── Dashboard stats (single property) ───────────────────────────────────────
 export async function getDashboardStats(propertyId: string) {
   const sb = createClient()
@@ -315,19 +365,18 @@ export async function getDashboardStats(propertyId: string) {
   ])
 
   const totalBeds = (rooms.data ?? []).reduce((s, r) => s + r.total_beds, 0)
-  const occupiedBeds = (tenants.data ?? []).length
+  const occupiedBeds = (tenants.data ?? []).filter(t => t.room_id).length
   const thisMonth = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
   const monthlyRevenue = (payments.data ?? [])
-    .filter(p => p.for_month === thisMonth && p.approval_status === 'approved')
+    .filter(p => p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent')
     .reduce((s, p) => s + p.amount_received, 0)
   const pendingRent = (tenants.data ?? [])
-    .filter(t => {
-      const paid = (payments.data ?? []).some(
-        p => p.tenant_id === t.id && p.for_month === thisMonth && p.approval_status === 'approved'
-      )
-      return !paid
-    })
-    .reduce((s, t) => s + t.monthly_rent, 0)
+    .reduce((sum, t) => {
+      const paidThisMonth = (payments.data ?? [])
+        .filter(p => p.tenant_id === t.id && p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent')
+        .reduce((s, p) => s + p.amount_received, 0)
+      return sum + Math.max(0, t.monthly_rent - paidThisMonth)
+    }, 0)
 
   return {
     totalRooms: rooms.data?.length ?? 0,

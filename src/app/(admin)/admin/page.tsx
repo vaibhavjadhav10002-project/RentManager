@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Loader2, Building2, Users, UserCheck } from 'lucide-react'
+import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
 
 export default function AdminPage() {
   const [owners, setOwners] = useState<any[]>([])
@@ -11,10 +12,18 @@ export default function AdminPage() {
   const [modal, setModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '' })
+  const [myId, setMyId] = useState<string | null>(null)
+  const [mustChangePw, setMustChangePw] = useState(false)
 
   async function load() {
     setLoading(true)
     const sb = createClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (user) {
+      setMyId(user.id)
+      const { data: me } = await sb.from('profiles').select('must_change_password').eq('id', user.id).single()
+      setMustChangePw(!!me?.must_change_password)
+    }
     const { data } = await sb.from('profiles').select('*, properties(id, name)').eq('role', 'pg_owner').order('created_at', { ascending: false })
     setOwners(data ?? [])
     setLoading(false)
@@ -24,18 +33,17 @@ export default function AdminPage() {
 
   async function addOwner() {
     if (!form.full_name || !form.email || !form.password) { toast.error('Fill all required fields'); return }
+    if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
     setSaving(true)
     try {
       const sb = createClient()
-      const { data, error } = await sb.auth.signUp({
-        email: form.email, password: form.password,
-        options: { data: { full_name: form.full_name, role: 'pg_owner' } },
+      const { error } = await sb.rpc('create_owner_login', {
+        p_email: form.email,
+        p_password: form.password,
+        p_full_name: form.full_name,
+        p_phone: form.phone || null,
       })
       if (error) throw error
-      // Update phone separately
-      if (form.phone && data.user) {
-        await sb.from('profiles').update({ phone: form.phone }).eq('id', data.user.id)
-      }
       toast.success(`Owner account created for ${form.full_name}!`)
       setModal(false)
       setForm({ full_name: '', email: '', phone: '', password: '' })
@@ -53,6 +61,9 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-5">
+      {mustChangePw && myId && (
+        <ForcePasswordChangeModal userId={myId} onDone={() => setMustChangePw(false)} />
+      )}
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 flex-wrap">
