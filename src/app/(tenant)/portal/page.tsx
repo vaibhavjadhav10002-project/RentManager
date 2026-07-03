@@ -32,6 +32,7 @@ export default function TenantPortal() {
   const [complaint, setComplaint] = useState({ issue_type: 'Plumbing', description: '', priority: 'medium' })
   const [saving, setSaving] = useState(false)
   const [claimed, setClaimed] = useState(false)
+  const [depositClaimed, setDepositClaimed] = useState(false)
   const [mustChangePw, setMustChangePw] = useState(false)
 
   useEffect(() => {
@@ -83,18 +84,36 @@ export default function TenantPortal() {
     return months.reverse()
   })()
 
+  const [payKind, setPayKind] = useState<'rent' | 'deposit'>('rent')
+  function payAmountFor(kind: 'rent' | 'deposit') {
+    if (kind === 'rent') {
+      const paidThisMonth = payments.filter(p => p.for_month === thisMonth && p.type === 'rent' && p.approval_status === 'approved').reduce((s, p) => s + p.amount_received, 0)
+      return Math.max(0, (tenant?.monthly_rent ?? 0) - paidThisMonth)
+    }
+    return Math.max(0, (tenant?.deposit_amount ?? 0) - (tenant?.deposit_paid ?? 0))
+  }
+  const payAmount = payAmountFor(payKind)
+
+  function openPay(kind: 'rent' | 'deposit') {
+    setPayKind(kind)
+    setPayModal(true)
+  }
+
   async function submitPayment() {
     setSaving(true)
     try {
       const sb = createClient()
       await sb.from('payments').insert({
         tenant_id: tenant.id, property_id: tenant.property_id,
-        type: 'rent', for_month: thisMonth,
-        total_due: tenant.monthly_rent, amount_received: tenant.monthly_rent,
+        type: payKind, for_month: payKind === 'rent' ? thisMonth : null,
+        total_due: payAmount, amount_received: payAmount,
         method, tenant_note: note, submitted_by_tenant: true,
         approval_status: 'pending_approval', payment_date: new Date().toISOString().slice(0, 10),
       })
-      toast.success('Marked as paid — waiting for owner approval'); setClaimed(true); setPayModal(false)
+      toast.success('Marked as paid — waiting for owner approval')
+      if (payKind === 'rent') setClaimed(true)
+      else setDepositClaimed(true)
+      setPayModal(false)
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
@@ -284,6 +303,44 @@ export default function TenantPortal() {
                 </div>
               </div>
 
+              {/* Amount Due — actionable pending items, each with its own Pay Now */}
+              {(!thisMonthPaid || (depositDue > 0 && !depositClaimed)) && tenant.status === 'active' && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="font-bold text-sm text-gray-900">Amount Due</div>
+                    <div className="text-sm font-extrabold text-red-600">
+                      Total: {formatINR((!thisMonthPaid ? payAmountFor('rent') : 0) + (depositDue > 0 && !depositClaimed ? depositDue : 0))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {!thisMonthPaid && (
+                      <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0"><Home className="w-4 h-4 text-emerald-600" /></div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">Rent — {thisMonth}</div>
+                            <div className="text-xs text-gray-400">Due {formatDate(nextDueDate.toISOString())} · {formatINR(payAmountFor('rent'))}</div>
+                          </div>
+                        </div>
+                        <button onClick={() => openPay('rent')} className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
+                      </div>
+                    )}
+                    {depositDue > 0 && !depositClaimed && (
+                      <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0"><ShieldCheck className="w-4 h-4 text-purple-600" /></div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">Security Deposit</div>
+                            <div className="text-xs text-gray-400">Refundable · {formatINR(depositDue)} pending</div>
+                          </div>
+                        </div>
+                        <button onClick={() => openPay('deposit')} className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Rent overview */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
@@ -307,8 +364,8 @@ export default function TenantPortal() {
                       </div>
                     ))}
                     {!thisMonthPaid && !claimed && tenant.status === 'active' && (
-                      <button onClick={() => setPayModal(true)} className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
-                        Mark {thisMonth} as Paid
+                      <button onClick={() => openPay('rent')} className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
+                        Pay {thisMonth} Rent
                       </button>
                     )}
                   </div>
@@ -344,7 +401,7 @@ export default function TenantPortal() {
               <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                 <div className="font-bold text-sm text-gray-900 mb-3">Quick Actions</div>
                 <div className="grid grid-cols-3 gap-3">
-                  <button onClick={() => setPayModal(true)} className="flex flex-col items-center gap-2 py-4 bg-gray-50 hover:bg-gray-100 rounded-2xl transition">
+                  <button onClick={() => openPay('rent')} className="flex flex-col items-center gap-2 py-4 bg-gray-50 hover:bg-gray-100 rounded-2xl transition">
                     <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center"><Home className="w-4 h-4 text-green-600" /></div>
                     <span className="text-xs font-semibold text-gray-700">Pay Rent</span>
                   </button>
@@ -386,7 +443,7 @@ export default function TenantPortal() {
                 ))}
               </div>
               {!thisMonthPaid && !claimed && tenant.status === 'active' && (
-                <button onClick={() => setPayModal(true)} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition">
+                <button onClick={() => openPay('rent')} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition">
                   Mark {thisMonth} as Paid
                 </button>
               )}
@@ -431,6 +488,11 @@ export default function TenantPortal() {
                   </div>
                 )}
               </div>
+              {depositDue > 0 && !depositClaimed && tenant.status === 'active' && (
+                <button onClick={() => openPay('deposit')} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition">
+                  Pay {formatINR(depositDue)} Deposit
+                </button>
+              )}
             </div>
           )}
 
@@ -560,11 +622,13 @@ export default function TenantPortal() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold">Mark Rent as Paid</h2>
+              <h2 className="text-base font-bold">Pay {payKind === 'rent' ? `Rent — ${thisMonth}` : 'Security Deposit'}</h2>
               <button onClick={() => setPayModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">This notifies your owner that you've paid. No real payment is made here. Owner will verify and approve.</div>
+              <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+                Amount: <span className="font-bold">{formatINR(payAmount)}</span>. This notifies your owner that you've paid. No real payment is made here — the owner will verify and approve.
+              </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-2">Payment Method</label>
                 <div className="flex gap-2">
