@@ -5,6 +5,20 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Building2, CheckCircle, Loader2 } from 'lucide-react'
 
+// Defined OUTSIDE the page component — if this were declared inside JoinPage's
+// function body, React would treat it as a brand new component type on every
+// re-render (which happens on every keystroke, since typing updates state).
+// That was causing every input to lose focus after a single character,
+// forcing the user to click back into the field for every letter/digit.
+function Field({ label, required, ...props }: any) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}{required && ' *'}</label>
+      <input {...props} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500" />
+    </div>
+  )
+}
+
 export default function JoinPage() {
   const params = useParams<{ slug: string }>()
   const [step, setStep] = useState<'form' | 'done'>('form')
@@ -72,13 +86,6 @@ export default function JoinPage() {
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
-
-  const Field = ({ label, required, ...props }: any) => (
-    <div>
-      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}{required && ' *'}</label>
-      <input {...props} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500" />
-    </div>
-  )
 
   if (step === 'done') return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 p-4">

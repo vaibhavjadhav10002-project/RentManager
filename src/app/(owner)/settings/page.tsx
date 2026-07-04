@@ -3,6 +3,19 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { updateProperty, addCollector, deleteCollector, getCollectors } from '@/lib/supabase/queries'
 import { useProperty } from '@/components/shared/PropertyContext'
+
+// Defined outside the page component — declaring this inside the render
+// body would make React treat it as a new component type on every keystroke
+// (since typing triggers a re-render), causing the input to lose focus
+// after every single character.
+function Field({ label, value, onChange, type = 'text' }: any) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+    </div>
+  )
+}
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 
@@ -73,13 +86,6 @@ export default function SettingsPage() {
     toast.success('Password updated!')
     setPwForm({ current: '', newPw: '', confirm: '' })
   }
-
-  const Field = ({ label, value, onChange, type = 'text' }: any) => (
-    <div>
-      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-    </div>
-  )
 
   return (
     <div className="space-y-5 max-w-2xl">
