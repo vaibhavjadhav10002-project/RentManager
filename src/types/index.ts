@@ -177,6 +177,37 @@ export interface ElectricityBill {
   tenant?: Tenant
 }
 
+export interface Agreement {
+  id: string
+  agreement_number: string
+  tenant_id: string
+  property_id: string
+  room_id: string | null
+  start_date: string
+  end_date: string
+  duration_months: number
+  rent_cycle: string
+  monthly_rent: number
+  security_deposit: number
+  electricity_charges: string
+  maintenance_charges: number
+  other_charges: number
+  other_charges_note: string | null
+  due_day: number
+  late_fee_policy: string
+  government_id: string | null
+  terms_version: string
+  tenant_accepted: boolean
+  tenant_signature: string | null
+  tenant_signed_name: string | null
+  tenant_signed_at: string | null
+  owner_signature: string | null
+  owner_signed_name: string | null
+  owner_signed_at: string | null
+  status: 'pending' | 'signed' | 'active' | 'expired'
+  created_at: string
+}
+
 export interface AddRoomInput {
   property_id: string
   room_number: string

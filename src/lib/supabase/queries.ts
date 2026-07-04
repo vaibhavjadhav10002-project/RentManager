@@ -469,3 +469,52 @@ export async function claimBillPaid(id: string, note?: string) {
   if (error) throw error
   return data
 }
+
+// ─── Rental agreements ────────────────────────────────────────────────────────
+export function generateAgreementNumber() {
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `AGR-${Date.now().toString(36).toUpperCase()}-${rand}`
+}
+
+export async function createAgreement(input: Partial<import('@/types').Agreement> & {
+  tenant_id: string; property_id: string; start_date: string; end_date: string
+  monthly_rent: number
+}) {
+  const sb = createClient()
+  const { data, error } = await sb.from('agreements').insert({
+    agreement_number: generateAgreementNumber(),
+    status: 'signed',
+    tenant_accepted: true,
+    tenant_signed_at: new Date().toISOString(),
+    ...input,
+  }).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function getAgreementForTenant(tenantId: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('agreements').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function getAgreementsForProperty(propertyId: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('agreements').select('*, tenant:tenants(name, phone)').eq('property_id', propertyId).order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+// Owner counter-signs the agreement, activating it (typically done alongside tenant approval)
+export async function ownerSignAgreement(agreementId: string, ownerName: string, signatureDataUrl?: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('agreements').update({
+    status: 'active',
+    owner_signed_name: ownerName,
+    owner_signature: signatureDataUrl ?? null,
+    owner_signed_at: new Date().toISOString(),
+  }).eq('id', agreementId).select().single()
+  if (error) throw error
+  return data
+}
