@@ -1,12 +1,12 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants } from '@/lib/supabase/queries'
+import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants, getElectricityBills, addElectricityBill, approveBill, deleteElectricityBill } from '@/lib/supabase/queries'
 import { generateReceiptPDF } from '@/lib/pdf'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Check, MessageCircle, Phone, Loader2, FileText } from 'lucide-react'
-import type { Payment, Collector, Tenant } from '@/types'
+import { Plus, Check, MessageCircle, Phone, Loader2, FileText, Zap, Trash2 } from 'lucide-react'
+import type { Payment, Collector, Tenant, ElectricityBill } from '@/types'
 
 type Tab = 'all' | 'paid' | 'pending' | 'overdue' | 'bydue' | 'ledger'
 
@@ -17,6 +17,10 @@ export default function PaymentsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('all')
+  const [bills, setBills] = useState<ElectricityBill[]>([])
+  const [billModal, setBillModal] = useState(false)
+  const [billSaving, setBillSaving] = useState(false)
+  const [billForm, setBillForm] = useState({ tenant_id: '', for_month: '', amount: '', due_date: '' })
   const [recordModal, setRecordModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -38,11 +42,13 @@ export default function PaymentsPage() {
         const cols = await getCollectors(propIds[0])
         setCollectors(cols)
       }
+      const billLists = await Promise.all(propIds.map(id => getElectricityBills(id)))
+      setBills(billLists.flat())
     } catch { toast.error('Failed to load payments') }
     setLoading(false)
   }, [activeId, properties])
 
-  useEffect(() => { if (properties.length > 0 || activeId !== 'all') load() }, [load])
+  useEffect(() => { load() }, [load])
 
   // Pending rent sorted by due date — accounts for partial payments and
   // only counts actual rent payments (not deposit/advance) toward "paid"
@@ -82,6 +88,40 @@ export default function PaymentsPage() {
   const totalCollected = payments.filter(p => p.approval_status === 'approved' && p.for_month === thisMonth && p.type === 'rent').reduce((s, p) => s + p.amount_received, 0)
   const totalPending = pendingRentSorted.reduce((s, t) => s + t.remainingDue, 0)
 
+  async function handleRaiseBill() {
+    const propertyId = activeId === 'all' ? tenants.find(t => t.id === billForm.tenant_id)?.property_id : activeId
+    if (!billForm.tenant_id) { toast.error('Select a tenant'); return }
+    if (!billForm.for_month) { toast.error('Enter the billing month'); return }
+    if (!billForm.amount || Number(billForm.amount) <= 0) { toast.error('Enter a valid amount'); return }
+    if (!propertyId) { toast.error('Select a property'); return }
+    setBillSaving(true)
+    try {
+      await addElectricityBill({
+        property_id: propertyId,
+        tenant_id: billForm.tenant_id,
+        for_month: billForm.for_month,
+        amount: Number(billForm.amount),
+        due_date: billForm.due_date || undefined,
+      })
+      toast.success('Bill raised!')
+      setBillModal(false)
+      setBillForm({ tenant_id: '', for_month: '', amount: '', due_date: '' })
+      load()
+    } catch (e: any) { toast.error(e.message) }
+    setBillSaving(false)
+  }
+
+  async function handleApproveBill(id: string) {
+    try { await approveBill(id); toast.success('Bill marked paid'); load() }
+    catch (e: any) { toast.error(e.message) }
+  }
+
+  async function handleDeleteBill(id: string) {
+    if (!confirm('Delete this bill?')) return
+    try { await deleteElectricityBill(id); toast.success('Bill deleted'); load() }
+    catch (e: any) { toast.error(e.message) }
+  }
+
   async function handleRecord() {
     if (!form.tenant_id || !form.amount_received) { toast.error('Fill required fields'); return }
     if (Number(form.amount_received) <= 0) { toast.error('Amount must be greater than 0'); return }
@@ -118,10 +158,16 @@ export default function PaymentsPage() {
           <h1 className="text-xl font-extrabold text-gray-900">Payments</h1>
           <p className="text-sm text-gray-500">Rent collection & ledger</p>
         </div>
-        <button onClick={() => setRecordModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
-          <Plus className="w-4 h-4" /> Record Payment
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setBillModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl text-sm font-semibold transition">
+            <Zap className="w-4 h-4" /> Raise Electricity Bill
+          </button>
+          <button onClick={() => setRecordModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
+            <Plus className="w-4 h-4" /> Record Payment
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -138,6 +184,47 @@ export default function PaymentsPage() {
           </div>
         ))}
       </div>
+
+      {/* Electricity Bills */}
+      {bills.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-yellow-500" />
+            <div className="font-bold text-sm text-gray-900">Electricity Bills</div>
+          </div>
+          <div className="space-y-2">
+            {bills.map(b => (
+              <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900">{b.tenant?.name ?? 'Tenant'} · {b.for_month}</div>
+                  <div className="text-xs text-gray-400">
+                    Room {b.tenant?.room?.room_number ?? '—'} · {formatINR(b.amount)}
+                    {b.due_date && ` · Due ${formatDate(b.due_date)}`}
+                    {b.tenant_note && ` · "${b.tenant_note}"`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    b.status === 'paid' ? 'bg-green-100 text-green-700' : b.status === 'pending_approval' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {b.status === 'paid' ? 'Paid' : b.status === 'pending_approval' ? 'Awaiting Confirmation' : 'Unpaid'}
+                  </span>
+                  {b.status === 'pending_approval' && (
+                    <button onClick={() => handleApproveBill(b.id)} className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition" aria-label="Confirm paid">
+                      <Check className="w-3.5 h-3.5 text-green-700" />
+                    </button>
+                  )}
+                  {b.status !== 'paid' && (
+                    <button onClick={() => handleDeleteBill(b.id)} className="p-1.5 bg-red-50 hover:bg-red-100 rounded-lg transition" aria-label="Delete bill">
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit flex-wrap">
@@ -350,6 +437,56 @@ export default function PaymentsPage() {
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save Payment
               </button>
               <button onClick={() => setRecordModal(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Raise Electricity Bill Modal */}
+      {billModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold">Raise Electricity Bill</h2>
+              <button onClick={() => setBillModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Tenant *</label>
+                <select value={billForm.tenant_id} onChange={e => setBillForm(f => ({ ...f, tenant_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">Select tenant</option>
+                  {tenants.filter(t => t.status === 'active').map(t => (
+                    <option key={t.id} value={t.id}>{t.name} — Room {t.room?.room_number ?? '—'}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Billing Month *</label>
+                <input type="text" placeholder="e.g. July 2026" value={billForm.for_month}
+                  onChange={e => setBillForm(f => ({ ...f, for_month: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Amount (₹) *</label>
+                  <input type="number" value={billForm.amount}
+                    onChange={e => setBillForm(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Due Date</label>
+                  <input type="date" value={billForm.due_date}
+                    onChange={e => setBillForm(f => ({ ...f, due_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100">
+              <button onClick={handleRaiseBill} disabled={billSaving}
+                className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {billSaving && <Loader2 className="w-4 h-4 animate-spin" />} Raise Bill
+              </button>
             </div>
           </div>
         </div>

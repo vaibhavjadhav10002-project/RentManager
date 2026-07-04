@@ -67,7 +67,7 @@ function LoginForm() {
                   onChange={e => setUsername(e.target.value)}
                   placeholder="owner@email.com or 9876543210"
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -83,7 +83,7 @@ function LoginForm() {
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Enter password"
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>

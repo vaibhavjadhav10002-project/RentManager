@@ -99,7 +99,16 @@ export default function DashboardPage() {
       setPendingTenants(pending)
     }
 
-    if (properties.length > 0 || activeId !== 'all') load()
+    if (activeId === 'all' && properties.length === 0) {
+      // New owner with no properties yet — show a real zero-state instead
+      // of getting stuck on the loading skeleton forever.
+      setStats({ totalRooms: 0, totalBeds: 0, occupiedBeds: 0, vacantBeds: 0, monthlyRevenue: 0, pendingRent: 0, openComplaints: 0, totalTenants: 0 })
+      setPendingTenants([])
+      setChartData([])
+      setLoading(false)
+      return
+    }
+    load()
   }, [activeId, properties])
 
   if (loading) return (
@@ -122,6 +131,13 @@ export default function DashboardPage() {
           {activeId === 'all' ? `All ${properties.length} properties overview` : `${active?.name} — ${active?.city}`}
         </p>
       </div>
+
+      {properties.length === 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 text-center">
+          <div className="text-sm font-bold text-blue-900">No properties yet</div>
+          <p className="text-xs text-blue-700 mt-1">Add your first PG property from the property switcher at the top to start tracking rooms, tenants and rent.</p>
+        </div>
+      )}
 
       {/* Stat Cards */}
       {stats && (

@@ -165,6 +165,12 @@ export default function ApprovalsPage() {
                             <div className="text-xs text-yellow-600 font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</div>
                           )}
                         </div>
+                        {t.rent_paid_at_joining > 0 && (
+                          <div>
+                            <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Paid at Joining</div>
+                            <div className="text-sm font-bold text-green-700">{formatINR(t.rent_paid_at_joining)}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

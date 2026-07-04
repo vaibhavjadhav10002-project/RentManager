@@ -4,7 +4,7 @@ import { useProperty } from '@/components/shared/PropertyContext'
 import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms } from '@/lib/supabase/queries'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2 } from 'lucide-react'
+import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2, Zap } from 'lucide-react'
 import type { Tenant } from '@/types'
 
 const BADGE: Record<string, string> = {

@@ -9,6 +9,7 @@
 alter table tenants add column if not exists deposit_refunded numeric(10,2) not null default 0;
 alter table tenants add column if not exists deposit_refund_date date;
 alter table tenants add column if not exists deposit_deduction_notes text;
+alter table tenants add column if not exists rent_paid_at_joining numeric(10,2) not null default 0;
 
 -- ============================================================================
 -- DONE

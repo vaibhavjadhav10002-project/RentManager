@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, formatDate } from '@/lib/utils'
+import { formatINR, formatDate, upiPaymentLink } from '@/lib/utils'
 import { generateAgreementPDF, generateReceiptPDF } from '@/lib/pdf'
+import { getBillsForTenant, claimBillPaid } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 import {
   LogOut, Loader2, CheckCircle, Clock, FileText, MessageCircle, Lock, Download,
@@ -19,6 +20,7 @@ export default function TenantPortal() {
   const [tenant, setTenant] = useState<any>(null)
   const [payments, setPayments] = useState<any[]>([])
   const [complaints, setComplaints] = useState<any[]>([])
+  const [bills, setBills] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -53,6 +55,8 @@ export default function TenantPortal() {
 
       const { data: c } = await sb.from('complaints').select('*').eq('tenant_id', t.id).order('created_at', { ascending: false })
       setComplaints(c ?? [])
+
+      getBillsForTenant(t.id).then(setBills).catch(() => setBills([]))
 
       setLoading(false)
     }
@@ -116,6 +120,14 @@ export default function TenantPortal() {
       setPayModal(false)
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
+  }
+
+  async function handlePayBill(billId: string) {
+    try {
+      await claimBillPaid(billId)
+      setBills(prev => prev.map(b => b.id === billId ? { ...b, status: 'pending_approval' } : b))
+      toast.success('Marked as paid — waiting for owner approval')
+    } catch (e: any) { toast.error(e.message) }
   }
 
   async function submitComplaint() {
@@ -304,12 +316,12 @@ export default function TenantPortal() {
               </div>
 
               {/* Amount Due — actionable pending items, each with its own Pay Now */}
-              {(!thisMonthPaid || (depositDue > 0 && !depositClaimed)) && tenant.status === 'active' && (
+              {(!thisMonthPaid || (depositDue > 0 && !depositClaimed) || bills.some(b => b.status === 'pending')) && tenant.status === 'active' && (
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="font-bold text-sm text-gray-900">Amount Due</div>
                     <div className="text-sm font-extrabold text-red-600">
-                      Total: {formatINR((!thisMonthPaid ? payAmountFor('rent') : 0) + (depositDue > 0 && !depositClaimed ? depositDue : 0))}
+                      Total: {formatINR((!thisMonthPaid ? payAmountFor('rent') : 0) + (depositDue > 0 && !depositClaimed ? depositDue : 0) + bills.filter(b => b.status === 'pending').reduce((s, b) => s + b.amount, 0))}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -325,6 +337,24 @@ export default function TenantPortal() {
                         <button onClick={() => openPay('rent')} className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
                       </div>
                     )}
+                    {bills.filter(b => b.status === 'pending').map(b => (
+                      <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0"><AlertCircle className="w-4 h-4 text-yellow-600" /></div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">{b.bill_type} — {b.for_month}</div>
+                            <div className="text-xs text-gray-400">{b.due_date ? `Due ${formatDate(b.due_date)} · ` : ''}{formatINR(b.amount)}</div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          {tenant.property?.upi_id && (
+                            <a href={upiPaymentLink(tenant.property.upi_id, tenant.property.name ?? 'PG Owner', b.amount, `${b.bill_type} - ${tenant.name}`)}
+                              className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-xl text-xs font-bold transition">UPI</a>
+                          )}
+                          <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
+                        </div>
+                      </div>
+                    ))}
                     {depositDue > 0 && !depositClaimed && (
                       <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-3 min-w-0">
@@ -629,6 +659,12 @@ export default function TenantPortal() {
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
                 Amount: <span className="font-bold">{formatINR(payAmount)}</span>. This notifies your owner that you've paid. No real payment is made here — the owner will verify and approve.
               </div>
+              {tenant.property?.upi_id && (
+                <a href={upiPaymentLink(tenant.property.upi_id, tenant.property.name ?? 'PG Owner', payAmount, `${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`)}
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition">
+                  Pay {formatINR(payAmount)} via UPI
+                </a>
+              )}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-2">Payment Method</label>
                 <div className="flex gap-2">

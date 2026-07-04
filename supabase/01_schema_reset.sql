@@ -112,6 +112,7 @@ create table tenants (
   deposit_refunded numeric(10,2) not null default 0,
   deposit_refund_date date,
   deposit_deduction_notes text,
+  rent_paid_at_joining numeric(10,2) not null default 0,
   status tenant_status not null default 'pending_approval',
   submitted_via text default 'owner_added',
   approved_by uuid references profiles(id),
@@ -269,6 +270,13 @@ create policy "Owners delete tenants" on tenants for delete
 
 create policy "Public can submit pending tenant requests" on tenants for insert
   with check (status = 'pending_approval' and submitted_via = 'qr_link');
+
+create policy "Public can submit initial payment with QR join" on payments for insert
+  with check (
+    submitted_by_tenant = true
+    and approval_status = 'pending_approval'
+    and tenant_id in (select id from tenants where status = 'pending_approval' and submitted_via = 'qr_link')
+  );
 
 -- ---- COLLECTORS policies ----
 create policy "View collectors of own properties" on collectors for select

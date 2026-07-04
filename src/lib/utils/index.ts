@@ -44,6 +44,18 @@ export function getOverdueDays(joiningDate: string, today = new Date()): number 
   return Math.max(0, differenceInDays(today, due))
 }
 
+// ─── UPI payment deep link ───────────────────────────────────────────────────
+export function upiPaymentLink(upiId: string, payeeName: string, amount: number, note: string) {
+  const params = new URLSearchParams({
+    pa: upiId,
+    pn: payeeName,
+    am: amount.toFixed(2),
+    cu: 'INR',
+    tn: note,
+  })
+  return `upi://pay?${params.toString()}`
+}
+
 // ─── QR slug generator ────────────────────────────────────────────────────────
 export function generateSlug(pgName: string) {
   return pgName

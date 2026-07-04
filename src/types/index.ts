@@ -73,6 +73,7 @@ export interface Tenant {
   deposit_refunded: number
   deposit_refund_date: string | null
   deposit_deduction_notes: string | null
+  rent_paid_at_joining: number
   status: TenantStatus
   submitted_via: 'owner_added' | 'qr_link'
   approved_by: string | null
@@ -159,6 +160,23 @@ export interface DashboardStats {
 }
 
 // ─── Form input types ────────────────────────────────────────────────────────
+export interface ElectricityBill {
+  id: string
+  property_id: string
+  tenant_id: string
+  bill_type: string
+  for_month: string
+  amount: number
+  due_date: string | null
+  status: 'pending' | 'paid' | 'pending_approval'
+  paid_date: string | null
+  method: PaymentMethod | null
+  submitted_by_tenant: boolean
+  tenant_note: string | null
+  created_at: string
+  tenant?: Tenant
+}
+
 export interface AddRoomInput {
   property_id: string
   room_number: string

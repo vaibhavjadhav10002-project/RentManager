@@ -161,6 +161,27 @@ export async function approveTenant(tenantId: string, password: string, tenantDa
     approved_at: new Date().toISOString(),
   }).eq('id', tenantId).select().single()
   if (error) throw error
+
+  // If the tenant self-declared rent already paid at joining (QR flow),
+  // record it as a real approved payment now so "pending rent" reflects
+  // only what's actually still owed.
+  if (tenantData.rent_paid_at_joining && tenantData.rent_paid_at_joining > 0) {
+    const forMonth = new Date(data.joining_date).toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+    const { error: payError } = await sb.from('payments').insert({
+      tenant_id: data.id,
+      property_id: data.property_id,
+      type: 'rent',
+      for_month: forMonth,
+      total_due: data.monthly_rent,
+      amount_received: tenantData.rent_paid_at_joining,
+      method: 'cash',
+      approval_status: 'approved',
+      submitted_by_tenant: false,
+      payment_date: data.joining_date,
+    })
+    if (payError) throw payError
+  }
+
   return data
 }
 
@@ -388,4 +409,63 @@ export async function getDashboardStats(propertyId: string) {
     openComplaints: complaints.data?.length ?? 0,
     totalTenants: tenants.data?.length ?? 0,
   }
+}
+
+// ─── Electricity bills ─────────────────────────────────────────────────────
+export async function getElectricityBills(propertyId: string) {
+  const sb = createClient()
+  const { data, error } = await sb
+    .from('utility_bills')
+    .select('*, tenant:tenants(name, phone, room:rooms(room_number))')
+    .eq('property_id', propertyId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function getBillsForTenant(tenantId: string) {
+  const sb = createClient()
+  const { data, error } = await sb
+    .from('utility_bills')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function addElectricityBill(input: {
+  property_id: string; tenant_id: string
+  for_month: string; amount: number; due_date?: string
+}) {
+  const sb = createClient()
+  const { data, error } = await sb.from('utility_bills').insert(input).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteElectricityBill(id: string) {
+  const sb = createClient()
+  const { error } = await sb.from('utility_bills').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Owner confirms a bill is paid (whether self-collected or tenant-claimed)
+export async function approveBill(id: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('utility_bills')
+    .update({ status: 'paid', paid_date: new Date().toISOString().slice(0, 10) })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+// Tenant self-reports a bill as paid — owner must still confirm via approveBill
+export async function claimBillPaid(id: string, note?: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('utility_bills')
+    .update({ status: 'pending_approval', submitted_by_tenant: true, tenant_note: note ?? null })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return data
 }
