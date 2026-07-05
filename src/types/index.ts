@@ -208,6 +208,17 @@ export interface Agreement {
   created_at: string
 }
 
+export interface Message {
+  id: string
+  tenant_id: string
+  property_id: string
+  sender: 'tenant' | 'owner'
+  body: string
+  read_by_owner: boolean
+  read_by_tenant: boolean
+  created_at: string
+}
+
 export interface AddRoomInput {
   property_id: string
   room_number: string

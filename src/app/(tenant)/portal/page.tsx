@@ -1,20 +1,25 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatINR, formatDate } from '@/lib/utils'
 import UpiPayButtons from '@/components/shared/UpiPayButtons'
-import { generateAgreementPDF, generateReceiptPDF } from '@/lib/pdf'
-import { getBillsForTenant, claimBillPaid } from '@/lib/supabase/queries'
+import { generateAgreementPDF, generateReceiptPDF, generateFullAgreementPDF } from '@/lib/pdf'
+import {
+  getBillsForTenant, claimBillPaid, getMessagesForTenant, sendMessageAsTenant, markMessagesReadByTenant,
+  getAgreementForTenant,
+} from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 import {
   LogOut, Loader2, CheckCircle, Clock, FileText, MessageCircle, Lock, Download,
   AlertCircle, LayoutDashboard, Home, ShieldCheck, User as UserIcon, Bell,
-  ChevronRight, Phone, Headset, ChevronDown,
+  ChevronRight, Phone, Headset, ChevronDown, MoreVertical, Send, HelpCircle,
+  Wallet, Wrench, Users2, CalendarClock, IndianRupee, Eye,
 } from 'lucide-react'
+import { PieChart, Pie, Cell } from 'recharts'
 import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
 
-type Tab = 'dashboard' | 'rent' | 'deposit' | 'documents' | 'complaints' | 'profile'
+type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support'
 
 export default function TenantPortal() {
   const router = useRouter()
@@ -22,10 +27,14 @@ export default function TenantPortal() {
   const [payments, setPayments] = useState<any[]>([])
   const [complaints, setComplaints] = useState<any[]>([])
   const [bills, setBills] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
+  const [agreement, setAgreement] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [rowMenuOpen, setRowMenuOpen] = useState<string | null>(null)
 
   const [payModal, setPayModal] = useState(false)
   const [pwModal, setPwModal] = useState(false)
@@ -38,6 +47,8 @@ export default function TenantPortal() {
   const [claimed, setClaimed] = useState(false)
   const [depositClaimed, setDepositClaimed] = useState(false)
   const [mustChangePw, setMustChangePw] = useState(false)
+  const [newMessage, setNewMessage] = useState('')
+  const [sendingMsg, setSendingMsg] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -59,6 +70,8 @@ export default function TenantPortal() {
       setComplaints(c ?? [])
 
       getBillsForTenant(t.id).then(setBills).catch(() => setBills([]))
+      getMessagesForTenant(t.id).then(setMessages).catch(() => setMessages([]))
+      getAgreementForTenant(t.id).then(setAgreement).catch(() => setAgreement(null))
 
       setLoading(false)
     }
@@ -70,6 +83,7 @@ export default function TenantPortal() {
   const daysLeft = tenant ? Math.ceil((nextDueDate.getTime() - Date.now()) / 86400000) : 0
   const depositDue = tenant ? tenant.deposit_amount - tenant.deposit_paid : 0
   const openComplaints = complaints.filter(c => c.status !== 'resolved').length
+  const unreadMessages = messages.filter(m => m.sender === 'owner' && !m.read_by_tenant).length
 
   const monthlyLedger = (() => {
     if (!tenant?.joining_date) return []
@@ -96,6 +110,10 @@ export default function TenantPortal() {
   const totalRentPending = monthlyLedger.reduce((s, m) => s + Math.max(0, m.amount - m.paid), 0)
   const thisMonthPaid = totalRentPending <= 0
   const ledgerDisplay = [...monthlyLedger].reverse()
+  const referenceMonth = oldestUnpaidMonth ?? monthlyLedger[monthlyLedger.length - 1]
+  const donutPaid = referenceMonth?.paid ?? 0
+  const donutPending = Math.max(0, (referenceMonth?.amount ?? tenant?.monthly_rent ?? 0) - donutPaid)
+  const donutPct = referenceMonth ? Math.round((donutPaid / (referenceMonth.amount || 1)) * 100) : 100
 
   const tenantNotifications = [
     ...(totalRentPending > 0 && tenant?.status === 'active' ? [{
@@ -104,16 +122,20 @@ export default function TenantPortal() {
     }] : []),
     ...(depositDue > 0 && !depositClaimed && tenant?.status === 'active' ? [{
       id: 'deposit', title: `Deposit pending: ${formatINR(depositDue)}`,
-      subtitle: 'Refundable security deposit', tab: 'deposit' as Tab,
+      subtitle: 'Refundable security deposit', tab: 'tenancy' as Tab,
     }] : []),
     ...bills.filter(b => b.status === 'pending').map(b => ({
       id: `bill-${b.id}`, title: `${b.bill_type} bill: ${formatINR(b.amount)}`,
       subtitle: b.for_month, tab: 'dashboard' as Tab,
     })),
     ...complaints.filter(c => c.status !== 'resolved').map(c => ({
-      id: `complaint-${c.id}`, title: `Complaint update: ${c.issue_type}`,
-      subtitle: `Status: ${c.status.replace('_', ' ')}`, tab: 'complaints' as Tab,
+      id: `complaint-${c.id}`, title: `Maintenance update: ${c.issue_type}`,
+      subtitle: `Status: ${c.status.replace('_', ' ')}`, tab: 'maintenance' as Tab,
     })),
+    ...(unreadMessages > 0 ? [{
+      id: 'messages', title: `${unreadMessages} new message${unreadMessages > 1 ? 's' : ''}`,
+      subtitle: 'From your PG owner', tab: 'messages' as Tab,
+    }] : []),
   ]
 
   const [payKind, setPayKind] = useState<'rent' | 'deposit'>('rent')
@@ -155,6 +177,45 @@ export default function TenantPortal() {
     } catch (e: any) { toast.error(e.message) }
   }
 
+  const pendingBillsList = bills.filter(b => b.status === 'pending')
+  const totalDueAll = (totalRentPending > 0 && !claimed ? totalRentPending : 0)
+    + (depositDue > 0 && !depositClaimed ? depositDue : 0)
+    + pendingBillsList.reduce((s, b) => s + b.amount, 0)
+  const pendingItemCount = (totalRentPending > 0 && !claimed ? 1 : 0) + (depositDue > 0 && !depositClaimed ? 1 : 0) + pendingBillsList.length
+
+  async function handlePayAll() {
+    if (tenant.status !== 'active') return
+    setSaving(true)
+    try {
+      const sb = createClient()
+      if (totalRentPending > 0 && !claimed) {
+        await sb.from('payments').insert({
+          tenant_id: tenant.id, property_id: tenant.property_id, type: 'rent',
+          for_month: oldestUnpaidMonth?.label ?? thisMonth,
+          total_due: payAmountFor('rent'), amount_received: payAmountFor('rent'),
+          submitted_by_tenant: true, approval_status: 'pending_approval',
+          payment_date: new Date().toISOString().slice(0, 10),
+        })
+        setClaimed(true)
+      }
+      if (depositDue > 0 && !depositClaimed) {
+        await sb.from('payments').insert({
+          tenant_id: tenant.id, property_id: tenant.property_id, type: 'deposit', for_month: null,
+          total_due: depositDue, amount_received: depositDue,
+          submitted_by_tenant: true, approval_status: 'pending_approval',
+          payment_date: new Date().toISOString().slice(0, 10),
+        })
+        setDepositClaimed(true)
+      }
+      for (const b of pendingBillsList) {
+        await claimBillPaid(b.id)
+      }
+      setBills(prev => prev.map(b => b.status === 'pending' ? { ...b, status: 'pending_approval' } : b))
+      toast.success('All pending payments marked as paid — waiting for owner approval')
+    } catch (e: any) { toast.error(e.message) }
+    setSaving(false)
+  }
+
   async function submitComplaint() {
     setSaving(true)
     try {
@@ -162,7 +223,7 @@ export default function TenantPortal() {
       const { data, error } = await sb.from('complaints').insert({ property_id: tenant.property_id, tenant_id: tenant.id, room_id: tenant.room_id, ...complaint }).select().single()
       if (error) throw error
       setComplaints(prev => [data, ...prev])
-      toast.success('Complaint submitted!'); setComplaintModal(false)
+      toast.success('Request submitted!'); setComplaintModal(false)
       setComplaint({ issue_type: 'Plumbing', description: '', priority: 'medium' })
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -180,13 +241,34 @@ export default function TenantPortal() {
   }
 
   function downloadAgreement() {
-    generateAgreementPDF({
-      tenantName: tenant.name, tenantPhone: tenant.phone,
-      propertyName: tenant.property?.name ?? 'PG', propertyAddress: tenant.property?.address,
-      roomNumber: tenant.room?.room_number, bedLabel: tenant.bed_label,
-      joiningDate: tenant.joining_date, monthlyRent: tenant.monthly_rent,
-      depositAmount: tenant.deposit_amount, noticePeriodDays: tenant.notice_period_days,
-    })
+    if (agreement) {
+      generateFullAgreementPDF({
+        agreementNumber: agreement.agreement_number,
+        tenantName: tenant.name, tenantPhone: tenant.phone, tenantEmail: tenant.email ?? undefined,
+        governmentId: agreement.government_id ? 'Photo on file' : undefined,
+        emergencyContact: tenant.emergency_contact ?? undefined,
+        propertyName: tenant.property?.name ?? 'PG', propertyAddress: tenant.property?.address ?? undefined,
+        roomNumber: tenant.room?.room_number, bedLabel: tenant.bed_label ?? undefined,
+        ownerName: undefined,
+        startDate: agreement.start_date, endDate: agreement.end_date,
+        durationMonths: agreement.duration_months, rentCycle: agreement.rent_cycle,
+        monthlyRent: agreement.monthly_rent, securityDeposit: agreement.security_deposit,
+        electricityCharges: agreement.electricity_charges, maintenanceCharges: agreement.maintenance_charges,
+        otherCharges: agreement.other_charges, otherChargesNote: agreement.other_charges_note ?? undefined,
+        dueDay: agreement.due_day, lateFeePolicy: agreement.late_fee_policy,
+        termsVersion: agreement.terms_version,
+        tenantSignature: agreement.tenant_signature, tenantSignedName: agreement.tenant_signed_name,
+        tenantSignedAt: agreement.tenant_signed_at, status: agreement.status,
+      })
+    } else {
+      generateAgreementPDF({
+        tenantName: tenant.name, tenantPhone: tenant.phone,
+        propertyName: tenant.property?.name ?? 'PG', propertyAddress: tenant.property?.address,
+        roomNumber: tenant.room?.room_number, bedLabel: tenant.bed_label,
+        joiningDate: tenant.joining_date, monthlyRent: tenant.monthly_rent,
+        depositAmount: tenant.deposit_amount, noticePeriodDays: tenant.notice_period_days,
+      })
+    }
     toast.success('Agreement downloaded')
   }
 
@@ -200,6 +282,25 @@ export default function TenantPortal() {
     })
   }
 
+  async function openMessagesTab() {
+    setTab('messages')
+    if (tenant && unreadMessages > 0) {
+      await markMessagesReadByTenant(tenant.id)
+      setMessages(prev => prev.map(m => ({ ...m, read_by_tenant: true })))
+    }
+  }
+
+  async function sendMessage() {
+    if (!newMessage.trim() || !tenant) return
+    setSendingMsg(true)
+    try {
+      const msg = await sendMessageAsTenant(tenant.id, tenant.property_id, newMessage.trim())
+      setMessages(prev => [...prev, msg])
+      setNewMessage('')
+    } catch (e: any) { toast.error(e.message) }
+    setSendingMsg(false)
+  }
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -207,14 +308,17 @@ export default function TenantPortal() {
   )
 
   const initials = (tenant.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+  const recentPayment = payments.find(p => p.approval_status === 'approved')
 
   const navItems: { key: Tab; label: string; icon: any }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { key: 'rent', label: 'Rent', icon: Home },
-    { key: 'deposit', label: 'Deposit', icon: ShieldCheck },
+    { key: 'tenancy', label: 'My Tenancy', icon: Users2 },
+    { key: 'rent', label: 'Rent & Payments', icon: Wallet },
+    { key: 'history', label: 'Payment History', icon: Clock },
+    { key: 'maintenance', label: 'Maintenance', icon: Wrench },
     { key: 'documents', label: 'Documents', icon: FileText },
-    { key: 'complaints', label: 'Complaints', icon: MessageCircle },
-    { key: 'profile', label: 'Profile', icon: UserIcon },
+    { key: 'messages', label: 'Messages', icon: MessageCircle },
+    { key: 'support', label: 'Support', icon: HelpCircle },
   ]
 
   return (
@@ -224,47 +328,42 @@ export default function TenantPortal() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-60 bg-white border-r border-gray-100 flex flex-col z-40 transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-white border-r border-gray-100 flex flex-col z-40 transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="px-5 h-16 flex items-center gap-2.5 border-b border-gray-100">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center text-white font-extrabold text-sm">PG</div>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-sm">PG</div>
           <div>
-            <div className="text-sm font-extrabold text-gray-900">PG MANAGER</div>
+            <div className="text-sm font-extrabold text-gray-900">RentFlow</div>
             <div className="text-[11px] text-gray-400">Tenant Portal</div>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => { setTab(key); setSidebarOpen(false) }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
-                tab === key ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'
+            <button key={key} onClick={() => { key === 'messages' ? openMessagesTab() : setTab(key); setSidebarOpen(false) }}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
+                tab === key ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'
               }`}>
-              <Icon className="w-4 h-4" /> {label}
+              <span className="flex items-center gap-3"><Icon className="w-4 h-4" /> {label}</span>
+              {key === 'messages' && unreadMessages > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadMessages}</span>
+              )}
+              {key === 'maintenance' && openComplaints > 0 && (
+                <span className="bg-orange-100 text-orange-600 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{openComplaints}</span>
+              )}
             </button>
           ))}
-          <div className="h-px bg-gray-100 my-3" />
-          <button onClick={() => setPwModal(true)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">
-            <Lock className="w-4 h-4" /> Change Password
-          </button>
-          <button onClick={async () => { const sb = createClient(); await sb.auth.signOut(); router.push('/login') }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition">
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
         </nav>
 
         <div className="p-3">
-          <div className="bg-emerald-50 rounded-2xl p-4">
+          <div className="bg-indigo-50 rounded-2xl p-4">
             <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center mb-2 shadow-sm">
-              <Headset className="w-4 h-4 text-emerald-600" />
+              <Wallet className="w-4 h-4 text-indigo-600" />
             </div>
-            <div className="text-xs font-bold text-gray-900">Need Help?</div>
-            <div className="text-[11px] text-gray-500 mb-2">Contact your PG owner</div>
-            {tenant.property && (
-              <a href={`tel:`} className="flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-700 bg-white rounded-xl py-1.5 shadow-sm hover:bg-emerald-50 transition">
-                <Phone className="w-3.5 h-3.5" /> Contact Owner
-              </a>
-            )}
+            <div className="text-xs font-bold text-gray-900">Pay Rent Easily</div>
+            <div className="text-[11px] text-gray-500 mb-2">Make your rent payment securely in just a few clicks.</div>
+            <button onClick={() => openPay('rent')} className="w-full text-xs font-semibold text-indigo-700 bg-white rounded-xl py-1.5 shadow-sm hover:bg-indigo-100 transition">
+              Pay Now
+            </button>
           </div>
         </div>
       </aside>
@@ -274,9 +373,15 @@ export default function TenantPortal() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white border-b border-gray-100 px-4 lg:px-8 h-16 flex items-center justify-between sticky top-0 z-20">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
-          <div className="hidden lg:block" />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
+            <div className="hidden sm:block">
+              <div className="text-sm font-extrabold text-gray-900 leading-tight">
+                {navItems.find(n => n.key === tab)?.label ?? 'Dashboard'}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
             <div className="relative">
               <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition text-gray-500">
                 <Bell className="w-4 h-4" />
@@ -295,7 +400,7 @@ export default function TenantPortal() {
                       {tenantNotifications.length === 0 ? (
                         <div className="text-center py-8 text-sm text-gray-400">You're all caught up!</div>
                       ) : tenantNotifications.map(n => (
-                        <button key={n.id} onClick={() => { setNotifOpen(false); setTab(n.tab) }}
+                        <button key={n.id} onClick={() => { setNotifOpen(false); n.tab === 'messages' ? openMessagesTab() : setTab(n.tab) }}
                           className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
                           <div className="text-sm font-semibold text-gray-900">{n.title}</div>
                           <div className="text-xs text-gray-500 mt-0.5">{n.subtitle}</div>
@@ -306,14 +411,37 @@ export default function TenantPortal() {
                 </>
               )}
             </div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center text-white font-bold text-xs">
-                {initials}
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-sm font-bold text-gray-900 leading-tight">{tenant.name}</div>
-                <div className="text-xs text-gray-400 leading-tight">Room {tenant.room?.room_number ?? '—'}</div>
-              </div>
+
+            <div className="relative">
+              <button onClick={() => setProfileMenuOpen(o => !o)} className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                  {initials}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <div className="text-sm font-bold text-gray-900 leading-tight">{tenant.name}</div>
+                  <div className="text-xs text-gray-400 leading-tight">Tenant</div>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 hidden sm:block" />
+              </button>
+              {profileMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setProfileMenuOpen(false)} />
+                  <div className="absolute top-full right-0 mt-1.5 w-48 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                    <button onClick={() => { setProfileMenuOpen(false); setTab('tenancy') }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                      <UserIcon className="w-4 h-4" /> My Tenancy
+                    </button>
+                    <button onClick={() => { setProfileMenuOpen(false); setPwModal(true) }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                      <Lock className="w-4 h-4" /> Change Password
+                    </button>
+                    <button onClick={async () => { const sb = createClient(); await sb.auth.signOut(); router.push('/login') }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition">
+                      <LogOut className="w-4 h-4" /> Logout
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -323,179 +451,315 @@ export default function TenantPortal() {
           {tab === 'dashboard' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Hello, {tenant.name.split(' ')[0]} 👋</h1>
-                <p className="text-sm text-gray-500">Here's an overview of your stay.</p>
+                <h1 className="text-xl font-extrabold text-gray-900">Tenant Dashboard</h1>
+                <p className="text-sm text-gray-500">Welcome back, <span className="font-semibold text-gray-700">{tenant.name}</span> 👋</p>
               </div>
 
-              {/* Overview cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-3"><Home className="w-4 h-4 text-emerald-600" /></div>
-                  <div className="text-xs font-semibold text-gray-500">Next Rent Due</div>
-                  <div className="text-2xl font-extrabold text-gray-900 mt-0.5">{formatINR(tenant.monthly_rent)}</div>
-                  {thisMonthPaid ? (
-                    <span className="inline-block mt-2 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Paid</span>
-                  ) : (
-                    <>
-                      <div className={`text-xs mt-1 ${daysLeft <= 3 ? 'text-red-500' : 'text-gray-400'}`}>Due on {formatDate(nextDueDate.toISOString())}</div>
-                      <span className={`inline-block mt-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${daysLeft <= 3 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {daysLeft > 0 ? `${daysLeft} Days Left` : 'Overdue'}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mb-3"><ShieldCheck className="w-4 h-4 text-purple-600" /></div>
-                  <div className="text-xs font-semibold text-gray-500">Deposit</div>
-                  <div className="text-2xl font-extrabold text-gray-900 mt-0.5">{formatINR(tenant.deposit_amount)}</div>
-                  <span className={`inline-block mt-2 text-xs font-bold px-2 py-0.5 rounded-full ${depositDue <= 0 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {depositDue <= 0 ? 'Paid' : `${formatINR(depositDue)} pending`}
-                  </span>
-                  <div className="text-xs text-gray-400 mt-1">Refundable</div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mb-3"><MessageCircle className="w-4 h-4 text-red-500" /></div>
-                  <div className="text-xs font-semibold text-gray-500">Open Complaints</div>
-                  <div className="text-2xl font-extrabold text-gray-900 mt-0.5">{openComplaints}</div>
-                  <button onClick={() => setTab('complaints')} className="text-xs font-semibold text-red-500 mt-2 flex items-center gap-1 hover:underline">
-                    View Details <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Amount Due — actionable pending items, each with its own Pay Now */}
-              {(!thisMonthPaid || (depositDue > 0 && !depositClaimed) || bills.some(b => b.status === 'pending')) && tenant.status === 'active' && (
+              {/* Stat cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="font-bold text-sm text-gray-900">Amount Due</div>
-                    <div className="text-sm font-extrabold text-red-600">
-                      Total: {formatINR(totalRentPending + (depositDue > 0 && !depositClaimed ? depositDue : 0) + bills.filter(b => b.status === 'pending').reduce((s, b) => s + b.amount, 0))}
+                    <div className="text-xs font-semibold text-gray-500">Total Rent</div>
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center"><Wallet className="w-4 h-4 text-indigo-600" /></div>
+                  </div>
+                  <div className="text-2xl font-extrabold text-gray-900">{formatINR(tenant.monthly_rent)}</div>
+                  <div className="text-xs text-gray-400 mt-1">Monthly Rent</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs font-semibold text-gray-500">Paid Amount</div>
+                    <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><Download className="w-4 h-4 text-green-600" /></div>
+                  </div>
+                  <div className="text-2xl font-extrabold text-green-600">{formatINR(donutPaid)}</div>
+                  <div className="text-xs text-gray-400 mt-1">{referenceMonth?.label ?? thisMonth}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs font-semibold text-gray-500">Pending Rent</div>
+                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-orange-500" /></div>
+                  </div>
+                  <div className="text-2xl font-extrabold text-red-600">{formatINR(totalRentPending)}</div>
+                  <div className="text-xs text-gray-400 mt-1">Due Amount</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs font-semibold text-gray-500">Due Date</div>
+                    <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center"><CalendarClock className="w-4 h-4 text-red-500" /></div>
+                  </div>
+                  <div className="text-lg font-extrabold text-gray-900">{formatDate(nextDueDate.toISOString())}</div>
+                  <div className={`text-xs mt-1 font-semibold ${daysLeft <= 3 ? 'text-red-500' : 'text-gray-400'}`}>
+                    {thisMonthPaid ? 'All caught up' : daysLeft > 0 ? `${daysLeft} Days Left` : 'Overdue'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pay All Now banner */}
+              {pendingItemCount > 1 && tenant.status === 'active' && (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2.5 text-sm text-indigo-800">
+                    <Clock className="w-4 h-4 flex-shrink-0" />
+                    You have {pendingItemCount} pending payments. <span className="font-bold">Pay All: {formatINR(totalDueAll)}</span>
+                  </div>
+                  <button onClick={handlePayAll} disabled={saving} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition disabled:opacity-50 flex items-center gap-2">
+                    {saving && <Loader2 className="w-4 h-4 animate-spin" />} Pay All Now
+                  </button>
+                </div>
+              )}
+
+              {/* Bills strip (electricity etc, if any) */}
+              {bills.filter(b => b.status === 'pending').length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-2">
+                  <div className="font-bold text-sm text-gray-900 mb-1">Other Bills Due</div>
+                  {bills.filter(b => b.status === 'pending').map(b => (
+                    <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0"><AlertCircle className="w-4 h-4 text-yellow-600" /></div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900">{b.bill_type} — {b.for_month}</div>
+                          <div className="text-xs text-gray-400">{b.due_date ? `Due ${formatDate(b.due_date)} · ` : ''}{formatINR(b.amount)}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {tenant.property?.upi_id && (
+                          <UpiPayButtons compact upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={b.amount} note={`${b.bill_type} - ${tenant.name}`} />
+                        )}
+                        <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    {!thisMonthPaid && oldestUnpaidMonth && (
-                      <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0"><Home className="w-4 h-4 text-emerald-600" /></div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">Rent — {oldestUnpaidMonth.label}</div>
-                            <div className="text-xs text-gray-400">
-                              {formatINR(payAmountFor('rent'))}
-                              {monthlyLedger.filter(m => m.status !== 'paid').length > 1 && ` · +${monthlyLedger.filter(m => m.status !== 'paid').length - 1} more month(s) pending`}
-                            </div>
-                          </div>
-                        </div>
-                        <button onClick={() => openPay('rent')} className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
-                      </div>
-                    )}
-                    {bills.filter(b => b.status === 'pending').map(b => (
-                      <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0"><AlertCircle className="w-4 h-4 text-yellow-600" /></div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">{b.bill_type} — {b.for_month}</div>
-                            <div className="text-xs text-gray-400">{b.due_date ? `Due ${formatDate(b.due_date)} · ` : ''}{formatINR(b.amount)}</div>
-                          </div>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          {tenant.property?.upi_id && (
-                            <UpiPayButtons compact upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={b.amount} note={`${b.bill_type} - ${tenant.name}`} />
-                          )}
-                          <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
-                        </div>
-                      </div>
-                    ))}
-                    {depositDue > 0 && !depositClaimed && (
-                      <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0"><ShieldCheck className="w-4 h-4 text-purple-600" /></div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">Security Deposit</div>
-                            <div className="text-xs text-gray-400">Refundable · {formatINR(depositDue)} pending</div>
-                          </div>
-                        </div>
-                        <button onClick={() => openPay('deposit')} className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Rent overview */}
+                {/* Rent Overview donut */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="font-bold text-sm text-gray-900 flex items-center gap-2"><FileText className="w-4 h-4 text-gray-400" /> Rent Overview</div>
-                    <button onClick={() => setTab('rent')} className="text-xs font-semibold text-blue-600 hover:underline">View All</button>
-                  </div>
-                  <div className="space-y-1">
-                    {ledgerDisplay.slice(0, 3).map(m => (
-                      <div key={m.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                  <div className="font-bold text-sm text-gray-900 mb-4">Rent Overview</div>
+                  <div className="flex items-center gap-6">
+                    <div className="relative w-32 h-32 flex-shrink-0">
+                      <PieChart width={128} height={128}>
+                        <Pie data={[{ value: donutPaid || 0.0001 }, { value: donutPending }]} dataKey="value"
+                          innerRadius={44} outerRadius={62} startAngle={90} endAngle={-270} stroke="none">
+                          <Cell fill="#4f46e5" />
+                          <Cell fill="#e0e7ff" />
+                        </Pie>
+                      </PieChart>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className="text-lg font-extrabold text-gray-900">{donutPct}%</div>
+                        <div className="text-[10px] text-gray-400">Paid</div>
+                      </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 flex-shrink-0" />
                         <div>
-                          <div className="text-sm font-semibold text-gray-900">{m.label}</div>
-                          <div className="text-xs text-gray-400">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : 'Not yet paid'}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-bold text-gray-900">{formatINR(m.amount)}</div>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.status === 'paid' ? 'bg-green-100 text-green-700' : m.status === 'partial' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                            {m.status === 'paid' ? 'Paid' : m.status === 'partial' ? 'Partial' : 'Pending'}
-                          </span>
+                          <div className="text-xs text-gray-500">Paid Amount</div>
+                          <div className="text-sm font-bold text-gray-900">{formatINR(donutPaid)}</div>
                         </div>
                       </div>
-                    ))}
-                    {!thisMonthPaid && !claimed && tenant.status === 'active' && (
-                      <button onClick={() => openPay('rent')} className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
-                        Pay {oldestUnpaidMonth?.label ?? thisMonth} Rent
-                      </button>
-                    )}
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-100 flex-shrink-0" />
+                        <div>
+                          <div className="text-xs text-gray-500">Pending Amount</div>
+                          <div className="text-sm font-bold text-gray-900">{formatINR(donutPending)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-50 text-xs text-gray-500 flex items-center gap-1.5">
+                    <CalendarClock className="w-3.5 h-3.5" /> Due Date: <span className="font-semibold text-gray-900">{formatDate(nextDueDate.toISOString())}</span>
                   </div>
                 </div>
 
-                {/* Recent complaints */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="font-bold text-sm text-gray-900 flex items-center gap-2"><MessageCircle className="w-4 h-4 text-gray-400" /> Recent Complaints</div>
-                    <button onClick={() => setTab('complaints')} className="text-xs font-semibold text-blue-600 hover:underline">View All</button>
+                {/* Pay Rent panel */}
+                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100 p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="font-bold text-sm text-gray-900 mb-1">Pay Rent</div>
+                    {totalRentPending > 0 ? (
+                      <>
+                        <p className="text-xs text-gray-500">You have pending rent of</p>
+                        <div className="text-2xl font-extrabold text-gray-900 mt-1">{formatINR(totalRentPending)}</div>
+                        <div className="text-xs text-gray-500 mt-2">Due Date: <span className="font-semibold text-red-600">{formatDate(nextDueDate.toISOString())}</span></div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-2 text-green-700">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="text-sm font-semibold">All rent paid up!</span>
+                      </div>
+                    )}
                   </div>
-                  {complaints.length === 0 ? (
-                    <div className="text-xs text-gray-400 text-center py-8">No complaints raised yet</div>
-                  ) : (
-                    <div className="space-y-1">
-                      {complaints.slice(0, 3).map(c => (
-                        <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900 truncate">{c.issue_type}</div>
-                            <div className="text-xs text-gray-400">#{c.id.slice(0, 8).toUpperCase()}</div>
-                          </div>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${c.status === 'resolved' ? 'bg-green-100 text-green-700' : c.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {c.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                  {totalRentPending > 0 && tenant.status === 'active' && (
+                    <button onClick={() => openPay('rent')} className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
+                      Pay Rent Now
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Quick actions */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <div className="font-bold text-sm text-gray-900 mb-3">Quick Actions</div>
-                <div className="grid grid-cols-3 gap-3">
-                  <button onClick={() => openPay('rent')} className="flex flex-col items-center gap-2 py-4 bg-gray-50 hover:bg-gray-100 rounded-2xl transition">
-                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center"><Home className="w-4 h-4 text-green-600" /></div>
-                    <span className="text-xs font-semibold text-gray-700">Pay Rent</span>
-                  </button>
-                  <button onClick={downloadAgreement} className="flex flex-col items-center gap-2 py-4 bg-gray-50 hover:bg-gray-100 rounded-2xl transition">
-                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center"><FileText className="w-4 h-4 text-blue-600" /></div>
-                    <span className="text-xs font-semibold text-gray-700">Agreement</span>
-                  </button>
-                  <button onClick={() => setComplaintModal(true)} className="flex flex-col items-center gap-2 py-4 bg-gray-50 hover:bg-gray-100 rounded-2xl transition">
-                    <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center"><MessageCircle className="w-4 h-4 text-red-600" /></div>
-                    <span className="text-xs font-semibold text-gray-700">Raise Complaint</span>
-                  </button>
+              {/* Mini cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><ShieldCheck className="w-4 h-4 text-green-600" /></div>
+                    <div className="font-bold text-sm text-gray-900">Security Deposit</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-extrabold text-gray-900">{formatINR(tenant.deposit_amount)}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${depositDue <= 0 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {depositDue <= 0 ? 'Paid' : 'Pending'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">Will be refunded after tenancy end.</div>
                 </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500" /></div>
+                    <div className="font-bold text-sm text-gray-900">Upcoming Due</div>
+                  </div>
+                  <div className="text-lg font-extrabold text-gray-900">{formatINR(totalRentPending > 0 ? payAmountFor('rent') : tenant.monthly_rent)}</div>
+                  <div className="text-xs text-orange-600 font-semibold mt-1">Due on {formatDate(nextDueDate.toISOString())}</div>
+                  <div className="text-xs text-gray-400">{daysLeft > 0 ? `${daysLeft} days remaining` : 'Overdue'}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><FileText className="w-4 h-4 text-blue-600" /></div>
+                    <div className="font-bold text-sm text-gray-900">Recent Payment</div>
+                  </div>
+                  {recentPayment ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-extrabold text-gray-900">{formatINR(recentPayment.amount_received)}</span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Paid</span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">Paid on {formatDate(recentPayment.payment_date)}</div>
+                      <div className="text-xs text-gray-400">Txn #{recentPayment.id.slice(0, 8).toUpperCase()}</div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-gray-400">No payments yet</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment History table (recent) */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+                  <div className="font-bold text-sm text-gray-900">Payment History</div>
+                  <button onClick={() => setTab('history')} className="text-xs font-semibold text-indigo-600 hover:underline">View All</button>
+                </div>
+                {payments.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-gray-400">No payments yet</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-400 border-b border-gray-50">
+                          <th className="px-5 py-2.5 font-semibold">Date</th>
+                          <th className="px-5 py-2.5 font-semibold">Month</th>
+                          <th className="px-5 py-2.5 font-semibold">Amount</th>
+                          <th className="px-5 py-2.5 font-semibold">Status</th>
+                          <th className="px-5 py-2.5 font-semibold hidden sm:table-cell">Transaction ID</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">Receipt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.slice(0, 5).map(p => (
+                          <tr key={p.id} className="border-b border-gray-50 last:border-0">
+                            <td className="px-5 py-3 text-gray-600">{formatDate(p.payment_date)}</td>
+                            <td className="px-5 py-3 text-gray-600">{p.for_month ?? '—'}</td>
+                            <td className="px-5 py-3 font-semibold text-gray-900">{formatINR(p.amount_received)}</td>
+                            <td className="px-5 py-3">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {p.approval_status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-xs text-gray-400 font-mono hidden sm:table-cell">#{p.id.slice(0, 8).toUpperCase()}</td>
+                            <td className="px-5 py-3 text-right">
+                              {p.approval_status === 'approved' ? (
+                                <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
+                              ) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tab === 'tenancy' && (
+            <div className="space-y-5">
+              <div>
+                <h1 className="text-xl font-extrabold text-gray-900">My Tenancy</h1>
+                <p className="text-sm text-gray-500">Your room, property and agreement details.</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-xl">
+                    {initials}
+                  </div>
+                  <div>
+                    <div className="text-lg font-extrabold text-gray-900">{tenant.name}</div>
+                    <div className="text-sm text-gray-500">Room {tenant.room?.room_number ?? '—'} · Bed {tenant.bed_label ?? '—'}</div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    ['Mobile Number', tenant.phone],
+                    ['Email', tenant.email || '—'],
+                    ['Emergency Contact', tenant.emergency_contact || '—'],
+                    ['Property', tenant.property?.name],
+                    ['Address', tenant.property?.address || '—'],
+                    ['Joining Date', formatDate(tenant.joining_date)],
+                    ['Notice Period', `${tenant.notice_period_days} days`],
+                    ['Status', tenant.status.replace('_', ' ')],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                      <span className="text-sm text-gray-500">{label}</span>
+                      <span className="text-sm font-bold text-gray-900 capitalize">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div className="font-bold text-sm text-gray-900 mb-4">Security Deposit</div>
+                <div className="space-y-3">
+                  {[
+                    ['Total Deposit', formatINR(tenant.deposit_amount)],
+                    ['Amount Paid', formatINR(tenant.deposit_paid)],
+                    ['Pending', formatINR(Math.max(0, depositDue))],
+                    ['Status', depositDue <= 0 ? 'Fully Paid' : 'Partially Paid'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                      <span className="text-sm text-gray-500">{label}</span>
+                      <span className="text-sm font-bold text-gray-900">{value}</span>
+                    </div>
+                  ))}
+                  {tenant.deposit_refunded > 0 && (
+                    <div className="bg-green-50 rounded-xl p-4 space-y-2 mt-2">
+                      <div className="text-xs font-bold text-green-800">Refund Processed</div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Amount Refunded</span>
+                        <span className="font-bold text-green-700">{formatINR(tenant.deposit_refunded)}</span>
+                      </div>
+                      {tenant.deposit_refund_date && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Refund Date</span>
+                          <span className="font-bold text-gray-900">{formatDate(tenant.deposit_refund_date)}</span>
+                        </div>
+                      )}
+                      {tenant.deposit_deduction_notes && (
+                        <div className="text-xs text-gray-500 mt-1">Note: {tenant.deposit_deduction_notes}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {depositDue > 0 && !depositClaimed && tenant.status === 'active' && (
+                  <button onClick={() => openPay('deposit')} className="w-full mt-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
+                    Pay {formatINR(depositDue)} Deposit
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -503,7 +767,7 @@ export default function TenantPortal() {
           {tab === 'rent' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Rent</h1>
+                <h1 className="text-xl font-extrabold text-gray-900">Rent & Payments</h1>
                 <p className="text-sm text-gray-500">Your full monthly rent history.</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -525,56 +789,128 @@ export default function TenantPortal() {
                 ))}
               </div>
               {!thisMonthPaid && !claimed && tenant.status === 'active' && (
-                <button onClick={() => openPay('rent')} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition">
-                  Mark {oldestUnpaidMonth?.label ?? thisMonth} as Paid
+                <button onClick={() => openPay('rent')} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
+                  Pay {oldestUnpaidMonth?.label ?? thisMonth} Rent
                 </button>
+              )}
+
+              {bills.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="font-bold text-sm text-gray-900 mb-3">Other Bills</div>
+                  <div className="space-y-2">
+                    {bills.map(b => (
+                      <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">{b.bill_type} — {b.for_month}</div>
+                          <div className="text-xs text-gray-400">{formatINR(b.amount)}</div>
+                        </div>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${b.status === 'paid' ? 'bg-green-100 text-green-700' : b.status === 'pending_approval' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          {b.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
 
-          {tab === 'deposit' && (
+          {tab === 'history' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Deposit</h1>
-                <p className="text-sm text-gray-500">Your security deposit details.</p>
+                <h1 className="text-xl font-extrabold text-gray-900">Payment History</h1>
+                <p className="text-sm text-gray-500">All your payments, in one place.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
-                {[
-                  ['Total Deposit', formatINR(tenant.deposit_amount)],
-                  ['Amount Paid', formatINR(tenant.deposit_paid)],
-                  ['Pending', formatINR(Math.max(0, depositDue))],
-                  ['Status', depositDue <= 0 ? 'Fully Paid' : 'Partially Paid'],
-                  ['Refundable', 'Yes, on vacating (subject to deductions)'],
-                ].map(([label, value]) => (
-                  <div key={label} className="flex justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                    <span className="text-sm text-gray-500">{label}</span>
-                    <span className="text-sm font-bold text-gray-900">{value}</span>
-                  </div>
-                ))}
-                {tenant.deposit_refunded > 0 && (
-                  <div className="bg-green-50 rounded-xl p-4 space-y-2 mt-2">
-                    <div className="text-xs font-bold text-green-800">Refund Processed</div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Amount Refunded</span>
-                      <span className="font-bold text-green-700">{formatINR(tenant.deposit_refunded)}</span>
-                    </div>
-                    {tenant.deposit_refund_date && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Refund Date</span>
-                        <span className="font-bold text-gray-900">{formatDate(tenant.deposit_refund_date)}</span>
-                      </div>
-                    )}
-                    {tenant.deposit_deduction_notes && (
-                      <div className="text-xs text-gray-500 mt-1">Note: {tenant.deposit_deduction_notes}</div>
-                    )}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {payments.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">No payments yet</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
+                          <th className="px-5 py-3 font-semibold">Date</th>
+                          <th className="px-5 py-3 font-semibold">Type</th>
+                          <th className="px-5 py-3 font-semibold">Month</th>
+                          <th className="px-5 py-3 font-semibold">Amount</th>
+                          <th className="px-5 py-3 font-semibold">Status</th>
+                          <th className="px-5 py-3 font-semibold text-right">Txn ID</th>
+                          <th className="px-5 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.map(p => (
+                          <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                            <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap">{formatDate(p.payment_date)}</td>
+                            <td className="px-5 py-3.5 text-gray-600 capitalize">{p.type}</td>
+                            <td className="px-5 py-3.5 text-gray-600">{p.for_month ?? '—'}</td>
+                            <td className="px-5 py-3.5 font-semibold text-gray-900">{formatINR(p.amount_received)}</td>
+                            <td className="px-5 py-3.5">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {p.approval_status.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-right text-xs text-gray-400 font-mono">#{p.id.slice(0, 8).toUpperCase()}</td>
+                            <td className="px-5 py-3.5 text-right relative">
+                              <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg transition" aria-label="Row options">
+                                <MoreVertical className="w-4 h-4 text-gray-400" />
+                              </button>
+                              {rowMenuOpen === p.id && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setRowMenuOpen(null)} />
+                                  <div className="absolute right-5 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                    {p.approval_status === 'approved' ? (
+                                      <button onClick={() => { downloadReceipt(p); setRowMenuOpen(null) }}
+                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                        <Download className="w-3.5 h-3.5" /> Download Receipt
+                                      </button>
+                                    ) : (
+                                      <div className="px-4 py-2.5 text-xs text-gray-400">Awaiting owner approval</div>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
-              {depositDue > 0 && !depositClaimed && tenant.status === 'active' && (
-                <button onClick={() => openPay('deposit')} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition">
-                  Pay {formatINR(depositDue)} Deposit
+            </div>
+          )}
+
+          {tab === 'maintenance' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-extrabold text-gray-900">Maintenance</h1>
+                  <p className="text-sm text-gray-500">Track issues you've raised.</p>
+                </div>
+                <button onClick={() => setComplaintModal(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
+                  <Wrench className="w-4 h-4" /> Raise New
                 </button>
-              )}
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+                {complaints.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">No requests raised yet</div>
+                ) : complaints.map(c => (
+                  <div key={c.id} className="flex items-start justify-between gap-3 px-5 py-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" /> {c.issue_type}
+                        <span className="text-xs text-gray-400 font-normal">#{c.id.slice(0, 8).toUpperCase()}</span>
+                      </div>
+                      {c.description && <div className="text-xs text-gray-500 mt-1">{c.description}</div>}
+                      <div className="text-xs text-gray-400 mt-1">{formatDate(c.created_at)}</div>
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${c.status === 'resolved' ? 'bg-green-100 text-green-700' : c.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {c.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -590,11 +926,23 @@ export default function TenantPortal() {
                     <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><FileText className="w-4 h-4 text-blue-500" /></div>
                     <div>
                       <div className="text-sm font-semibold text-gray-900">Rent Agreement</div>
-                      <div className="text-xs text-gray-400">System-generated from your tenant record</div>
+                      <div className="text-xs text-gray-400">{agreement ? `${agreement.agreement_number} · ${agreement.status}` : 'System-generated from your tenant record'}</div>
                     </div>
                   </div>
                   <button onClick={downloadAgreement} aria-label="Download rent agreement" className="p-2 hover:bg-gray-100 rounded-lg transition"><Download className="w-4 h-4 text-gray-500" /></button>
                 </div>
+                {agreement?.government_id && (
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><FileText className="w-4 h-4 text-green-500" /></div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">Government ID</div>
+                        <div className="text-xs text-gray-400">Uploaded at joining</div>
+                      </div>
+                    </div>
+                    <a href={agreement.government_id} target="_blank" rel="noreferrer" className="p-2 hover:bg-gray-100 rounded-lg transition" aria-label="View government ID"><Eye className="w-4 h-4 text-gray-500" /></a>
+                  </div>
+                )}
                 <div className="flex items-center justify-between px-5 py-4">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><FileText className="w-4 h-4 text-orange-500" /></div>
@@ -624,74 +972,77 @@ export default function TenantPortal() {
             </div>
           )}
 
-          {tab === 'complaints' && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-xl font-extrabold text-gray-900">Complaints</h1>
-                  <p className="text-sm text-gray-500">Track issues you've raised.</p>
-                </div>
-                <button onClick={() => setComplaintModal(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition">
-                  <MessageCircle className="w-4 h-4" /> Raise New
-                </button>
+          {tab === 'messages' && (
+            <div className="space-y-5 h-full flex flex-col">
+              <div>
+                <h1 className="text-xl font-extrabold text-gray-900">Messages</h1>
+                <p className="text-sm text-gray-500">Chat directly with your PG owner.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
-                {complaints.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">No complaints raised yet</div>
-                ) : complaints.map(c => (
-                  <div key={c.id} className="flex items-start justify-between gap-3 px-5 py-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" /> {c.issue_type}
-                        <span className="text-xs text-gray-400 font-normal">#{c.id.slice(0, 8).toUpperCase()}</span>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col h-[60vh]">
+                <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                  {messages.length === 0 ? (
+                    <div className="text-center text-sm text-gray-400 py-10">No messages yet — say hello to your owner!</div>
+                  ) : messages.map(m => (
+                    <div key={m.id} className={`flex ${m.sender === 'tenant' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'tenant' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                        <div>{m.body}</div>
+                        <div className={`text-[10px] mt-1 ${m.sender === 'tenant' ? 'text-indigo-200' : 'text-gray-400'}`}>
+                          {new Date(m.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </div>
-                      {c.description && <div className="text-xs text-gray-500 mt-1">{c.description}</div>}
-                      <div className="text-xs text-gray-400 mt-1">{formatDate(c.created_at)}</div>
                     </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${c.status === 'resolved' ? 'bg-green-100 text-green-700' : c.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                      {c.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="p-4 border-t border-gray-100 flex gap-2">
+                  <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                    placeholder="Type a message…"
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+                  <button onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()}
+                    className="w-11 h-11 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition disabled:opacity-50 flex-shrink-0">
+                    {sendingMsg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {tab === 'profile' && (
+          {tab === 'support' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Profile</h1>
-                <p className="text-sm text-gray-500">Your account details.</p>
+                <h1 className="text-xl font-extrabold text-gray-900">Support</h1>
+                <p className="text-sm text-gray-500">Get help or reach your PG owner directly.</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center text-white font-extrabold text-xl">
-                    {initials}
-                  </div>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center"><Headset className="w-5 h-5 text-indigo-600" /></div>
                   <div>
-                    <div className="text-lg font-extrabold text-gray-900">{tenant.name}</div>
-                    <div className="text-sm text-gray-500">Room {tenant.room?.room_number ?? '—'} · Bed {tenant.bed_label ?? '—'}</div>
+                    <div className="font-bold text-gray-900">Contact {tenant.property?.name ?? 'your PG owner'}</div>
+                    <div className="text-xs text-gray-400">Usually responds within a few hours</div>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  {[
-                    ['Mobile Number', tenant.phone],
-                    ['Email', tenant.email || '—'],
-                    ['Emergency Contact', tenant.emergency_contact || '—'],
-                    ['Property', tenant.property?.name],
-                    ['Joining Date', formatDate(tenant.joining_date)],
-                    ['Notice Period', `${tenant.notice_period_days} days`],
-                    ['Status', tenant.status.replace('_', ' ')],
-                  ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                      <span className="text-sm text-gray-500">{label}</span>
-                      <span className="text-sm font-bold text-gray-900 capitalize">{value}</span>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button onClick={openMessagesTab} className="flex items-center justify-center gap-2 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold transition">
+                    <MessageCircle className="w-4 h-4" /> Message Owner
+                  </button>
+                  <button onClick={() => setComplaintModal(true)} className="flex items-center justify-center gap-2 py-3 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-semibold transition">
+                    <Wrench className="w-4 h-4" /> Raise Maintenance Request
+                  </button>
                 </div>
-                <button onClick={() => setPwModal(true)} className="w-full mt-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition">
-                  <Lock className="w-4 h-4" /> Change Password
-                </button>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                <div className="font-bold text-sm text-gray-900">Frequently Asked</div>
+                {[
+                  ['How do I pay rent?', 'Go to Rent & Payments → Pay Rent Now, then confirm via UPI or by marking it paid for your owner to verify.'],
+                  ['When is my deposit refunded?', 'Your security deposit is refunded after you vacate, following a room inspection, minus any pending dues or damages.'],
+                  ['How do I report a maintenance issue?', 'Use the Maintenance tab or the button above to raise a request — your owner will be notified.'],
+                  ['Can I download my agreement anytime?', 'Yes — go to Documents and tap the download icon next to Rent Agreement.'],
+                ].map(([q, a]) => (
+                  <div key={q} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                    <div className="text-sm font-semibold text-gray-800">{q}</div>
+                    <div className="text-xs text-gray-500 mt-1">{a}</div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -704,7 +1055,7 @@ export default function TenantPortal() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold">Pay {payKind === 'rent' ? `Rent — ${thisMonth}` : 'Security Deposit'}</h2>
+              <h2 className="text-base font-bold">Pay {payKind === 'rent' ? `Rent — ${oldestUnpaidMonth?.label ?? thisMonth}` : 'Security Deposit'}</h2>
               <button onClick={() => setPayModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
@@ -744,7 +1095,7 @@ export default function TenantPortal() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold">Raise Complaint</h2>
+              <h2 className="text-base font-bold">Raise Maintenance Request</h2>
               <button onClick={() => setComplaintModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
@@ -770,7 +1121,7 @@ export default function TenantPortal() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100">
               <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit Complaint
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
           </div>

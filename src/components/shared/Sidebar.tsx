@@ -1,4 +1,5 @@
 'use client'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -6,9 +7,11 @@ import { toast } from 'sonner'
 import {
   LayoutDashboard, BedDouble, Users, IndianRupee, ShieldCheck,
   MessageSquareWarning, TrendingDown, BarChart3, Settings, LogOut,
-  Building2, X
+  Building2, X, MessageCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useProperty } from './PropertyContext'
+import { getUnreadMessageCountsForProperty } from '@/lib/supabase/queries'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,6 +19,7 @@ const NAV = [
   { href: '/tenants', label: 'Tenants', icon: Users },
   { href: '/payments', label: 'Payments', icon: IndianRupee },
   { href: '/approvals', label: 'Approvals', icon: ShieldCheck, badge: 'new' },
+  { href: '/messages', label: 'Messages', icon: MessageCircle },
   { href: '/complaints', label: 'Complaints', icon: MessageSquareWarning },
   { href: '/expenses', label: 'Expenses', icon: TrendingDown },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
@@ -27,6 +31,16 @@ interface Props { open: boolean; onClose: () => void; userName: string }
 export default function Sidebar({ open, onClose, userName }: Props) {
   const pathname = usePathname()
   const router = useRouter()
+  const { activeId, properties } = useProperty()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
+    if (propIds.length === 0 || propIds.some(id => !id)) return
+    getUnreadMessageCountsForProperty(propIds).then(rows => {
+      setUnreadCount(new Set(rows.map((r: any) => r.tenant_id)).size)
+    }).catch(() => setUnreadCount(0))
+  }, [activeId, properties])
 
   async function logout() {
     const sb = createClient()
@@ -80,6 +94,11 @@ export default function Sidebar({ open, onClose, userName }: Props) {
                 {item.badge && (
                   <span className="text-[10px] bg-purple-100 text-purple-600 font-bold px-1.5 py-0.5 rounded-full">
                     {item.badge}
+                  </span>
+                )}
+                {item.href === '/messages' && unreadCount > 0 && (
+                  <span className="text-[10px] bg-red-500 text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </Link>

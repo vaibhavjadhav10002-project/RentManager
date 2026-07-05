@@ -565,3 +565,47 @@ export async function ownerSignAgreement(agreementId: string, ownerName: string,
   if (error) throw error
   return data
 }
+
+// ─── Messages (tenant ↔ owner) ─────────────────────────────────────────────────
+export async function getMessagesForTenant(tenantId: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('messages').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function sendMessageAsTenant(tenantId: string, propertyId: string, body: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('messages').insert({
+    tenant_id: tenantId, property_id: propertyId, sender: 'tenant', body, read_by_owner: false, read_by_tenant: true,
+  }).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function sendMessageAsOwner(tenantId: string, propertyId: string, body: string) {
+  const sb = createClient()
+  const { data, error } = await sb.from('messages').insert({
+    tenant_id: tenantId, property_id: propertyId, sender: 'owner', body, read_by_owner: true, read_by_tenant: false,
+  }).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function markMessagesReadByTenant(tenantId: string) {
+  const sb = createClient()
+  await sb.from('messages').update({ read_by_tenant: true }).eq('tenant_id', tenantId).eq('read_by_tenant', false)
+}
+
+export async function markMessagesReadByOwner(tenantId: string) {
+  const sb = createClient()
+  await sb.from('messages').update({ read_by_owner: true }).eq('tenant_id', tenantId).eq('read_by_owner', false)
+}
+
+export async function getUnreadMessageCountsForProperty(propertyIds: string[]) {
+  const sb = createClient()
+  if (propertyIds.length === 0) return []
+  const { data, error } = await sb.from('messages').select('tenant_id').in('property_id', propertyIds).eq('sender', 'tenant').eq('read_by_owner', false)
+  if (error) throw error
+  return data ?? []
+}
