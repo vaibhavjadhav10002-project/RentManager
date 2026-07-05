@@ -45,15 +45,32 @@ export function getOverdueDays(joiningDate: string, today = new Date()): number 
 }
 
 // ─── UPI payment deep link ───────────────────────────────────────────────────
-export function upiPaymentLink(upiId: string, payeeName: string, amount: number, note: string) {
+// Built manually with encodeURIComponent (not URLSearchParams) because
+// URLSearchParams encodes spaces as "+" (form-encoding), which several UPI
+// apps fail to parse correctly in a upi:// deep link — they expect strict
+// percent-encoding ("%20").
+// ─── UPI payment deep-links ────────────────────────────────────────────────
+// A single generic `upi://` link doesn't reliably launch payment apps on
+// every device — iOS doesn't support the generic scheme at all, and some
+// Android setups need the app's own scheme to trigger correctly. This
+// returns one link per major app so the user can tap whichever they have
+// installed. All of these are free, standard URI deep-links — no payment
+// gateway or subscription involved.
+export function upiPaymentLinks(upiId: string, payeeName: string, amount: number, note: string) {
   const params = new URLSearchParams({
-    pa: upiId,
-    pn: payeeName,
-    am: amount.toFixed(2),
-    cu: 'INR',
-    tn: note,
-  })
-  return `upi://pay?${params.toString()}`
+    pa: upiId, pn: payeeName, am: amount.toFixed(2), cu: 'INR', tn: note,
+  }).toString()
+  return {
+    generic: `upi://pay?${params}`,
+    gpay: `tez://upi/pay?${params}`,
+    phonepe: `phonepe://pay?${params}`,
+    paytm: `paytmmp://pay?${params}`,
+  }
+}
+
+// Kept for existing callers — returns the generic link.
+export function upiPaymentLink(upiId: string, payeeName: string, amount: number, note: string) {
+  return upiPaymentLinks(upiId, payeeName, amount, note).generic
 }
 
 // ─── QR slug generator ────────────────────────────────────────────────────────

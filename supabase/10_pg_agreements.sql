@@ -74,6 +74,19 @@ as $$
 $$;
 grant execute on function get_property_owner_name(uuid) to anon, authenticated;
 
+-- ---- Storage bucket for tenant Government ID photos ----
+insert into storage.buckets (id, name, public)
+values ('tenant-documents', 'tenant-documents', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public can upload tenant documents" on storage.objects;
+create policy "Public can upload tenant documents" on storage.objects for insert
+  with check (bucket_id = 'tenant-documents');
+
+drop policy if exists "Public can view tenant documents" on storage.objects;
+create policy "Public can view tenant documents" on storage.objects for select
+  using (bucket_id = 'tenant-documents');
+
 -- ============================================================================
 -- DONE
 -- ============================================================================

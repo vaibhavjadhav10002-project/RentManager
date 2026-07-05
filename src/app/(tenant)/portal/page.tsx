@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, formatDate, upiPaymentLink } from '@/lib/utils'
+import { formatINR, formatDate } from '@/lib/utils'
+import UpiPayButtons from '@/components/shared/UpiPayButtons'
 import { generateAgreementPDF, generateReceiptPDF } from '@/lib/pdf'
 import { getBillsForTenant, claimBillPaid } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
@@ -24,6 +25,7 @@ export default function TenantPortal() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
 
   const [payModal, setPayModal] = useState(false)
   const [pwModal, setPwModal] = useState(false)
@@ -64,7 +66,6 @@ export default function TenantPortal() {
   }, [])
 
   const thisMonth = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-  const thisMonthPaid = payments.some(p => p.for_month === thisMonth && p.approval_status === 'approved')
   const nextDueDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date(tenant?.joining_date ?? Date.now()).getDate())
   const daysLeft = tenant ? Math.ceil((nextDueDate.getTime() - Date.now()) / 86400000) : 0
   const depositDue = tenant ? tenant.deposit_amount - tenant.deposit_paid : 0
@@ -72,7 +73,7 @@ export default function TenantPortal() {
 
   const monthlyLedger = (() => {
     if (!tenant?.joining_date) return []
-    const months: { label: string; status: 'paid' | 'pending' | 'partial'; amount: number; paidOn?: string }[] = []
+    const months: { label: string; status: 'paid' | 'pending' | 'partial'; amount: number; paid: number; paidOn?: string }[] = []
     const start = new Date(tenant.joining_date)
     const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
     const today = new Date()
@@ -82,18 +83,42 @@ export default function TenantPortal() {
       const monthPayments = payments.filter(p => p.for_month === label && p.type === 'rent' && p.approval_status === 'approved')
       const totalPaid = monthPayments.reduce((s, p) => s + p.amount_received, 0)
       const status = totalPaid >= tenant.monthly_rent ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
-      months.push({ label, status, amount: tenant.monthly_rent, paidOn: monthPayments[0]?.payment_date })
+      months.push({ label, status, amount: tenant.monthly_rent, paid: totalPaid, paidOn: monthPayments[0]?.payment_date })
       cursor.setMonth(cursor.getMonth() + 1)
     }
-    return months.reverse()
+    return months
   })()
+
+  // Oldest unpaid/partial month first — this is what "Pay Now" targets, so
+  // a partial payment made at joining (or any earlier missed month) is
+  // exactly as visible and payable as the current month's rent.
+  const oldestUnpaidMonth = [...monthlyLedger].find(m => m.status !== 'paid')
+  const totalRentPending = monthlyLedger.reduce((s, m) => s + Math.max(0, m.amount - m.paid), 0)
+  const thisMonthPaid = totalRentPending <= 0
+  const ledgerDisplay = [...monthlyLedger].reverse()
+
+  const tenantNotifications = [
+    ...(totalRentPending > 0 && tenant?.status === 'active' ? [{
+      id: 'rent', title: `Rent due: ${formatINR(totalRentPending)}`,
+      subtitle: oldestUnpaidMonth?.label ?? 'This month', tab: 'rent' as Tab,
+    }] : []),
+    ...(depositDue > 0 && !depositClaimed && tenant?.status === 'active' ? [{
+      id: 'deposit', title: `Deposit pending: ${formatINR(depositDue)}`,
+      subtitle: 'Refundable security deposit', tab: 'deposit' as Tab,
+    }] : []),
+    ...bills.filter(b => b.status === 'pending').map(b => ({
+      id: `bill-${b.id}`, title: `${b.bill_type} bill: ${formatINR(b.amount)}`,
+      subtitle: b.for_month, tab: 'dashboard' as Tab,
+    })),
+    ...complaints.filter(c => c.status !== 'resolved').map(c => ({
+      id: `complaint-${c.id}`, title: `Complaint update: ${c.issue_type}`,
+      subtitle: `Status: ${c.status.replace('_', ' ')}`, tab: 'complaints' as Tab,
+    })),
+  ]
 
   const [payKind, setPayKind] = useState<'rent' | 'deposit'>('rent')
   function payAmountFor(kind: 'rent' | 'deposit') {
-    if (kind === 'rent') {
-      const paidThisMonth = payments.filter(p => p.for_month === thisMonth && p.type === 'rent' && p.approval_status === 'approved').reduce((s, p) => s + p.amount_received, 0)
-      return Math.max(0, (tenant?.monthly_rent ?? 0) - paidThisMonth)
-    }
+    if (kind === 'rent') return Math.max(0, (oldestUnpaidMonth?.amount ?? tenant?.monthly_rent ?? 0) - (oldestUnpaidMonth?.paid ?? 0))
     return Math.max(0, (tenant?.deposit_amount ?? 0) - (tenant?.deposit_paid ?? 0))
   }
   const payAmount = payAmountFor(payKind)
@@ -109,7 +134,7 @@ export default function TenantPortal() {
       const sb = createClient()
       await sb.from('payments').insert({
         tenant_id: tenant.id, property_id: tenant.property_id,
-        type: payKind, for_month: payKind === 'rent' ? thisMonth : null,
+        type: payKind, for_month: payKind === 'rent' ? (oldestUnpaidMonth?.label ?? thisMonth) : null,
         total_due: payAmount, amount_received: payAmount,
         method, tenant_note: note, submitted_by_tenant: true,
         approval_status: 'pending_approval', payment_date: new Date().toISOString().slice(0, 10),
@@ -252,10 +277,35 @@ export default function TenantPortal() {
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
           <div className="hidden lg:block" />
           <div className="flex items-center gap-4">
-            <button aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition text-gray-500">
-              <Bell className="w-4 h-4" />
-              {openComplaints > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />}
-            </button>
+            <div className="relative">
+              <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition text-gray-500">
+                <Bell className="w-4 h-4" />
+                {tenantNotifications.length > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full border-2 border-white text-[9px] text-white font-bold flex items-center justify-center">
+                    {tenantNotifications.length > 9 ? '9+' : tenantNotifications.length}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                  <div className="absolute top-full right-0 mt-1.5 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 font-bold text-sm text-gray-900">Notifications</div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {tenantNotifications.length === 0 ? (
+                        <div className="text-center py-8 text-sm text-gray-400">You're all caught up!</div>
+                      ) : tenantNotifications.map(n => (
+                        <button key={n.id} onClick={() => { setNotifOpen(false); setTab(n.tab) }}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
+                          <div className="text-sm font-semibold text-gray-900">{n.title}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{n.subtitle}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center text-white font-bold text-xs">
                 {initials}
@@ -321,17 +371,20 @@ export default function TenantPortal() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="font-bold text-sm text-gray-900">Amount Due</div>
                     <div className="text-sm font-extrabold text-red-600">
-                      Total: {formatINR((!thisMonthPaid ? payAmountFor('rent') : 0) + (depositDue > 0 && !depositClaimed ? depositDue : 0) + bills.filter(b => b.status === 'pending').reduce((s, b) => s + b.amount, 0))}
+                      Total: {formatINR(totalRentPending + (depositDue > 0 && !depositClaimed ? depositDue : 0) + bills.filter(b => b.status === 'pending').reduce((s, b) => s + b.amount, 0))}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {!thisMonthPaid && (
+                    {!thisMonthPaid && oldestUnpaidMonth && (
                       <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0"><Home className="w-4 h-4 text-emerald-600" /></div>
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">Rent — {thisMonth}</div>
-                            <div className="text-xs text-gray-400">Due {formatDate(nextDueDate.toISOString())} · {formatINR(payAmountFor('rent'))}</div>
+                            <div className="text-sm font-semibold text-gray-900">Rent — {oldestUnpaidMonth.label}</div>
+                            <div className="text-xs text-gray-400">
+                              {formatINR(payAmountFor('rent'))}
+                              {monthlyLedger.filter(m => m.status !== 'paid').length > 1 && ` · +${monthlyLedger.filter(m => m.status !== 'paid').length - 1} more month(s) pending`}
+                            </div>
                           </div>
                         </div>
                         <button onClick={() => openPay('rent')} className="flex-shrink-0 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
@@ -348,8 +401,7 @@ export default function TenantPortal() {
                         </div>
                         <div className="flex gap-1.5 flex-shrink-0">
                           {tenant.property?.upi_id && (
-                            <a href={upiPaymentLink(tenant.property.upi_id, tenant.property.name ?? 'PG Owner', b.amount, `${b.bill_type} - ${tenant.name}`)}
-                              className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-xl text-xs font-bold transition">UPI</a>
+                            <UpiPayButtons compact upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={b.amount} note={`${b.bill_type} - ${tenant.name}`} />
                           )}
                           <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
                         </div>
@@ -379,7 +431,7 @@ export default function TenantPortal() {
                     <button onClick={() => setTab('rent')} className="text-xs font-semibold text-blue-600 hover:underline">View All</button>
                   </div>
                   <div className="space-y-1">
-                    {monthlyLedger.slice(0, 3).map(m => (
+                    {ledgerDisplay.slice(0, 3).map(m => (
                       <div key={m.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                         <div>
                           <div className="text-sm font-semibold text-gray-900">{m.label}</div>
@@ -395,7 +447,7 @@ export default function TenantPortal() {
                     ))}
                     {!thisMonthPaid && !claimed && tenant.status === 'active' && (
                       <button onClick={() => openPay('rent')} className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
-                        Pay {thisMonth} Rent
+                        Pay {oldestUnpaidMonth?.label ?? thisMonth} Rent
                       </button>
                     )}
                   </div>
@@ -455,7 +507,7 @@ export default function TenantPortal() {
                 <p className="text-sm text-gray-500">Your full monthly rent history.</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                {monthlyLedger.map(m => (
+                {ledgerDisplay.map(m => (
                   <div key={m.label} className="flex items-center justify-between px-5 py-4 border-b border-gray-50 last:border-0">
                     <div>
                       <div className="text-sm font-semibold text-gray-900">{m.label}</div>
@@ -474,7 +526,7 @@ export default function TenantPortal() {
               </div>
               {!thisMonthPaid && !claimed && tenant.status === 'active' && (
                 <button onClick={() => openPay('rent')} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition">
-                  Mark {thisMonth} as Paid
+                  Mark {oldestUnpaidMonth?.label ?? thisMonth} as Paid
                 </button>
               )}
             </div>
@@ -660,10 +712,7 @@ export default function TenantPortal() {
                 Amount: <span className="font-bold">{formatINR(payAmount)}</span>. This notifies your owner that you've paid. No real payment is made here — the owner will verify and approve.
               </div>
               {tenant.property?.upi_id && (
-                <a href={upiPaymentLink(tenant.property.upi_id, tenant.property.name ?? 'PG Owner', payAmount, `${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`)}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition">
-                  Pay {formatINR(payAmount)} via UPI
-                </a>
+                <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={payAmount} note={`${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`} />
               )}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-2">Payment Method</label>

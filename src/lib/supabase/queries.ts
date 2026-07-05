@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
+import { formatINR } from '@/lib/utils'
 import type {
   AddRoomInput, AddTenantInput, RecordPaymentInput,
   AddExpenseInput, AddComplaintInput, Property, Tenant
@@ -231,6 +232,17 @@ export async function getPayments(propertyId: string) {
   return data
 }
 
+export async function getPaymentsForTenant(tenantId: string) {
+  const sb = createClient()
+  const { data, error } = await sb
+    .from('payments')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('payment_date', { ascending: false })
+  if (error) throw error
+  return data
+}
+
 export async function getPendingApprovals(propertyId: string) {
   const sb = createClient()
   const { data, error } = await sb
@@ -241,6 +253,41 @@ export async function getPendingApprovals(propertyId: string) {
     .order('created_at', { ascending: true })
   if (error) throw error
   return data
+}
+
+// ─── Notifications (computed from existing data — no separate table) ─────────
+export async function getOwnerNotifications(propertyIds: string[]) {
+  const sb = createClient()
+  if (propertyIds.length === 0) return []
+
+  const [payments, tenants, complaints] = await Promise.all([
+    sb.from('payments').select('id, amount_received, for_month, created_at, tenant:tenants(name)').in('property_id', propertyIds).eq('approval_status', 'pending_approval').order('created_at', { ascending: false }),
+    sb.from('tenants').select('id, name, created_at').in('property_id', propertyIds).eq('status', 'pending_approval').order('created_at', { ascending: false }),
+    sb.from('complaints').select('id, issue_type, created_at, tenant:tenants(name)').in('property_id', propertyIds).neq('status', 'resolved').order('created_at', { ascending: false }),
+  ])
+
+  const items = [
+    ...(payments.data ?? []).map((p: any) => ({
+      id: `payment-${p.id}`, type: 'payment', link: '/approvals',
+      title: `Payment claim from ${p.tenant?.name ?? 'a tenant'}`,
+      subtitle: `${formatINR(p.amount_received)} for ${p.for_month ?? 'a bill'}`,
+      createdAt: p.created_at,
+    })),
+    ...(tenants.data ?? []).map((t: any) => ({
+      id: `tenant-${t.id}`, type: 'tenant', link: '/approvals',
+      title: `New tenant request: ${t.name}`,
+      subtitle: 'Waiting for your approval',
+      createdAt: t.created_at,
+    })),
+    ...(complaints.data ?? []).map((c: any) => ({
+      id: `complaint-${c.id}`, type: 'complaint', link: '/complaints',
+      title: `Complaint: ${c.issue_type}`,
+      subtitle: c.tenant?.name ? `From ${c.tenant.name}` : 'Open complaint',
+      createdAt: c.created_at,
+    })),
+  ]
+
+  return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
 export async function recordPayment(input: RecordPaymentInput) {

@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR } from '@/lib/utils'
+import { formatINR, whatsappLink } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Check, X, QrCode, Copy, Loader2, Link2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
@@ -15,9 +15,7 @@ export default function ApprovalsPage() {
   const [pendingTenants, setPendingTenants] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [qrModal, setQrModal] = useState(false)
-  const [approveModal, setApproveModal] = useState<any>(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
   const [appUrl, setAppUrl] = useState('')
   useEffect(() => { setAppUrl(window.location.origin) }, [])
 
@@ -56,17 +54,18 @@ export default function ApprovalsPage() {
     catch (e: any) { toast.error(e.message) }
   }
 
-  async function handleApproveTenant() {
-    if (!newPassword || newPassword.length < 6) { toast.error('Password must be at least 6 characters'); return }
-    setSaving(true)
+  async function handleApproveTenant(t: any) {
+    setApprovingId(t.id)
+    const defaultPassword = 'Pass@123'
     try {
-      await approveTenant(approveModal.id, newPassword, approveModal)
-      toast.success(`${approveModal.name} approved & login created!`)
-      setApproveModal(null)
-      setNewPassword('')
+      await approveTenant(t.id, defaultPassword, t)
+      toast.success(`${t.name} approved! Sending login details on WhatsApp…`)
       load()
+      const loginUrl = `${appUrl}/login`
+      const msg = `Welcome to ${t.property?.name ?? 'the PG'}! 🎉\n\nYour login is ready:\nLogin: ${loginUrl}\nUsername: ${t.phone}\nPassword: ${defaultPassword}\n\nPlease change your password after your first login.`
+      window.open(whatsappLink(t.phone, msg), '_blank')
     } catch (e: any) { toast.error(e.message) }
-    setSaving(false)
+    setApprovingId(null)
   }
 
   const joinLink = active ? `${appUrl}/join/${active.qr_slug}` : ''
@@ -157,6 +156,9 @@ export default function ApprovalsPage() {
                         <div>
                           <div className="text-[10px] text-gray-400 uppercase font-bold">Rent</div>
                           <div className="text-sm font-bold text-gray-900">{formatINR(t.monthly_rent)}</div>
+                          {t.rent_paid_at_joining < t.monthly_rent && (
+                            <div className="text-xs text-yellow-600 font-semibold">₹{(t.monthly_rent - t.rent_paid_at_joining).toLocaleString('en-IN')} pending</div>
+                          )}
                         </div>
                         <div>
                           <div className="text-[10px] text-gray-400 uppercase font-bold">Deposit Paid</div>
@@ -175,8 +177,9 @@ export default function ApprovalsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setApproveModal(t)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
-                      <Check className="w-3.5 h-3.5" /> Approve & Create Login
+                    <button onClick={() => handleApproveTenant(t)} disabled={approvingId === t.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
+                      {approvingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approve
                     </button>
                     <button onClick={() => handleRejectTenant(t.id, t.name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
                       <X className="w-3.5 h-3.5" /> Reject
@@ -220,30 +223,6 @@ export default function ApprovalsPage() {
         </div>
       )}
 
-      {/* Approve Tenant Modal */}
-      {approveModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold">Approve {approveModal.name}</h2>
-              <button onClick={() => setApproveModal(null)} className="text-gray-400 text-xl font-bold">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-xs text-gray-500">Set a login password for this tenant. Their username will be their mobile number: <strong>{approveModal.phone}</strong></p>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Set Password *</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button onClick={handleApproveTenant} disabled={saving} className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Approve & Create Login
-              </button>
-              <button onClick={() => setApproveModal(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

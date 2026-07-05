@@ -6,7 +6,7 @@ import { generateFullAgreementPDF } from '@/lib/pdf'
 import { toast } from 'sonner'
 import {
   Building2, CheckCircle, Loader2, ChevronLeft, ChevronRight, Download,
-  Printer, Eye, User, Home, FileText, IndianRupee, ShieldCheck, X,
+  Printer, Eye, User, Home, FileText, IndianRupee, ShieldCheck, X, Image as ImageIcon, Camera,
 } from 'lucide-react'
 import SignaturePad from '@/components/shared/SignaturePad'
 import { formatINR, formatDate } from '@/lib/utils'
@@ -64,12 +64,15 @@ export default function JoinPage() {
   const [previewOpen, setPreviewOpen] = useState(false)
 
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', government_id: '', emergency_contact: '',
+    name: '', phone: '', email: '', emergency_contact: '',
     start_date: '', duration_months: '11',
     monthly_rent: '', security_deposit: '', deposit_paid: '0', rent_paid_at_joining: '0',
     electricity_charges: 'As per meter reading', maintenance_charges: '0',
     other_charges: '0', other_charges_note: '', late_fee_policy: '₹50 per day after the due date',
   })
+  const [govIdPreview, setGovIdPreview] = useState<string | null>(null)
+  const [govIdUrl, setGovIdUrl] = useState<string | null>(null)
+  const [govIdUploading, setGovIdUploading] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [signature, setSignature] = useState<string | null>(null)
   const [signedName, setSignedName] = useState('')
@@ -89,6 +92,26 @@ export default function JoinPage() {
 
   useEffect(() => { if (form.name && !signedName) setSignedName(form.name) }, [form.name])
 
+  async function handleGovIdSelect(file: File | null) {
+    if (!file) return
+    if (file.size > 8 * 1024 * 1024) { toast.error('Photo must be under 8MB'); return }
+    setGovIdPreview(URL.createObjectURL(file))
+    setGovIdUploading(true)
+    try {
+      const sb = createClient()
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${crypto.randomUUID()}.${ext}`
+      const { error } = await sb.storage.from('tenant-documents').upload(path, file)
+      if (error) throw error
+      const { data } = sb.storage.from('tenant-documents').getPublicUrl(path)
+      setGovIdUrl(data.publicUrl)
+    } catch (e: any) {
+      toast.error('Failed to upload photo: ' + e.message)
+      setGovIdPreview(null)
+    }
+    setGovIdUploading(false)
+  }
+
   const endDate = form.start_date ? addMonths(form.start_date, Number(form.duration_months)) : ''
   const dueDay = form.start_date ? new Date(form.start_date).getDate() : 1
   const agreementNumberPreview = `AGR-${new Date().getFullYear()}-XXXX`
@@ -99,7 +122,7 @@ export default function JoinPage() {
       const digits = form.phone.replace(/\D/g, '')
       if (digits.length < 10) { toast.error('Enter a valid 10-digit mobile number'); return false }
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Enter a valid email address'); return false }
-      if (!form.government_id.trim()) { toast.error('Government ID is required'); return false }
+      if (!govIdUrl) { toast.error('Please upload a photo of your Government ID'); return false }
       if (!form.emergency_contact.trim()) { toast.error('Emergency contact is required'); return false }
     }
     if (s === 1) {
@@ -129,7 +152,7 @@ export default function JoinPage() {
       tenantName: form.name.trim(),
       tenantPhone: form.phone,
       tenantEmail: form.email || undefined,
-      governmentId: form.government_id,
+      governmentId: govIdUrl ? 'Photo uploaded ✓ (on file with owner)' : undefined,
       emergencyContact: form.emergency_contact,
       propertyName: property?.name ?? 'PG',
       propertyAddress: property?.address ?? undefined,
@@ -211,7 +234,7 @@ export default function JoinPage() {
         other_charges_note: form.other_charges_note || null,
         due_day: dueDay,
         late_fee_policy: form.late_fee_policy,
-        government_id: form.government_id,
+        government_id: govIdUrl,
         terms_version: 'v1.0',
         tenant_accepted: true,
         tenant_signature: signature,
@@ -288,7 +311,34 @@ export default function JoinPage() {
                 <div className="col-span-1 sm:col-span-2"><Field label="Full Name" required value={form.name} onChange={(e: any) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your full name" /></div>
                 <Field label="Mobile Number" required type="tel" inputMode="numeric" value={form.phone} onChange={(e: any) => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit mobile" />
                 <Field label="Email" type="email" value={form.email} onChange={(e: any) => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Optional" />
-                <Field label="Government ID" required value={form.government_id} onChange={(e: any) => setForm(f => ({ ...f, government_id: e.target.value }))} placeholder="Aadhaar / PAN / License number" />
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Government ID Photo <span className="text-red-500">*</span></label>
+                  {govIdPreview ? (
+                    <div className="relative">
+                      <img src={govIdPreview} alt="Government ID" className="w-full h-32 object-cover rounded-xl border border-gray-200" />
+                      {govIdUploading && (
+                        <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        </div>
+                      )}
+                      <button type="button" onClick={() => { setGovIdPreview(null); setGovIdUrl(null) }}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white text-xs">×</button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 h-32">
+                      <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleGovIdSelect(e.target.files?.[0] ?? null)} />
+                        <Camera className="w-5 h-5 text-gray-400" />
+                        <span className="text-xs text-gray-500 text-center px-2">Take Photo</span>
+                      </label>
+                      <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleGovIdSelect(e.target.files?.[0] ?? null)} />
+                        <ImageIcon className="w-5 h-5 text-gray-400" />
+                        <span className="text-xs text-gray-500 text-center px-2">Choose from Gallery</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
                 <Field label="Emergency Contact" required type="tel" inputMode="numeric" value={form.emergency_contact} onChange={(e: any) => setForm(f => ({ ...f, emergency_contact: e.target.value }))} placeholder="Parent/Guardian number" />
               </div>
             </div>
@@ -433,7 +483,7 @@ export default function JoinPage() {
             <div className="p-5 overflow-y-auto text-sm space-y-4">
               <div>
                 <div className="font-bold text-gray-900 mb-1">1. Tenant Information</div>
-                {[['Name', form.name], ['Mobile', form.phone], ['Email', form.email || '—'], ['Government ID', form.government_id || '—'], ['Emergency Contact', form.emergency_contact || '—']].map(([l, v]) => (
+                {[['Name', form.name], ['Mobile', form.phone], ['Email', form.email || '—'], ['Government ID', govIdUrl ? 'Photo uploaded ✓' : '—'], ['Emergency Contact', form.emergency_contact || '—']].map(([l, v]) => (
                   <div key={l} className="flex justify-between text-gray-600 py-0.5"><span>{l}</span><span className="font-medium text-gray-900">{v}</span></div>
                 ))}
               </div>

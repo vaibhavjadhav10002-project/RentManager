@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Menu, Search, Bell, Sun, Moon, ChevronDown, Building2, Layers, Plus, Loader2 } from 'lucide-react'
 import { useProperty } from './PropertyContext'
 import { cn } from '@/lib/utils'
-import { addProperty } from '@/lib/supabase/queries'
+import { addProperty, getOwnerNotifications } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 
 interface Props {
@@ -13,12 +14,21 @@ interface Props {
 }
 
 export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
+  const router = useRouter()
   const { properties, activeId, setActiveId, active, refresh } = useProperty()
   const [propOpen, setPropOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ name: '', address: '', city: '', upi_id: '' })
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifications, setNotifications] = useState<any[]>([])
+
+  useEffect(() => {
+    const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
+    if (propIds.length === 0 || propIds.some(id => !id)) return
+    getOwnerNotifications(propIds).then(setNotifications).catch(() => setNotifications([]))
+  }, [activeId, properties])
 
   async function handleAddProperty() {
     if (!form.name.trim()) { toast.error('Property name is required'); return }
@@ -112,10 +122,35 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
         </button>
 
         {/* Notifications */}
-        <button aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-gray-500">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-        </button>
+        <div className="relative">
+          <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-gray-500">
+            <Bell className="w-4 h-4" />
+            {notifications.length > 0 && (
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full border-2 border-white text-[9px] text-white font-bold flex items-center justify-center">
+                {notifications.length > 9 ? '9+' : notifications.length}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+              <div className="absolute top-full right-0 mt-1.5 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 font-bold text-sm text-gray-900">Notifications</div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-gray-400">You're all caught up!</div>
+                  ) : notifications.map(n => (
+                    <button key={n.id} onClick={() => { setNotifOpen(false); router.push(n.link) }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
+                      <div className="text-sm font-semibold text-gray-900">{n.title}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{n.subtitle}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Add Property Modal */}

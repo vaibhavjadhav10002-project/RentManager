@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms } from '@/lib/supabase/queries'
+import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms, getPaymentsForTenant } from '@/lib/supabase/queries'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg } from '@/lib/utils'
+import { generateReceiptPDF } from '@/lib/pdf'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2, Zap } from 'lucide-react'
+import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2, Zap, Download } from 'lucide-react'
 import type { Tenant } from '@/types'
 
 const BADGE: Record<string, string> = {
@@ -30,6 +31,13 @@ export default function TenantsPage() {
   const [roomOptions, setRoomOptions] = useState<{ id: string; room_number: string; sharing_type: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [viewTenant, setViewTenant] = useState<Tenant | null>(null)
+  const [viewTenantPayments, setViewTenantPayments] = useState<any[]>([])
+
+  function openView(t: Tenant) {
+    setViewTenant(t)
+    setViewTenantPayments([])
+    getPaymentsForTenant(t.id).then(setViewTenantPayments).catch(() => setViewTenantPayments([]))
+  }
   const [editTenant, setEditTenant] = useState<Tenant | null>(null)
   const [editForm, setEditForm] = useState({
     name: '', phone: '', email: '', emergency_contact: '', bed_label: '',
@@ -259,7 +267,7 @@ export default function TenantsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <button onClick={() => setViewTenant(t)} aria-label={`View ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => openView(t)} aria-label={`View ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
                         <button onClick={() => openEdit(t)} aria-label={`Edit ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
                       </div>
                     </td>
@@ -388,6 +396,34 @@ export default function TenantsPage() {
                   <span className="font-semibold text-gray-900 capitalize">{value}</span>
                 </div>
               ))}
+
+              <div className="pt-2">
+                <div className="font-bold text-gray-900 mb-2">Payment History</div>
+                {viewTenantPayments.length === 0 ? (
+                  <div className="text-xs text-gray-400 text-center py-4">No payments recorded yet</div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {viewTenantPayments.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-800">{p.for_month ?? p.type} · {formatINR(p.amount_received)}</div>
+                          <div className="text-[11px] text-gray-400">{formatDate(p.payment_date)} · <span className="capitalize">{p.approval_status.replace('_', ' ')}</span></div>
+                        </div>
+                        {p.approval_status === 'approved' && (
+                          <button onClick={() => generateReceiptPDF({
+                            tenantName: viewTenant.name, propertyName: viewTenant.property?.name ?? 'PG',
+                            roomNumber: viewTenant.room?.room_number, forMonth: p.for_month ?? undefined, type: p.type,
+                            totalDue: p.total_due, amountReceived: p.amount_received, method: p.method ?? undefined,
+                            paymentDate: p.payment_date, approvalStatus: p.approval_status, receiptNo: p.id.slice(0, 8).toUpperCase(),
+                          })} className="p-1.5 hover:bg-gray-100 rounded-lg transition flex-shrink-0" aria-label="Download receipt">
+                            <Download className="w-3.5 h-3.5 text-gray-400" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100">
               <button onClick={() => setViewTenant(null)}
