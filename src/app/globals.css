@@ -24,19 +24,34 @@
     --radius: 0.625rem;
     --success: 160 84% 39%;
     --warning: 38 92% 50%;
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
   }
 
   .dark {
-    --background: 222 47% 9%;
-    --foreground: 210 40% 96%;
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 96%;
-    --primary: 221 83% 60%;
+    /* Near-black with a faint purple tint, matching the reference design's
+       "premium dark SaaS" look rather than a generic dark-blue theme. */
+    --background: 260 25% 6%;
+    --foreground: 220 20% 96%;
+    --card: 260 22% 9%;
+    --card-foreground: 220 20% 96%;
+    --primary: 258 90% 66%;
     --primary-foreground: 0 0% 100%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --secondary: 270 60% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 260 18% 15%;
+    --muted-foreground: 220 10% 65%;
+    --accent: 270 70% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 260 18% 17%;
+    --input: 260 18% 17%;
+    --ring: 258 90% 66%;
+    --success: 160 70% 45%;
+    --warning: 38 92% 55%;
+    --sidebar: 260 30% 5%;
+    --sidebar-foreground: 220 15% 85%;
   }
 
   * { @apply border-border; }

@@ -12,10 +12,6 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
 
   if (!profile || profile.role === 'tenant') redirect('/portal')
   if (profile.role === 'super_admin') redirect('/admin')
-  if (!profile.is_active) {
-    await supabase.auth.signOut()
-    redirect('/login?deactivated=1')
-  }
 
   return <OwnerShell profile={profile}>{children}</OwnerShell>
 }

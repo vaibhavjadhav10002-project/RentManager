@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { format, differenceInDays, setDate } from 'date-fns'
+import { format, differenceInDays } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -21,56 +21,49 @@ export function formatMonth(date: string | Date) {
 }
 
 /**
+ * Returns the last valid date-of-month for a given year/month, clamped.
+ * e.g. getClampedDate(2024, 1 /*Feb*\/, 31) → Feb 29, 2024 (not March 2/3)
+ */
+function getClampedDate(year: number, month: number, day: number): Date {
+  // Day 0 of "next month" = last day of "this month"
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate()
+  const safeDay = Math.min(day, lastDayOfMonth)
+  return new Date(year, month, safeDay)
+}
+
+/**
  * Compute the current cycle's due date for a tenant.
- * Rule: due date = same day-of-month as joining date, for current month.
- * If that date is in the future, go back one month.
+ * Rule: due date = same day-of-month as joining date, for the current month.
+ * If that date hasn't arrived yet this month, use last month's due date instead.
+ * Correctly handles months with fewer days (e.g. joined on the 31st — due date
+ * becomes the 28th/29th/30th in shorter months, never rolls into the next month).
  */
 export function computeDueDate(joiningDate: string, today = new Date()): Date {
   const joined = new Date(joiningDate)
   const dueDay = joined.getDate()
 
-  // Try this month's due date
-  let due = setDate(new Date(today.getFullYear(), today.getMonth(), 1), dueDay)
+  // Normalize "today" to midnight so day-based comparisons don't get thrown off by time-of-day
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
-  // If it's upcoming (tenant hasn't hit their due date yet this month), use last month
-  if (due > today) {
-    due = setDate(new Date(today.getFullYear(), today.getMonth() - 1, 1), dueDay)
+  let due = getClampedDate(todayMidnight.getFullYear(), todayMidnight.getMonth(), dueDay)
+
+  // If this month's due date is still upcoming, the *current* pending cycle is last month's
+  if (due > todayMidnight) {
+    const prevMonthDate = new Date(todayMidnight.getFullYear(), todayMidnight.getMonth() - 1, 1)
+    due = getClampedDate(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), dueDay)
   }
+
+  // Never show a due date before the tenant actually joined
+  const joinedMidnight = new Date(joined.getFullYear(), joined.getMonth(), joined.getDate())
+  if (due < joinedMidnight) due = joinedMidnight
+
   return due
 }
 
 export function getOverdueDays(joiningDate: string, today = new Date()): number {
   const due = computeDueDate(joiningDate, today)
-  return Math.max(0, differenceInDays(today, due))
-}
-
-// ─── UPI payment deep link ───────────────────────────────────────────────────
-// Built manually with encodeURIComponent (not URLSearchParams) because
-// URLSearchParams encodes spaces as "+" (form-encoding), which several UPI
-// apps fail to parse correctly in a upi:// deep link — they expect strict
-// percent-encoding ("%20").
-// ─── UPI payment deep-links ────────────────────────────────────────────────
-// A single generic `upi://` link doesn't reliably launch payment apps on
-// every device — iOS doesn't support the generic scheme at all, and some
-// Android setups need the app's own scheme to trigger correctly. This
-// returns one link per major app so the user can tap whichever they have
-// installed. All of these are free, standard URI deep-links — no payment
-// gateway or subscription involved.
-export function upiPaymentLinks(upiId: string, payeeName: string, amount: number, note: string) {
-  const params = new URLSearchParams({
-    pa: upiId, pn: payeeName, am: amount.toFixed(2), cu: 'INR', tn: note,
-  }).toString()
-  return {
-    generic: `upi://pay?${params}`,
-    gpay: `tez://upi/pay?${params}`,
-    phonepe: `phonepe://pay?${params}`,
-    paytm: `paytmmp://pay?${params}`,
-  }
-}
-
-// Kept for existing callers — returns the generic link.
-export function upiPaymentLink(upiId: string, payeeName: string, amount: number, note: string) {
-  return upiPaymentLinks(upiId, payeeName, amount, note).generic
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.max(0, differenceInDays(todayMidnight, due))
 }
 
 // ─── QR slug generator ────────────────────────────────────────────────────────
@@ -91,6 +84,29 @@ export function whatsappLink(phone: string, message: string) {
 
 export function rentReminderMsg(tenantName: string, amount: number, pgName: string) {
   return `Hi ${tenantName} 👋,\n\nThis is a friendly reminder that your rent of ${formatINR(amount)} is due for ${pgName}.\n\nPlease make the payment at your earliest convenience.\n\nThank you! 🙏`
+}
+
+// Used whenever an owner sends a Notice (rent, deposit, electricity, water,
+// maintenance, or general) so the same message can be forwarded over
+// WhatsApp in one tap, not just stored in-app.
+export function noticeWhatsappMsg(tenantName: string, title: string, message: string, pgName: string) {
+  return `Hi ${tenantName} 👋,\n\n📢 *${title}* — ${pgName}\n\n${message}\n\n— Sent via PG Manager`
+}
+
+// ─── UPI payment link (free — standard UPI deep-link, no gateway needed) ────────
+// This generates the same kind of link any UPI QR code encodes. Scanning it
+// opens the tenant's own UPI app (GPay/PhonePe/Paytm/etc.) pre-filled with the
+// amount, and money goes straight to the owner's bank account — this app never
+// touches the payment itself, so there's no transaction fee or gateway account.
+export function upiPaymentLink(upiId: string, payeeName: string, amount: number, note: string) {
+  const params = new URLSearchParams({
+    pa: upiId,                          // payee UPI address
+    pn: payeeName,                      // payee name
+    am: amount.toFixed(2),              // amount
+    cu: 'INR',
+    tn: note,                           // transaction note
+  })
+  return `upi://pay?${params.toString()}`
 }
 
 // ─── Occupancy calc ───────────────────────────────────────────────────────────

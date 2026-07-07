@@ -72,6 +72,7 @@ create table tenants (
   phone text not null,                     -- also used as login username
   email text,
   emergency_contact text,
+  date_of_birth date,
   photo_url text,
   aadhaar_url text,
   aadhaar_status kyc_status default 'pending',
@@ -163,6 +164,27 @@ create table expenses (
 );
 
 -- ============================================================================
+-- 8b. NOTICES — owner-to-tenant announcements (Rent/Deposit/Electricity/General)
+-- ============================================================================
+create type notice_category as enum ('rent', 'deposit', 'electricity', 'water', 'maintenance', 'general');
+
+create table notices (
+  id uuid primary key default uuid_generate_v4(),
+  property_id uuid not null references properties(id) on delete cascade,
+  created_by uuid not null references profiles(id),
+  category notice_category not null default 'general',
+  title text not null,
+  message text not null,
+  -- null = sent to every active tenant at this property; otherwise a
+  -- specific list of tenant ids this notice targets (e.g. only overdue
+  -- tenants when sending a rent reminder notice).
+  tenant_ids uuid[],
+  created_at timestamptz default now()
+);
+
+create index idx_notices_property on notices(property_id);
+
+-- ============================================================================
 -- 9. INDEXES — for fast property-scoped queries
 -- ============================================================================
 create index idx_rooms_property on rooms(property_id);
@@ -224,6 +246,66 @@ create policy "Owners update own properties" on properties for update
 create policy "Owners delete own properties" on properties for delete
   using (owner_id = auth.uid() or get_my_role() = 'super_admin');
 
+-- Anonymous/public lookup by qr_slug — used by the public "Join PG" page so a
+-- prospective tenant who isn't logged in yet can resolve a scanned QR/link
+-- back to the right property_id before submitting their request.
+--
+-- IMPORTANT: we deliberately do NOT add a blanket "select" RLS policy here
+-- (e.g. `using (true)`), because that would let anyone with the public anon
+-- key list every property's full row — including bank_account_number,
+-- upi_id, and address — not just the one they scanned. Instead we expose a
+-- narrow SECURITY DEFINER function that returns only id + name for a given
+-- slug, which is all the join page actually needs.
+-- NOTE: deliberately NOT marked STABLE. STABLE tells Postgres this
+-- function's result can be cached/reused across calls within the same
+-- statement — combined with Supabase's PgBouncer/PostgREST connection
+-- pooling, that can cause a newly-created property's qr_slug to appear
+-- "not found" on some pooled connections for a while after creation (the
+-- classic symptom: link works right after creating the property, then
+-- starts failing with "Invalid join link" minutes/hours later, even though
+-- the row was never deleted or changed). This is a cheap single-row lookup
+-- by a unique-indexed column, so there's no real performance reason to risk
+-- any caching here — always re-read the current committed row instead.
+create or replace function get_property_by_slug(slug text)
+returns table (id uuid, name text) as $$
+  select id, name from properties where qr_slug = slug limit 1;
+$$ language sql security definer;
+
+grant execute on function get_property_by_slug(text) to anon, authenticated;
+
+-- Lets the anonymous "Join PG" page check whether this phone number already
+-- has a pending request at this property, without granting broad SELECT
+-- access to the tenants table (which holds phone numbers, rent amounts, etc.)
+create or replace function has_pending_join_request(p_property_id uuid, p_phone text)
+returns boolean as $$
+  select exists (
+    select 1 from tenants
+    where property_id = p_property_id
+      and phone = p_phone
+      and status = 'pending_approval'
+      and submitted_via = 'qr_link'
+  );
+$$ language sql security definer;
+
+grant execute on function has_pending_join_request(uuid, text) to anon, authenticated;
+
+-- Lets a logged-in tenant see just the name + birthday of other active
+-- tenants at their own property (for a "upcoming birthdays" widget) —
+-- without loosening the main tenants RLS policy, which would otherwise
+-- expose phone numbers, rent, and deposit amounts between tenants.
+create or replace function get_cotenant_birthdays(p_property_id uuid)
+returns table (name text, date_of_birth date) as $$
+  select t.name, t.date_of_birth
+  from tenants t
+  where t.property_id = p_property_id
+    and t.status = 'active'
+    and t.date_of_birth is not null
+    and tenant_belongs_to_property(p_property_id)  -- caller must themselves be a tenant here
+    and t.auth_user_id is not null;
+$$ language sql security definer;
+
+grant execute on function get_cotenant_birthdays(uuid) to authenticated;
+
 -- ---- ROOMS policies (scoped via property ownership) ----
 create policy "View rooms of own/all properties" on rooms for select
   using (get_my_role() = 'super_admin' or owns_property(property_id) or tenant_belongs_to_property(property_id));
@@ -267,6 +349,17 @@ create policy "Tenants submit own paid claims" on payments for insert
     submitted_by_tenant = true
     and tenant_id in (select id from tenants where auth_user_id = auth.uid())
   );
+
+-- Public (unauthenticated) QR-onboarding submitters can log a single
+-- "rent paid at joining" claim for the pending tenant row they just created
+-- in the same request. It stays pending_approval until the owner reviews it,
+-- same as everything else in the QR-onboarding flow.
+create policy "Public can log joining-rent claim for pending tenant" on payments for insert
+  with check (
+    approval_status = 'pending_approval'
+    and submitted_by_tenant = true
+    and tenant_id in (select id from tenants where status = 'pending_approval' and submitted_via = 'qr_link')
+  );
 create policy "Owners update payments (approve/reject)" on payments for update
   using (owns_property(property_id) or get_my_role() = 'super_admin');
 
@@ -289,6 +382,31 @@ create policy "View expenses of own properties" on expenses for select
   using (get_my_role() = 'super_admin' or owns_property(property_id));
 create policy "Owners manage expenses" on expenses for all
   using (owns_property(property_id) or get_my_role() = 'super_admin');
+
+-- ---- NOTICES policies ----
+alter table notices enable row level security;
+
+-- Helper: does the logged-in tenant's own tenant-row id appear in this
+-- notice's tenant_ids array? Used so a notice can either broadcast to every
+-- tenant at a property (tenant_ids is null) or target a specific subset
+-- (e.g. only tenants with overdue rent).
+create or replace function notice_targets_me(notice_tenant_ids uuid[]) returns boolean as $$
+  select notice_tenant_ids is null or exists (
+    select 1 from tenants
+    where auth_user_id = auth.uid()
+      and id = any(notice_tenant_ids)
+  );
+$$ language sql security definer;
+
+create policy "Owners manage notices for own properties" on notices for all
+  using (owns_property(property_id) or get_my_role() = 'super_admin');
+
+create policy "Tenants view notices addressed to them" on notices for select
+  using (
+    get_my_role() = 'super_admin'
+    or owns_property(property_id)
+    or (tenant_belongs_to_property(property_id) and notice_targets_me(tenant_ids))
+  );
 
 -- ============================================================================
 -- 11. AUTO-CREATE PROFILE ON SIGNUP (trigger)

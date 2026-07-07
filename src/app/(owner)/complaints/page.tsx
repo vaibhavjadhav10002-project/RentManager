@@ -41,12 +41,12 @@ export default function ComplaintsPage() {
   const filtered = filter === 'all' ? complaints : complaints.filter(c => c.status === filter)
 
   async function handleAdd() {
-    const propertyId = form.property_id || (activeId !== 'all' ? activeId : '')
-    if (!propertyId) { toast.error('Select a property'); return }
     if (!form.issue_type) { toast.error('Select issue type'); return }
+    const resolvedPropertyId = activeId !== 'all' ? activeId : form.property_id
+    if (!resolvedPropertyId) { toast.error('Select a property for this complaint'); return }
     setSaving(true)
     try {
-      await addComplaint({ property_id: propertyId, issue_type: form.issue_type, description: form.description, priority: form.priority as any, assigned_to: form.assigned_to })
+      await addComplaint({ property_id: resolvedPropertyId, issue_type: form.issue_type, description: form.description, priority: form.priority as any, assigned_to: form.assigned_to })
       toast.success('Complaint added!'); setModal(false); load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -91,12 +91,20 @@ export default function ComplaintsPage() {
                     {c.assigned_to && <span className="text-blue-600 font-semibold">→ {c.assigned_to}</span>}
                   </div>
                 </div>
-                {c.status !== 'resolved' && (
-                  <button onClick={async () => { await resolveComplaint(c.id); toast.success('Marked resolved!'); load() }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-xs font-semibold transition flex-shrink-0">
-                    <Check className="w-3.5 h-3.5" /> Resolve
-                  </button>
-                )}
+                <div className="flex gap-2 flex-shrink-0">
+                  {c.status === 'open' && (
+                    <button onClick={async () => { await updateComplaint(c.id, { status: 'in_progress' }); toast.success('Marked in progress'); load() }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl text-xs font-semibold transition">
+                      In Progress
+                    </button>
+                  )}
+                  {c.status !== 'resolved' && (
+                    <button onClick={async () => { await resolveComplaint(c.id); toast.success('Marked resolved!'); load() }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-xs font-semibold transition">
+                      <Check className="w-3.5 h-3.5" /> Resolve
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
