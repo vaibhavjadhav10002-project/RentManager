@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import AdminShell from '@/components/shared/AdminShell'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -8,9 +7,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+    .from('profiles').select('role, is_active').eq('id', user.id).single()
 
-  if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
+  if (!profile || profile.role !== 'super_admin') redirect('/login')
+  if (!profile.is_active) {
+    await supabase.auth.signOut()
+    redirect('/login?deactivated=1')
+  }
 
-  return <AdminShell adminEmail={profile.email ?? user.email ?? ''}>{children}</AdminShell>
+  return <>{children}</>
 }

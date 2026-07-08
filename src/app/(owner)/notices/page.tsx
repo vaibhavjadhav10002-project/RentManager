@@ -1,85 +1,78 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getNotices, sendNotice, deleteNotice, getTenants } from '@/lib/supabase/queries'
-import { noticeWhatsappMsg } from '@/lib/utils'
+import { getNoticesForProperty, addNotice, deleteNotice } from '@/lib/supabase/queries'
+import { createClient } from '@/lib/supabase/client'
+import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Loader2, Trash2, Megaphone, MessageCircle, Users, User } from 'lucide-react'
-import type { Tenant } from '@/types'
+import { Plus, Loader2, Megaphone, Trash2, Paperclip, X } from 'lucide-react'
 
-const CATEGORIES = [
-  { value: 'rent', label: 'Rent', color: 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' },
-  { value: 'deposit', label: 'Deposit', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400' },
-  { value: 'electricity', label: 'Electricity', color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400' },
-  { value: 'water', label: 'Water', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-400' },
-  { value: 'maintenance', label: 'Maintenance', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400' },
-  { value: 'general', label: 'General', color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300' },
-] as const
+const CATEGORIES = ['General', 'Maintenance', 'Rent', 'Electricity', 'Emergency', 'Event']
+const PRIORITIES = ['Normal', 'Important', 'Urgent']
 
 export default function NoticesPage() {
-  const { activeId, active, properties } = useProperty()
+  const { activeId, active } = useProperty()
   const [notices, setNotices] = useState<any[]>([])
-  const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [audience, setAudience] = useState<'all' | 'selected'>('all')
-  const [selectedTenantIds, setSelectedTenantIds] = useState<string[]>([])
-  const [form, setForm] = useState({ category: 'general' as typeof CATEGORIES[number]['value'], title: '', message: '' })
+  const [uploading, setUploading] = useState(false)
+  const [form, setForm] = useState({
+    title: '', description: '', category: 'General', priority: 'Normal',
+    publish_date: new Date().toISOString().slice(0, 10), expiry_date: '',
+  })
+  const [attachment, setAttachment] = useState<{ url: string; name: string } | null>(null)
 
-  const load = useCallback(async () => {
+  function load() {
+    if (activeId === 'all' || !activeId) { setNotices([]); setLoading(false); return }
     setLoading(true)
+    getNoticesForProperty(activeId).then(setNotices).catch(() => setNotices([])).finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [activeId])
+
+  async function handleAttachmentSelect(file: File | null) {
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) { toast.error('File must be under 10MB'); return }
+    setUploading(true)
     try {
-      if (activeId === 'all') {
-        const [noticeLists, tenantLists] = await Promise.all([
-          Promise.all(properties.map(p => getNotices(p.id))),
-          Promise.all(properties.map(p => getTenants(p.id))),
-        ])
-        setNotices(noticeLists.flat().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
-        setTenants(tenantLists.flat().filter(t => t.status === 'active'))
-      } else if (activeId) {
-        const [n, t] = await Promise.all([getNotices(activeId), getTenants(activeId)])
-        setNotices(n)
-        setTenants(t.filter(t => t.status === 'active'))
-      } else {
-        setNotices([]); setTenants([])
-      }
-    } catch { toast.error('Failed to load notices') }
-    setLoading(false)
-  }, [activeId, properties])
-
-  useEffect(() => { load() }, [load])
-
-  function openModal() {
-    if (activeId === 'all') {
-      toast.error('Select a specific property from the switcher above to send a notice')
-      return
-    }
-    setForm({ category: 'general', title: '', message: '' })
-    setAudience('all')
-    setSelectedTenantIds([])
-    setModal(true)
+      const sb = createClient()
+      const ext = file.name.split('.').pop() || 'file'
+      const path = `${crypto.randomUUID()}.${ext}`
+      const { error } = await sb.storage.from('notice-attachments').upload(path, file)
+      if (error) throw error
+      const { data } = sb.storage.from('notice-attachments').getPublicUrl(path)
+      setAttachment({ url: data.publicUrl, name: file.name })
+    } catch (e: any) { toast.error('Upload failed: ' + e.message) }
+    setUploading(false)
   }
 
-  function toggleTenant(id: string) {
-    setSelectedTenantIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  }
-
-  async function handleSend() {
-    if (!form.title.trim() || !form.message.trim()) { toast.error('Fill in title and message'); return }
-    if (audience === 'selected' && selectedTenantIds.length === 0) { toast.error('Select at least one tenant, or choose "All Tenants"'); return }
-    if (!active) { toast.error('Select a specific property first'); return }
+  async function handleCreate() {
+    if (activeId === 'all' || !activeId) { toast.error('Select a specific property first'); return }
+    if (!form.title.trim()) { toast.error('Title is required'); return }
+    if (!form.description.trim()) { toast.error('Description is required'); return }
     setSaving(true)
     try {
-      await sendNotice({
-        property_id: active.id,
-        category: form.category,
+      const sb = createClient()
+      const { data: { user } } = await sb.auth.getUser()
+      const { data: prof } = user ? await sb.from('profiles').select('full_name').eq('id', user.id).single() : { data: null }
+
+      await addNotice({
+        property_id: activeId,
         title: form.title.trim(),
-        message: form.message.trim(),
-        tenant_ids: audience === 'selected' ? selectedTenantIds : undefined,
+        description: form.description.trim(),
+        category: form.category,
+        priority: form.priority,
+        publish_date: form.publish_date,
+        expiry_date: form.expiry_date || null,
+        attachment_url: attachment?.url ?? null,
+        attachment_name: attachment?.name ?? null,
+        created_by: prof?.full_name ?? undefined,
       })
-      toast.success('Notice sent! It now appears on the tenant dashboard.')
+      toast.success('Notice published!')
       setModal(false)
+      setForm({ title: '', description: '', category: 'General', priority: 'Normal', publish_date: new Date().toISOString().slice(0, 10), expiry_date: '' })
+      setAttachment(null)
       load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -87,80 +80,69 @@ export default function NoticesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this notice? Tenants will no longer see it.')) return
-    try { await deleteNotice(id); toast.success('Notice deleted'); load() }
-    catch (e: any) { toast.error(e.message) }
+    try {
+      await deleteNotice(id)
+      toast.success('Notice deleted')
+      setNotices(prev => prev.filter(n => n.id !== id))
+    } catch (e: any) { toast.error(e.message) }
   }
 
-  function targetedTenants(notice: any): Tenant[] {
-    if (!notice.tenant_ids) return tenants  // null = everyone
-    return tenants.filter(t => notice.tenant_ids.includes(t.id))
-  }
-
-  function whatsappAllLink(notice: any) {
-    const targets = targetedTenants(notice)
-    // wa.me only supports one recipient per link, so for "send to everyone"
-    // we open the first tenant's chat pre-filled — the owner can still copy
-    // the message and forward it manually to the rest, which is the honest
-    // limit of what a free, no-API WhatsApp integration can do.
-    if (targets.length === 0) return null
-    const first = targets[0]
-    return `https://wa.me/${first.phone.replace(/\D/g, '').startsWith('91') ? '' : '91'}${first.phone.replace(/\D/g, '')}?text=${encodeURIComponent(noticeWhatsappMsg(first.name, notice.title, notice.message, active?.name ?? 'your PG'))}`
-  }
-
-  const catInfo = (val: string) => CATEGORIES.find(c => c.value === val) ?? CATEGORIES[5]
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Notices</h1>
-          <p className="text-sm text-gray-500 dark:text-slate-400">Send announcements to your tenants — rent, electricity, maintenance, or anything else</p>
+          <h1 className="text-xl font-extrabold text-gray-900">Notice Board</h1>
+          <p className="text-sm text-gray-500">Announcements sent to all tenants at {active?.name ?? 'this property'}</p>
         </div>
-        <button onClick={openModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
-          <Plus className="w-4 h-4" /> Send Notice
+        <button onClick={() => { if (activeId === 'all') { toast.error('Select a specific property first'); return } setModal(true) }}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
+          <Plus className="w-4 h-4" /> New Notice
         </button>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40 text-gray-400 dark:text-slate-500"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
+        <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
+      ) : activeId === 'all' ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-sm text-gray-400 shadow-sm">
+          Select a specific property to manage its notice board
+        </div>
       ) : notices.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-12 text-center">
-          <Megaphone className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-slate-600" />
-          <div className="font-semibold text-gray-700 dark:text-slate-300">No notices sent yet</div>
-          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Send your first notice — it'll appear right on your tenants' dashboards.</p>
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-sm text-gray-400 shadow-sm">
+          No notices yet — publish your first announcement
         </div>
       ) : (
         <div className="space-y-3">
           {notices.map(n => {
-            const cat = catInfo(n.category)
-            const wa = whatsappAllLink(n)
-            const targetCount = n.tenant_ids ? n.tenant_ids.length : tenants.length
+            const expired = n.expiry_date && n.expiry_date < today
+            const scheduled = n.publish_date > today
             return (
-              <div key={n.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 shadow-sm dark:shadow-none">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div key={n.id} className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-5 ${expired ? 'opacity-60' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${cat.color}`}>{cat.label}</span>
-                      <span className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1">
-                        {n.tenant_ids ? <User className="w-3 h-3" /> : <Users className="w-3 h-3" />}
-                        {n.tenant_ids ? `${targetCount} selected tenant${targetCount === 1 ? '' : 's'}` : 'All tenants'}
-                      </span>
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <h3 className="text-sm font-bold text-gray-900">{n.title}</h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        n.priority === 'Urgent' ? 'bg-red-100 text-red-700' : n.priority === 'Important' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+                      }`}>{n.priority}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{n.category}</span>
+                      {expired && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Expired</span>}
+                      {scheduled && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">Scheduled</span>}
                     </div>
-                    <div className="font-bold text-sm text-gray-900 dark:text-white mb-1">{n.title}</div>
-                    <p className="text-sm text-gray-600 dark:text-slate-300 whitespace-pre-wrap">{n.message}</p>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-2">{new Date(n.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                  </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    {wa && (
-                      <a href={wa} target="_blank" rel="noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-500/10 dark:hover:bg-green-500/20 text-green-700 dark:text-green-400 rounded-xl text-xs font-semibold transition">
-                        <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{n.description}</p>
+                    {n.attachment_url && (
+                      <a href={n.attachment_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline mt-2">
+                        <Paperclip className="w-3.5 h-3.5" /> {n.attachment_name || 'Attachment'}
                       </a>
                     )}
-                    <button onClick={() => handleDelete(n.id)} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-gray-400 hover:text-red-500 transition">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="text-xs text-gray-400 mt-2">
+                      Published {formatDate(n.publish_date)}{n.expiry_date ? ` · Expires ${formatDate(n.expiry_date)}` : ' · No expiry'}
+                    </div>
                   </div>
+                  <button onClick={() => handleDelete(n.id)} aria-label="Delete notice" className="p-1.5 hover:bg-red-50 rounded-lg transition flex-shrink-0">
+                    <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
+                  </button>
                 </div>
               </div>
             )
@@ -168,71 +150,75 @@ export default function NoticesPage() {
         </div>
       )}
 
-      {/* Send Notice Modal */}
+      {/* New Notice Modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">Send Notice — {active?.name}</h2>
-              <button onClick={() => setModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-base font-bold flex items-center gap-2"><Megaphone className="w-4 h-4 text-indigo-600" /> New Notice</h2>
+              <button onClick={() => setModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-4 overflow-y-auto">
               <div>
-                <label className="text-xs font-semibold text-gray-600 dark:text-slate-400 block mb-1.5">Category</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {CATEGORIES.map(c => (
-                    <button key={c.value} onClick={() => setForm(f => ({ ...f, category: c.value }))}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition capitalize ${form.category === c.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                      {c.label}
-                    </button>
-                  ))}
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Title *</label>
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. Water supply maintenance on Sunday"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Description *</label>
+                <textarea rows={4} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Full details of the announcement…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Category</label>
+                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Priority</label>
+                  <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+                    {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Publish Date</label>
+                  <input type="date" value={form.publish_date} onChange={e => setForm(f => ({ ...f, publish_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Expiry Date (optional)</label>
+                  <input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 dark:text-slate-400 block mb-1.5">Title *</label>
-                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Electricity bill due, Water supply shutdown"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 dark:text-slate-400 block mb-1.5">Message *</label>
-                <textarea rows={4} value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} placeholder="Write your notice here…"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 dark:text-slate-400 block mb-1.5">Send To</label>
-                <div className="flex gap-2 mb-2">
-                  <button onClick={() => setAudience('all')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition ${audience === 'all' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'}`}>
-                    <Users className="w-3.5 h-3.5" /> All Tenants ({tenants.length})
-                  </button>
-                  <button onClick={() => setAudience('selected')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition ${audience === 'selected' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'}`}>
-                    <User className="w-3.5 h-3.5" /> Select Tenants
-                  </button>
-                </div>
-                {audience === 'selected' && (
-                  <div className="border border-gray-200 dark:border-slate-700 rounded-xl max-h-40 overflow-y-auto">
-                    {tenants.length === 0 ? (
-                      <div className="p-3 text-xs text-gray-400 dark:text-slate-500 text-center">No active tenants at this property</div>
-                    ) : tenants.map(t => (
-                      <label key={t.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer border-b border-gray-50 dark:border-slate-800 last:border-0">
-                        <input type="checkbox" checked={selectedTenantIds.includes(t.id)} onChange={() => toggleTenant(t.id)} className="accent-blue-600" />
-                        <span className="text-xs text-gray-700 dark:text-slate-300">{t.name}{t.room ? ` — Room ${t.room.room_number}` : ''}</span>
-                      </label>
-                    ))}
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Attachment (optional)</label>
+                {attachment ? (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <span className="text-sm text-gray-700 flex items-center gap-2 truncate"><Paperclip className="w-3.5 h-3.5 flex-shrink-0" /> {attachment.name}</span>
+                    <button onClick={() => setAttachment(null)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition text-sm text-gray-500">
+                    <input type="file" className="hidden" onChange={e => handleAttachmentSelect(e.target.files?.[0] ?? null)} disabled={uploading} />
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                    {uploading ? 'Uploading…' : 'Attach a file (image, PDF, etc.)'}
+                  </label>
                 )}
               </div>
-              <div className="bg-blue-50 dark:bg-blue-500/10 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-400">
-                This notice appears immediately on the tenant dashboard. After sending, you'll get a one-tap WhatsApp button to forward the same message.
-              </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex gap-3 flex-shrink-0">
-              <button onClick={handleSend} disabled={saving}
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Send Notice
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
+              <button onClick={handleCreate} disabled={saving || uploading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Publish Notice
               </button>
-              <button onClick={() => setModal(false)} className="flex-1 py-2.5 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-gray-200 dark:hover:bg-slate-700 transition">Cancel</button>
+              <button onClick={() => setModal(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">Cancel</button>
             </div>
           </div>
         </div>

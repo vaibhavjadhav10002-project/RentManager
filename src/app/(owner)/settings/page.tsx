@@ -1,12 +1,23 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { updateProperty, addCollector, getCollectors, deleteCollector } from '@/lib/supabase/queries'
+import { updateProperty, addCollector, deleteCollector, getCollectors } from '@/lib/supabase/queries'
 import { useProperty } from '@/components/shared/PropertyContext'
+
+// Defined outside the page component — declaring this inside the render
+// body would make React treat it as a new component type on every keystroke
+// (since typing triggers a re-render), causing the input to lose focus
+// after every single character.
+function Field({ label, value, onChange, type = 'text' }: any) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+    </div>
+  )
+}
 import { toast } from 'sonner'
-import { Loader2, Plus, Trash2, QrCode, Download } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
-import { upiPaymentLink } from '@/lib/utils'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 
 export default function SettingsPage() {
   const { active, refresh } = useProperty()
@@ -71,16 +82,10 @@ export default function SettingsPage() {
     const sb = createClient()
     const { error } = await sb.auth.updateUser({ password: pwForm.newPw })
     if (error) { toast.error(error.message); return }
+    if (profile?.id) await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
     toast.success('Password updated!')
     setPwForm({ current: '', newPw: '', confirm: '' })
   }
-
-  const Field = ({ label, value, onChange, type = 'text' }: any) => (
-    <div>
-      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-    </div>
-  )
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -98,50 +103,6 @@ export default function SettingsPage() {
         <button onClick={savePg} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save PG Details
         </button>
-      </div>
-
-      {/* UPI QR — free, no payment gateway. Tenants scan with any UPI app and pay you directly. */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4">
-        <div className="flex items-center gap-2">
-          <QrCode className="w-4 h-4 text-blue-600" />
-          <div className="font-bold text-sm text-gray-900">UPI QR Code</div>
-        </div>
-        {!pgForm.upi_id ? (
-          <p className="text-xs text-gray-400">Add your UPI ID above and save to generate a scannable QR code. Money goes straight to your bank account — this app never touches the payment, so there's no fee.</p>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-center gap-5">
-            <div id="upi-qr-code" className="p-4 bg-white border border-gray-100 rounded-2xl">
-              <QRCodeSVG value={upiPaymentLink(pgForm.upi_id, pgForm.name || 'PG Owner', 1, 'PG Rent Payment')} size={160} />
-            </div>
-            <div className="flex-1">
-              <div className="text-xs text-gray-400">UPI ID</div>
-              <div className="text-sm font-bold text-gray-900 mb-3">{pgForm.upi_id}</div>
-              <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                Tenants can scan this to pay via GPay, PhonePe, Paytm, or any UPI app. This QR has a placeholder amount of ₹1 — when generating a receipt for a specific tenant's rent, the exact amount is filled in automatically.
-              </p>
-              <button onClick={() => {
-                const svg = document.querySelector('#upi-qr-code svg')
-                if (!svg) return
-                const svgData = new XMLSerializer().serializeToString(svg)
-                const canvas = document.createElement('canvas')
-                canvas.width = 400; canvas.height = 400
-                const ctx = canvas.getContext('2d')
-                const img = new Image()
-                img.onload = () => {
-                  ctx!.fillStyle = '#fff'; ctx!.fillRect(0, 0, 400, 400)
-                  ctx!.drawImage(img, 20, 20, 360, 360)
-                  const a = document.createElement('a')
-                  a.download = 'upi-qr.png'
-                  a.href = canvas.toDataURL('image/png')
-                  a.click()
-                }
-                img.src = 'data:image/svg+xml;base64,' + btoa(svgData)
-              }} className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline">
-                <Download className="w-3.5 h-3.5" /> Download QR
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Collectors */}

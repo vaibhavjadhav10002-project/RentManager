@@ -1,428 +1,303 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import {
-  getDashboardStats, getTenants, getPayments, getComplaints, getExpenses,
-} from '@/lib/supabase/queries'
-import { formatINR, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg } from '@/lib/utils'
-import {
-  Home, Users, BedDouble, IndianRupee, Wallet, AlertTriangle,
-  TrendingUp, TrendingDown, UserPlus, Receipt, Wrench, LogIn,
-  Bell, ChevronRight, MessageCircle,
-} from 'lucide-react'
+import { getDashboardStats, getTenants, getPayments, getFinancialHistory, getComplaints, getExpenses } from '@/lib/supabase/queries'
+import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg } from '@/lib/utils'
+import { BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home, UserPlus, Receipt, Wrench } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  PieChart, Pie, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts'
 
-// ── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, sub, subColor, iconBg, iconColor }: {
-  icon: React.ElementType; label: string; value: string; sub?: string
-  subColor?: string; iconBg: string; iconColor: string
+function StatCard({ icon: Icon, label, value, sub, iconBg, iconColor }: {
+  icon: React.ElementType; label: string; value: string; sub?: string; iconBg: string; iconColor: string
 }) {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm dark:shadow-none">
-      <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
-          <Icon className={`w-5 h-5 ${iconColor}`} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs text-gray-500 dark:text-slate-400 font-medium truncate">{label}</div>
-          <div className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">{value}</div>
-        </div>
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${iconBg}`}>
+        <Icon className={`w-5 h-5 ${iconColor}`} />
       </div>
-      {sub && (
-        <div className={`text-xs font-semibold mt-2.5 ${subColor ?? 'text-gray-400 dark:text-slate-500'}`}>{sub}</div>
-      )}
+      <div className="text-2xl font-extrabold text-gray-900 dark:text-white">{value}</div>
+      <div className="text-xs text-gray-500 dark:text-slate-400 font-medium mt-1">{label}</div>
+      {sub && <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{sub}</div>}
     </div>
   )
 }
 
-// ── Merged "Recent Activities" feed item ─────────────────────────────────────
 interface ActivityItem {
-  id: string
-  type: 'tenant_joined' | 'payment' | 'expense' | 'complaint'
-  text: string
-  time: string
-  icon: React.ElementType
-  iconBg: string
-  iconColor: string
+  id: string; type: 'tenant_joined' | 'payment' | 'expense' | 'complaint'
+  text: string; time: string; icon: React.ElementType; iconBg: string; iconColor: string
+}
+
+function StatCard({ icon: Icon, label, value, sub, color }: {
+  icon: React.ElementType; label: string; value: string; sub?: string; color: string
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${color}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="text-2xl font-extrabold text-gray-900">{value}</div>
+      <div className="text-xs text-gray-500 font-medium mt-1">{label}</div>
+      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+    </div>
+  )
 }
 
 export default function DashboardPage() {
   const { activeId, active, properties } = useProperty()
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number })[]>([])
-  const [recentPayments, setRecentPayments] = useState<any[]>([])
   const [activities, setActivities] = useState<ActivityItem[]>([])
-  const [tenantsOnNotice, setTenantsOnNotice] = useState<any[]>([])
-  const [openComplaints, setOpenComplaints] = useState<any[]>([])
-  const [chartData, setChartData] = useState<{ date: string; income: number; expense: number }[]>([])
+  const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number; remainingDue: number })[]>([])
+  const [chartData, setChartData] = useState<{ month: string; revenue: number; expenses: number }[]>([])
   const [loading, setLoading] = useState(true)
 
-  const zeroStats: DashboardStats = {
-    totalRooms: 0, totalBeds: 0, occupiedBeds: 0, vacantBeds: 0,
-    monthlyRevenue: 0, pendingRent: 0, openComplaints: 0, totalTenants: 0,
-  }
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
+        getFinancialHistory(propIds).then(setChartData).catch(() => setChartData([]))
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const propIds = activeId === 'all' ? properties.map(p => p.id) : (activeId ? [activeId] : [])
+        if (activeId === 'all') {
+          // Aggregate across all properties
+          const results = await Promise.all(properties.map(p => getDashboardStats(p.id)))
+          const agg: DashboardStats = results.reduce((acc, s) => ({
+            totalRooms: acc.totalRooms + s.totalRooms,
+            totalBeds: acc.totalBeds + s.totalBeds,
+            occupiedBeds: acc.occupiedBeds + s.occupiedBeds,
+            vacantBeds: acc.vacantBeds + s.vacantBeds,
+            monthlyRevenue: acc.monthlyRevenue + s.monthlyRevenue,
+            pendingRent: acc.pendingRent + s.pendingRent,
+            openComplaints: acc.openComplaints + s.openComplaints,
+            totalTenants: acc.totalTenants + s.totalTenants,
+          }), { totalRooms: 0, totalBeds: 0, occupiedBeds: 0, vacantBeds: 0, monthlyRevenue: 0, pendingRent: 0, openComplaints: 0, totalTenants: 0 })
+          setStats(agg)
 
-      if (propIds.length === 0) {
-        setStats(zeroStats)
-        setPendingTenants([]); setRecentPayments([]); setActivities([])
-        setTenantsOnNotice([]); setOpenComplaints([])
-        setChartData(last30Days().map(d => ({ date: d, income: 0, expense: 0 })))
-        setLoading(false)
-        return
-      }
+          // Pending tenants across all props
+          const [allTenants, allPayments] = await Promise.all([
+            Promise.all(properties.map(p => getTenants(p.id))).then(r => r.flat()),
+            Promise.all(properties.map(p => getPayments(p.id))).then(r => r.flat()),
+          ])
+          buildPending(allTenants, allPayments)
+          buildActivities(allTenants, allPayments, 'all')
+        } else {
+          const [s, tenants, payments] = await Promise.all([
+            getDashboardStats(activeId),
+            getTenants(activeId),
+            getPayments(activeId),
+          ])
+          setStats(s)
+          buildPending(tenants, payments)
+          buildActivities(tenants, payments, activeId)
+        }
+      } catch {}
+      setLoading(false)
+    }
 
-      const [statsResults, allTenants, allPayments, allComplaints, allExpenses] = await Promise.all([
-        Promise.all(propIds.map(getDashboardStats)),
-        Promise.all(propIds.map(getTenants)).then(r => r.flat()),
-        Promise.all(propIds.map(getPayments)).then(r => r.flat()),
-        Promise.all(propIds.map(getComplaints)).then(r => r.flat()),
-        Promise.all(propIds.map(getExpenses)).then(r => r.flat()),
-      ])
+    async function buildActivities(tenants: Tenant[], payments: any[], propId: string) {
+      try {
+        const [complaints, expenses] = await Promise.all([
+          activeId !== 'all' ? getComplaints(propId) : Promise.resolve([]),
+          activeId !== 'all' ? getExpenses(propId) : Promise.resolve([]),
+        ])
+        const items: ActivityItem[] = [
+          ...tenants.slice(0, 5).map(t => ({
+            id: `t-${t.id}`, type: 'tenant_joined' as const, text: `${t.name} joined`,
+            time: t.joining_date, icon: UserPlus, iconBg: 'bg-blue-50', iconColor: 'text-blue-600',
+          })),
+          ...payments.filter(p => p.approval_status === 'approved').slice(0, 5).map(p => ({
+            id: `p-${p.id}`, type: 'payment' as const,
+            text: `${p.tenant?.name ?? 'Tenant'} paid ${formatINR(p.amount_received)}`,
+            time: p.payment_date, icon: Receipt, iconBg: 'bg-green-50', iconColor: 'text-green-600',
+          })),
+          ...(expenses ?? []).slice(0, 5).map((e: any) => ({
+            id: `e-${e.id}`, type: 'expense' as const, text: `${e.category}: ${formatINR(e.amount)}`,
+            time: e.expense_date, icon: Wrench, iconBg: 'bg-orange-50', iconColor: 'text-orange-600',
+          })),
+          ...(complaints ?? []).slice(0, 5).map((c: any) => ({
+            id: `c-${c.id}`, type: 'complaint' as const, text: `Complaint: ${c.issue_type}`,
+            time: c.created_at, icon: AlertTriangle, iconBg: 'bg-red-50', iconColor: 'text-red-600',
+          })),
+        ]
+        setActivities(items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 8))
+      } catch { setActivities([]) }
+    }
 
-      const agg = statsResults.reduce((acc, s) => ({
-        totalRooms: acc.totalRooms + s.totalRooms,
-        totalBeds: acc.totalBeds + s.totalBeds,
-        occupiedBeds: acc.occupiedBeds + s.occupiedBeds,
-        vacantBeds: acc.vacantBeds + s.vacantBeds,
-        monthlyRevenue: acc.monthlyRevenue + s.monthlyRevenue,
-        pendingRent: acc.pendingRent + s.pendingRent,
-        openComplaints: acc.openComplaints + s.openComplaints,
-        totalTenants: acc.totalTenants + s.totalTenants,
-      }), zeroStats)
-      setStats(agg)
-
-      // Pending rent sorted by due date (oldest first) — due date = same
-      // day-of-month as each tenant's joining date.
+    function buildPending(tenants: Tenant[], payments: any[]) {
       const today = new Date()
-      const pending = allTenants
-        .filter(t => t.status === 'active')
+      const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+
+      // Sum actual approved rent payments per tenant for this month —
+      // a tenant who has fully paid should NOT appear in "Pending Rent",
+      // and a partial payer should only show their remaining balance.
+      const paidByTenant = new Map<string, number>()
+      payments.forEach(p => {
+        if (p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent') {
+          paidByTenant.set(p.tenant_id, (paidByTenant.get(p.tenant_id) ?? 0) + p.amount_received)
+        }
+      })
+
+      const pending = tenants
+        .filter(t => t.status === 'active' && (paidByTenant.get(t.id) ?? 0) < t.monthly_rent)
         .map(t => ({
           ...t,
           dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
           overdueDays: getOverdueDays(t.joining_date, today),
+          remainingDue: t.monthly_rent - (paidByTenant.get(t.id) ?? 0),
         }))
-        .filter(t => {
-          const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-          const paidThisMonth = allPayments
-            .filter(p => p.tenant_id === t.id && p.for_month === thisMonth && p.approval_status === 'approved')
-            .reduce((s, p) => s + p.amount_received, 0)
-          return paidThisMonth < t.monthly_rent
-        })
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       setPendingTenants(pending)
-
-      setRecentPayments(
-        allPayments.filter(p => p.approval_status === 'approved')
-          .sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime())
-          .slice(0, 5)
-      )
-
-      setTenantsOnNotice(allTenants.filter(t => t.status === 'leaving').slice(0, 5))
-      setOpenComplaints(allComplaints.filter(c => c.status !== 'resolved').slice(0, 5))
-
-      // ── Build the real "Recent Activities" feed from actual rows ─────────
-      const feed: ActivityItem[] = []
-      allTenants
-        .slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5)
-        .forEach(t => feed.push({
-          id: `tenant-${t.id}`, type: 'tenant_joined',
-          text: `${t.name} added${t.room ? ' to Room ' + t.room.room_number : ''}`,
-          time: t.created_at,
-          icon: UserPlus, iconBg: 'bg-blue-50 dark:bg-blue-500/10', iconColor: 'text-blue-600 dark:text-blue-400',
-        }))
-      allPayments
-        .filter(p => p.approval_status === 'approved')
-        .slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5)
-        .forEach(p => feed.push({
-          id: `payment-${p.id}`, type: 'payment',
-          text: `Rent ${formatINR(p.amount_received)} collected from ${p.tenant?.name ?? 'a tenant'}`,
-          time: p.created_at,
-          icon: IndianRupee, iconBg: 'bg-green-50 dark:bg-green-500/10', iconColor: 'text-green-600 dark:text-green-400',
-        }))
-      allExpenses
-        .slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5)
-        .forEach(e => feed.push({
-          id: `expense-${e.id}`, type: 'expense',
-          text: `Expense ${formatINR(e.amount)} added for ${e.category}`,
-          time: e.created_at,
-          icon: Receipt, iconBg: 'bg-amber-50 dark:bg-amber-500/10', iconColor: 'text-amber-600 dark:text-amber-400',
-        }))
-      allComplaints
-        .slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5)
-        .forEach(c => feed.push({
-          id: `complaint-${c.id}`, type: 'complaint',
-          text: `Complaint raised: ${c.issue_type}${c.room ? ' in Room ' + c.room.room_number : ''}`,
-          time: c.created_at,
-          icon: Wrench, iconBg: 'bg-red-50 dark:bg-red-500/10', iconColor: 'text-red-600 dark:text-red-400',
-        }))
-      feed.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-      setActivities(feed.slice(0, 6))
-
-      // ── Income vs Expense — last 30 days, real payments & expenses ───────
-      const days = last30Days()
-      const series = days.map(dateKey => {
-        const income = allPayments
-          .filter(p => p.approval_status === 'approved' && p.payment_date === dateKey)
-          .reduce((s, p) => s + p.amount_received, 0)
-        const expense = allExpenses
-          .filter(e => e.expense_date === dateKey)
-          .reduce((s, e) => s + e.amount, 0)
-        return { date: dateKey, income, expense }
-      })
-      setChartData(series)
-    } catch {
-      setStats(zeroStats)
-      setChartData(last30Days().map(d => ({ date: d, income: 0, expense: 0 })))
     }
-    setLoading(false)
+
+    if (activeId === 'all' && properties.length === 0) {
+      // New owner with no properties yet — show a real zero-state instead
+      // of getting stuck on the loading skeleton forever.
+      setStats({ totalRooms: 0, totalBeds: 0, occupiedBeds: 0, vacantBeds: 0, monthlyRevenue: 0, pendingRent: 0, openComplaints: 0, totalTenants: 0 })
+      setPendingTenants([])
+      setChartData([])
+      setLoading(false)
+      return
+    }
+    load()
   }, [activeId, properties])
 
-  useEffect(() => { load() }, [load])
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="h-8 w-48 bg-gray-200 rounded-xl animate-pulse" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {[...Array(6)].map((_, i) => <div key={i} className="h-32 bg-gray-200 rounded-2xl animate-pulse" />)}
+      </div>
+    </div>
+  )
 
-  function last30Days() {
-    const out: string[] = []
-    const now = new Date()
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(now.getDate() - i)
-      out.push(d.toISOString().slice(0, 10))
-    }
-    return out
-  }
-
-  const s = stats ?? zeroStats
-  const occupancyPct = s.totalBeds > 0 ? Math.round((s.occupiedBeds / s.totalBeds) * 100) : 0
-  const donutData = s.totalBeds > 0
-    ? [{ name: 'Occupied', value: s.occupiedBeds }, { name: 'Vacant', value: s.vacantBeds }]
-    : [{ name: 'Occupied', value: 0 }, { name: 'Vacant', value: 1 }]
-
-  function timeAgo(iso: string) {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diffMs / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    const days = Math.floor(hrs / 24)
-    return `${days}d ago`
-  }
+  const occupancyPct = stats ? Math.round((stats.occupiedBeds / (stats.totalBeds || 1)) * 100) : 0
 
   return (
-    <div className="space-y-5">
-      {/* Greeting */}
+    <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Good Morning! 👋</h1>
-        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-          {activeId === 'all'
-            ? `Here's what's happening across your ${properties.length} propert${properties.length === 1 ? 'y' : 'ies'} today.`
-            : `Here's what's happening at ${active?.name} today.`}
+        <h1 className="text-xl font-extrabold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {activeId === 'all' ? `All ${properties.length} properties overview` : `${active?.name} — ${active?.city}`}
         </p>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <StatCard icon={IndianRupee} label="This Month's Revenue" value={formatINR(s.monthlyRevenue)}
-          iconBg="bg-green-50 dark:bg-green-500/10" iconColor="text-green-600 dark:text-green-400" />
-        <StatCard icon={Home} label="Total PGs" value={activeId === 'all' ? String(properties.length) : '1'} sub="All PGs" subColor="text-blue-500"
-          iconBg="bg-blue-50 dark:bg-blue-500/10" iconColor="text-blue-600 dark:text-blue-400" />
-        <StatCard icon={BedDouble} label="Total Rooms" value={String(s.totalRooms)} sub="All Rooms" subColor="text-purple-500"
-          iconBg="bg-purple-50 dark:bg-purple-500/10" iconColor="text-purple-600 dark:text-purple-400" />
-        <StatCard icon={Users} label="Occupancy" value={`${occupancyPct}%`} sub={`${s.occupiedBeds} / ${s.totalBeds} Beds`} subColor="text-amber-500"
-          iconBg="bg-amber-50 dark:bg-amber-500/10" iconColor="text-amber-600 dark:text-amber-400" />
-        <StatCard icon={Users} label="Active Tenants" value={String(s.totalTenants)} sub="All Tenants" subColor="text-green-500"
-          iconBg="bg-green-50 dark:bg-green-500/10" iconColor="text-green-600 dark:text-green-400" />
-        <StatCard icon={Wallet} label="Rent Due" value={String(pendingTenants.length)} sub={pendingTenants.length > 0 ? `${formatINR(s.pendingRent)} pending` : 'All caught up'} subColor="text-red-500"
-          iconBg="bg-red-50 dark:bg-red-500/10" iconColor="text-red-600 dark:text-red-400" />
-      </div>
+      {properties.length === 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 text-center">
+          <div className="text-sm font-bold text-blue-900">No properties yet</div>
+          <p className="text-xs text-blue-700 mt-1">Add your first PG property from the property switcher at the top to start tracking rooms, tenants and rent.</p>
+        </div>
+      )}
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* Income vs Expense area chart */}
-        <div className="xl:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 shadow-sm dark:shadow-none">
-          <div className="flex items-center justify-between mb-1">
-            <div className="font-bold text-sm text-gray-900 dark:text-white">Income vs Expense</div>
-          </div>
-          <div className="text-xs text-gray-400 dark:text-slate-500 mb-4">Last 30 days</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-gray-100 dark:text-slate-800" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                tickFormatter={v => new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                interval={4} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v >= 1000 ? (v / 1000) + 'k' : v}`} />
-              <Tooltip
-                formatter={(v: number) => formatINR(v)}
-                labelFormatter={v => new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
-              />
-              <Area type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} fill="url(#incomeGrad)" />
-              <Area type="monotone" dataKey="expense" name="Expense" stroke="#ef4444" strokeWidth={2} fill="url(#expenseGrad)" />
-            </AreaChart>
+      {/* Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <StatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} iconBg="bg-blue-50 dark:bg-blue-500/10" iconColor="text-blue-600 dark:text-blue-400" />
+          <StatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} iconBg="bg-purple-50 dark:bg-purple-500/10" iconColor="text-purple-600 dark:text-purple-400" />
+          <StatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} iconBg="bg-green-50 dark:bg-green-500/10" iconColor="text-green-600 dark:text-green-400" />
+          <StatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} iconBg="bg-blue-50 dark:bg-blue-500/10" iconColor="text-blue-600 dark:text-blue-400" />
+          <StatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} iconBg="bg-yellow-50 dark:bg-yellow-500/10" iconColor="text-yellow-600 dark:text-yellow-400" />
+          <StatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} iconBg="bg-red-50 dark:bg-red-500/10" iconColor="text-red-600 dark:text-red-400" />
+        </div>
+      )}
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Revenue chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="font-bold text-sm text-gray-900 mb-1">Revenue vs Expenses</div>
+          <div className="text-xs text-gray-400 mb-4">Last 6 months</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={chartData} barGap={2}>
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
+              <Tooltip formatter={(v: number) => formatINR(v)} />
+              <Bar dataKey="revenue" fill="#2563EB" radius={[4, 4, 0, 0]} name="Revenue" />
+              <Bar dataKey="expenses" fill="#7C3AED44" radius={[4, 4, 0, 0]} name="Expenses" />
+            </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Occupancy donut */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 shadow-sm dark:shadow-none flex flex-col">
-          <div className="font-bold text-sm text-gray-900 dark:text-white mb-1">Occupancy Overview</div>
-          <div className="text-xs text-gray-400 dark:text-slate-500 mb-2">
-            {activeId === 'all' ? 'All properties' : active?.name}
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="relative">
-              <ResponsiveContainer width={150} height={150}>
-                <PieChart>
-                  <Pie data={donutData} cx="50%" cy="50%" innerRadius={48} outerRadius={68}
-                    startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                    <Cell fill="#22c55e" />
-                    <Cell fill="#ef4444" />
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-2xl font-extrabold text-gray-900 dark:text-white">{s.totalBeds}</div>
-                <div className="text-[10px] text-gray-400 dark:text-slate-500">Total Beds</div>
-              </div>
-            </div>
-            <div className="w-full space-y-2 mt-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />
-                <span className="text-xs text-gray-600 dark:text-slate-300 flex-1">Occupied</span>
-                <span className="text-xs font-bold text-gray-900 dark:text-white">{s.occupiedBeds} ({occupancyPct}%)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-400 flex-shrink-0" />
-                <span className="text-xs text-gray-600 dark:text-slate-300 flex-1">Vacant</span>
-                <span className="text-xs font-bold text-gray-900 dark:text-white">{s.vacantBeds} ({100 - occupancyPct}%)</span>
-              </div>
-            </div>
-          </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex flex-col items-center justify-center">
+          <div className="font-bold text-sm text-gray-900 mb-1 self-start">Occupancy</div>
+          <div className="text-xs text-gray-400 mb-4 self-start">Beds occupied</div>
+          <PieChart width={140} height={140}>
+            <Pie data={[{ value: occupancyPct }, { value: 100 - occupancyPct }]}
+              cx={65} cy={65} innerRadius={45} outerRadius={65} startAngle={90} endAngle={-270} dataKey="value">
+              <Cell fill="#2563EB" />
+              <Cell fill="#E2E8F0" />
+            </Pie>
+          </PieChart>
+          <div className="text-3xl font-extrabold text-gray-900 -mt-2">{occupancyPct}%</div>
+          <div className="text-xs text-gray-400">{stats?.occupiedBeds}/{stats?.totalBeds} beds</div>
         </div>
       </div>
 
-      {/* Bottom row: Recent Collections / Recent Activities / Upcoming Reminders */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* Recent Rent Collections */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="font-bold text-sm text-gray-900 dark:text-white">Recent Rent Collections</span>
+      {/* Pending Rent (date-sorted) */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-bold text-sm text-gray-900">Pending Rent</div>
+            <div className="text-xs text-gray-400">Sorted by due date — oldest first</div>
           </div>
-          <div className="p-2">
-            {recentPayments.length === 0 ? (
-              <div className="text-center py-8 text-xs text-gray-400 dark:text-slate-500">No payments recorded yet</div>
-            ) : recentPayments.map(p => (
-              <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 transition">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {(p.tenant?.name ?? '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+          <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2.5 py-1 rounded-full">
+            {pendingTenants.length} tenants
+          </span>
+        </div>
+        {pendingTenants.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 text-sm">🎉 All caught up — no pending rent!</div>
+        ) : (
+          <div className="space-y-2">
+            {pendingTenants.map(t => (
+              <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl ${t.overdueDays > 5 ? 'bg-red-50' : 'bg-yellow-50'}`}>
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  {(t.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-gray-900 dark:text-white truncate">{p.tenant?.name ?? 'Unknown'}</div>
-                  <div className="text-[11px] text-gray-400 dark:text-slate-500">Room {p.tenant?.room?.room_number ?? '—'}</div>
+                  <div className="text-sm font-semibold text-gray-900 truncate">{t.name}</div>
+                  <div className="text-xs text-gray-500">Room {t.room?.room_number} · Due {t.dueDate}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-xs font-bold text-gray-900 dark:text-white">{formatINR(p.amount_received)}</div>
-                  <div className="text-[10px] text-gray-400 dark:text-slate-500">{timeAgo(p.created_at)}</div>
+                  <div className="text-sm font-bold text-gray-900">{formatINR(t.remainingDue)}</div>
+                  <span className={`text-xs font-bold ${t.overdueDays > 5 ? 'text-red-600' : 'text-yellow-600'}`}>
+                    {t.overdueDays}d overdue
+                  </span>
                 </div>
+                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="p-2 bg-green-100 rounded-xl hover:bg-green-200 transition flex-shrink-0" title="WhatsApp Reminder">
+                  <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+                  </svg>
+                </a>
               </div>
             ))}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Recent Activities */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-800">
-            <span className="font-bold text-sm text-gray-900 dark:text-white">Recent Activities</span>
-          </div>
-          <div className="p-2">
-            {activities.length === 0 ? (
-              <div className="text-center py-8 text-xs text-gray-400 dark:text-slate-500">No activity yet</div>
-            ) : activities.map(a => (
-              <div key={a.id} className="flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 transition">
+      {/* Recent Activities */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 shadow-sm dark:shadow-none">
+        <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-3">Recent Activities</h2>
+        {activities.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 dark:text-slate-500 text-sm">No recent activity</div>
+        ) : (
+          <div className="space-y-1">
+            {activities.map(a => (
+              <div key={a.id} className="flex items-center gap-3 py-2">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${a.iconBg}`}>
-                  <a.icon className={`w-4 h-4 ${a.iconColor}`} />
+                  <a.icon className={`w-3.5 h-3.5 ${a.iconColor}`} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-gray-700 dark:text-slate-300 leading-snug">{a.text}</div>
-                  <div className="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">{timeAgo(a.time)}</div>
-                </div>
+                <div className="flex-1 min-w-0 text-sm text-gray-700 dark:text-slate-300 truncate">{a.text}</div>
+                <div className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">{formatDate(a.time)}</div>
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Upcoming Reminders — built from real pending rent + notice-period tenants + open complaints */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-800">
-            <span className="font-bold text-sm text-gray-900 dark:text-white">Upcoming Reminders</span>
-          </div>
-          <div className="p-2">
-            {pendingTenants.length === 0 && tenantsOnNotice.length === 0 && openComplaints.length === 0 ? (
-              <div className="text-center py-8 text-xs text-gray-400 dark:text-slate-500">🎉 Nothing needs your attention right now</div>
-            ) : (
-              <>
-                {pendingTenants.slice(0, 2).map(t => (
-                  <a key={`due-${t.id}`}
-                    href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? active?.name ?? 'your PG'))}
-                    target="_blank" rel="noreferrer"
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 transition">
-                    <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                      <Wallet className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-gray-700 dark:text-slate-300">Rent due from {t.name}</div>
-                      <div className="text-[10px] text-gray-400 dark:text-slate-500">{t.overdueDays > 0 ? `${t.overdueDays}d overdue` : 'Due today'}</div>
-                    </div>
-                    <MessageCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  </a>
-                ))}
-                {tenantsOnNotice.slice(0, 2).map((t: any) => (
-                  <div key={`notice-${t.id}`} className="flex items-center gap-3 px-3 py-2.5 rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                      <LogIn className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-gray-700 dark:text-slate-300">{t.name} is on notice period</div>
-                      <div className="text-[10px] text-gray-400 dark:text-slate-500">Leaving {t.leaving_date ? new Date(t.leaving_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'soon'}</div>
-                    </div>
-                  </div>
-                ))}
-                {openComplaints.slice(0, 2).map((c: any) => (
-                  <div key={`complaint-${c.id}`} className="flex items-center gap-3 px-3 py-2.5 rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                      <Wrench className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-gray-700 dark:text-slate-300">{c.issue_type} — Room {c.room?.room_number ?? '—'}</div>
-                      <div className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{c.status.replace('_', ' ')}</div>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

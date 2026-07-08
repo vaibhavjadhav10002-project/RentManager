@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants } from '@/lib/supabase/queries'
+import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants, getElectricityBills, addElectricityBill, approveBill, deleteElectricityBill } from '@/lib/supabase/queries'
+import { generateReceiptPDF } from '@/lib/pdf'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Check, MessageCircle, Phone, Loader2, FileText } from 'lucide-react'
-import type { Payment, Collector, Tenant } from '@/types'
+import { Plus, Check, MessageCircle, Phone, Loader2, FileText, Zap, Trash2 } from 'lucide-react'
+import type { Payment, Collector, Tenant, ElectricityBill } from '@/types'
 
 type Tab = 'all' | 'paid' | 'pending' | 'overdue' | 'bydue' | 'ledger'
 
@@ -16,11 +17,12 @@ export default function PaymentsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('all')
+  const [bills, setBills] = useState<ElectricityBill[]>([])
+  const [billModal, setBillModal] = useState(false)
+  const [billSaving, setBillSaving] = useState(false)
+  const [billForm, setBillForm] = useState({ tenant_id: '', for_month: '', amount: '', due_date: '' })
   const [recordModal, setRecordModal] = useState(false)
-  const [bulkReminderModal, setBulkReminderModal] = useState(false)
-  const [remindedPhones, setRemindedPhones] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
-  const [receiptPayment, setReceiptPayment] = useState<any>(null)
   const [form, setForm] = useState({
     tenant_id: '', type: 'rent', for_month: '', total_due: '', amount_received: '',
     method: 'cash', collected_by: '', payment_date: new Date().toISOString().slice(0, 10),
@@ -40,34 +42,38 @@ export default function PaymentsPage() {
         const cols = await getCollectors(propIds[0])
         setCollectors(cols)
       }
+      const billLists = await Promise.all(propIds.map(id => getElectricityBills(id)))
+      setBills(billLists.flat())
     } catch { toast.error('Failed to load payments') }
     setLoading(false)
   }, [activeId, properties])
 
-  useEffect(() => { if (properties.length > 0 || activeId !== 'all') load() }, [load])
+  useEffect(() => { load() }, [load])
 
-  // Pending rent sorted by due date — correctly accounts for PARTIAL payments.
-  // A tenant who paid ₹4,000 of an ₹8,000 rent still owes ₹4,000, not ₹0.
+  // Pending rent sorted by due date — accounts for partial payments and
+  // only counts actual rent payments (not deposit/advance) toward "paid"
   const today = new Date()
   const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-  const approvedThisMonth = payments.filter(p => p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent')
-
+  const rentPaidThisMonthByTenant = new Map<string, number>()
+  payments.forEach(p => {
+    if (p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent') {
+      rentPaidThisMonthByTenant.set(p.tenant_id, (rentPaidThisMonthByTenant.get(p.tenant_id) ?? 0) + p.amount_received)
+    }
+  })
+  const paidTenantIds = new Set(
+    [...rentPaidThisMonthByTenant.entries()].filter(([tid, amt]) => {
+      const t = tenants.find(x => x.id === tid)
+      return t && amt >= t.monthly_rent
+    }).map(([tid]) => tid)
+  )
   const pendingRentSorted = tenants
-    .filter(t => t.status === 'active')
-    .map(t => {
-      const receivedThisMonth = approvedThisMonth
-        .filter(p => p.tenant_id === t.id)
-        .reduce((s, p) => s + p.amount_received, 0)
-      const amountDue = Math.max(0, t.monthly_rent - receivedThisMonth)
-      return {
-        ...t,
-        amountDue,
-        receivedThisMonth,
-        dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
-        overdueDays: getOverdueDays(t.joining_date, today),
-      }
-    })
-    .filter(t => t.amountDue > 0) // fully paid tenants (incl. exact partial completion) drop off the list
+    .filter(t => t.status === 'active' && (rentPaidThisMonthByTenant.get(t.id) ?? 0) < t.monthly_rent)
+    .map(t => ({
+      ...t,
+      dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
+      overdueDays: getOverdueDays(t.joining_date, today),
+      remainingDue: t.monthly_rent - (rentPaidThisMonthByTenant.get(t.id) ?? 0),
+    }))
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
 
   const tabFiltered = {
@@ -79,11 +85,47 @@ export default function PaymentsPage() {
     ledger: payments,
   }[tab]
 
-  const totalCollected = payments.filter(p => p.approval_status === 'approved' && p.for_month === thisMonth).reduce((s, p) => s + p.amount_received, 0)
-  const totalPending = pendingRentSorted.reduce((s, t) => s + t.amountDue, 0)
+  const totalCollected = payments.filter(p => p.approval_status === 'approved' && p.for_month === thisMonth && p.type === 'rent').reduce((s, p) => s + p.amount_received, 0)
+  const totalPending = pendingRentSorted.reduce((s, t) => s + t.remainingDue, 0)
+
+  async function handleRaiseBill() {
+    const propertyId = activeId === 'all' ? tenants.find(t => t.id === billForm.tenant_id)?.property_id : activeId
+    if (!billForm.tenant_id) { toast.error('Select a tenant'); return }
+    if (!billForm.for_month) { toast.error('Enter the billing month'); return }
+    if (!billForm.amount || Number(billForm.amount) <= 0) { toast.error('Enter a valid amount'); return }
+    if (!propertyId) { toast.error('Select a property'); return }
+    setBillSaving(true)
+    try {
+      await addElectricityBill({
+        property_id: propertyId,
+        tenant_id: billForm.tenant_id,
+        for_month: billForm.for_month,
+        amount: Number(billForm.amount),
+        due_date: billForm.due_date || undefined,
+      })
+      toast.success('Bill raised!')
+      setBillModal(false)
+      setBillForm({ tenant_id: '', for_month: '', amount: '', due_date: '' })
+      load()
+    } catch (e: any) { toast.error(e.message) }
+    setBillSaving(false)
+  }
+
+  async function handleApproveBill(id: string) {
+    try { await approveBill(id); toast.success('Bill marked paid'); load() }
+    catch (e: any) { toast.error(e.message) }
+  }
+
+  async function handleDeleteBill(id: string) {
+    if (!confirm('Delete this bill?')) return
+    try { await deleteElectricityBill(id); toast.success('Bill deleted'); load() }
+    catch (e: any) { toast.error(e.message) }
+  }
 
   async function handleRecord() {
     if (!form.tenant_id || !form.amount_received) { toast.error('Fill required fields'); return }
+    if (Number(form.amount_received) <= 0) { toast.error('Amount must be greater than 0'); return }
+    if (!form.payment_date) { toast.error('Select a payment date'); return }
     setSaving(true)
     try {
       const propId = activeId === 'all'
@@ -117,12 +159,10 @@ export default function PaymentsPage() {
           <p className="text-sm text-gray-500">Rent collection & ledger</p>
         </div>
         <div className="flex gap-2">
-          {pendingRentSorted.length > 0 && (
-            <button onClick={() => setBulkReminderModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-sm font-semibold transition">
-              <MessageCircle className="w-4 h-4" /> Remind All ({pendingRentSorted.length})
-            </button>
-          )}
+          <button onClick={() => setBillModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl text-sm font-semibold transition">
+            <Zap className="w-4 h-4" /> Raise Electricity Bill
+          </button>
           <button onClick={() => setRecordModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
             <Plus className="w-4 h-4" /> Record Payment
@@ -144,6 +184,47 @@ export default function PaymentsPage() {
           </div>
         ))}
       </div>
+
+      {/* Electricity Bills */}
+      {bills.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-yellow-500" />
+            <div className="font-bold text-sm text-gray-900">Electricity Bills</div>
+          </div>
+          <div className="space-y-2">
+            {bills.map(b => (
+              <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900">{b.tenant?.name ?? 'Tenant'} · {b.for_month}</div>
+                  <div className="text-xs text-gray-400">
+                    Room {b.tenant?.room?.room_number ?? '—'} · {formatINR(b.amount)}
+                    {b.due_date && ` · Due ${formatDate(b.due_date)}`}
+                    {b.tenant_note && ` · "${b.tenant_note}"`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    b.status === 'paid' ? 'bg-green-100 text-green-700' : b.status === 'pending_approval' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {b.status === 'paid' ? 'Paid' : b.status === 'pending_approval' ? 'Awaiting Confirmation' : 'Unpaid'}
+                  </span>
+                  {b.status === 'pending_approval' && (
+                    <button onClick={() => handleApproveBill(b.id)} className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition" aria-label="Confirm paid">
+                      <Check className="w-3.5 h-3.5 text-green-700" />
+                    </button>
+                  )}
+                  {b.status !== 'paid' && (
+                    <button onClick={() => handleDeleteBill(b.id)} className="p-1.5 bg-red-50 hover:bg-red-100 rounded-lg transition" aria-label="Delete bill">
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit flex-wrap">
@@ -182,15 +263,13 @@ export default function PaymentsPage() {
                         {t.overdueDays}d overdue
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="font-bold text-gray-900">{formatINR(t.amountDue)}</div>
-                      {t.receivedThisMonth > 0 && (
-                        <div className="text-xs text-yellow-600 font-semibold">₹{t.receivedThisMonth.toLocaleString('en-IN')} already paid</div>
-                      )}
+                    <td className="px-4 py-3 font-bold text-gray-900">
+                      {formatINR(t.remainingDue)}
+                      {t.remainingDue < t.monthly_rent && <span className="block text-xs font-normal text-gray-400">of {formatINR(t.monthly_rent)}</span>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.amountDue, t.property?.name ?? 'PG'))}
+                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
                           target="_blank" rel="noreferrer" className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition">
                           <MessageCircle className="w-3.5 h-3.5 text-green-600" />
                         </a>
@@ -200,7 +279,7 @@ export default function PaymentsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.monthly_rent), amount_received: String(t.amountDue), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
+                      <button onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
                         <Check className="w-3.5 h-3.5" /> Record
                       </button>
@@ -263,7 +342,19 @@ export default function PaymentsPage() {
                                 className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition text-red-600 font-bold text-xs">✕</button>
                             </>
                           )}
-                          <button onClick={() => setReceiptPayment(p)} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><FileText className="w-3.5 h-3.5 text-gray-500" /></button>
+                          <button onClick={() => generateReceiptPDF({
+                            tenantName: p.tenant?.name ?? 'Tenant',
+                            propertyName: active?.name ?? properties.find(pr => pr.id === p.property_id)?.name ?? 'PG',
+                            roomNumber: p.tenant?.room?.room_number,
+                            forMonth: p.for_month ?? undefined,
+                            type: p.type,
+                            totalDue: p.total_due,
+                            amountReceived: p.amount_received,
+                            method: p.method ?? undefined,
+                            paymentDate: p.payment_date,
+                            approvalStatus: p.approval_status,
+                            receiptNo: p.id.slice(0, 8).toUpperCase(),
+                          })} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><FileText className="w-3.5 h-3.5 text-gray-500" /></button>
                         </div>
                       </td>
                     </tr>
@@ -351,85 +442,51 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Bulk WhatsApp Reminder Modal */}
-      {bulkReminderModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold text-gray-900">Remind All Pending Tenants</h2>
-              <button onClick={() => { setBulkReminderModal(false); setRemindedPhones(new Set()) }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
-            </div>
-            <div className="p-6">
-              <p className="text-xs text-gray-500 mb-4">
-                Click each tenant to open WhatsApp with a pre-filled reminder. Browsers block auto-opening multiple tabs, so this is a click-through queue — go one by one.
-              </p>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {pendingRentSorted.map(t => (
-                  <a
-                    key={t.id}
-                    href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? active?.name ?? 'PG'))}
-                    target="_blank" rel="noreferrer"
-                    onClick={() => setRemindedPhones(prev => new Set(prev).add(t.id))}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition ${remindedPhones.has(t.id) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {t.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 truncate">{t.name}</div>
-                      <div className="text-xs text-gray-400">₹{t.monthly_rent.toLocaleString('en-IN')} · {t.overdueDays}d overdue</div>
-                    </div>
-                    {remindedPhones.has(t.id) ? (
-                      <span className="text-xs font-bold text-green-600">Sent ✓</span>
-                    ) : (
-                      <MessageCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    )}
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100">
-              <button onClick={() => { setBulkReminderModal(false); setRemindedPhones(new Set()) }} className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
-                Done ({remindedPhones.size}/{pendingRentSorted.length} sent)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Receipt Modal */}
-      {receiptPayment && (
+      {/* Raise Electricity Bill Modal */}
+      {billModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold text-gray-900">Payment Receipt</h2>
-              <button onClick={() => setReceiptPayment(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+              <h2 className="text-base font-bold">Raise Electricity Bill</h2>
+              <button onClick={() => setBillModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
-            <div className="p-6 space-y-1 text-sm" id="receipt-content">
-              <div className="text-center mb-4">
-                <div className="text-lg font-extrabold text-gray-900">{active?.name ?? receiptPayment.tenant?.property?.name ?? 'PG Manager'}</div>
-                <div className="text-xs text-gray-400">Payment Receipt</div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Tenant *</label>
+                <select value={billForm.tenant_id} onChange={e => setBillForm(f => ({ ...f, tenant_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">Select tenant</option>
+                  {tenants.filter(t => t.status === 'active').map(t => (
+                    <option key={t.id} value={t.id}>{t.name} — Room {t.room?.room_number ?? '—'}</option>
+                  ))}
+                </select>
               </div>
-              {[
-                ['Tenant', receiptPayment.tenant?.name ?? '—'],
-                ['Room', receiptPayment.tenant?.room?.room_number ?? '—'],
-                ['Type', receiptPayment.type],
-                ['For Month', receiptPayment.for_month ?? '—'],
-                ['Amount Received', formatINR(receiptPayment.amount_received)],
-                ['Total Due', formatINR(receiptPayment.total_due)],
-                ['Payment Mode', receiptPayment.method?.replace('_', ' ') ?? '—'],
-                ['Collected By', receiptPayment.collector?.name ?? '—'],
-                ['Date', formatDate(receiptPayment.payment_date)],
-                ['Status', receiptPayment.approval_status.replace('_', ' ')],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-400">{label}</span>
-                  <span className="font-semibold text-gray-800 capitalize">{value}</span>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Billing Month *</label>
+                <input type="text" placeholder="e.g. July 2026" value={billForm.for_month}
+                  onChange={e => setBillForm(f => ({ ...f, for_month: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Amount (₹) *</label>
+                  <input type="number" value={billForm.amount}
+                    onChange={e => setBillForm(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                 </div>
-              ))}
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Due Date</label>
+                  <input type="date" value={billForm.due_date}
+                    onChange={e => setBillForm(f => ({ ...f, due_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button onClick={() => window.print()} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">Print / Save PDF</button>
-              <button onClick={() => setReceiptPayment(null)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">Close</button>
+            <div className="px-6 py-4 border-t border-gray-100">
+              <button onClick={handleRaiseBill} disabled={billSaving}
+                className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {billSaving && <Loader2 className="w-4 h-4 animate-spin" />} Raise Bill
+              </button>
             </div>
           </div>
         </div>
@@ -437,4 +494,3 @@ export default function PaymentsPage() {
     </div>
   )
 }
-
