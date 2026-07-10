@@ -367,7 +367,7 @@ export async function getComplaints(propertyId: string) {
   const sb = createClient()
   const { data, error } = await sb
     .from('complaints')
-    .select('*, tenant:tenants(name), room:rooms(room_number)')
+    .select('*, tenant:tenants(name, auth_user_id), room:rooms(room_number)')
     .eq('property_id', propertyId)
     .order('created_at', { ascending: false })
   if (error) throw error

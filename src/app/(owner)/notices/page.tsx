@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Loader2, Megaphone, Trash2, Paperclip, X } from 'lucide-react'
+import { sendPushNotification } from '@/lib/push'
 
 const CATEGORIES = ['General', 'Maintenance', 'Rent', 'Electricity', 'Emergency', 'Event']
 const PRIORITIES = ['Normal', 'Important', 'Urgent']
@@ -69,6 +70,15 @@ export default function NoticesPage() {
         attachment_name: attachment?.name ?? null,
         created_by: prof?.full_name ?? undefined,
       })
+
+      // Instant push to every active tenant at this property — best-effort,
+      // never blocks the notice from being published if it fails.
+      const { data: tenantsHere } = await sb.from('tenants').select('auth_user_id').eq('property_id', activeId).eq('status', 'active').not('auth_user_id', 'is', null)
+      const userIds = (tenantsHere ?? []).map((t: any) => t.auth_user_id).filter(Boolean)
+      if (userIds.length > 0) {
+        sendPushNotification({ user_ids: userIds, title: `📢 ${form.title.trim()}`, body: form.description.trim().slice(0, 120), url: '/portal', tag: 'notice' })
+      }
+
       toast.success('Notice published!')
       setModal(false)
       setForm({ title: '', description: '', category: 'General', priority: 'Normal', publish_date: new Date().toISOString().slice(0, 10), expiry_date: '' })

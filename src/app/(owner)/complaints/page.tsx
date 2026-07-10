@@ -5,6 +5,7 @@ import { getComplaints, addComplaint, resolveComplaint, updateComplaint } from '
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Check, Loader2 } from 'lucide-react'
+import { sendPushNotification } from '@/lib/push'
 
 const PRIORITY_COLOR: Record<string, string> = {
   low: 'bg-gray-100 text-gray-600',
@@ -92,7 +93,19 @@ export default function ComplaintsPage() {
                   </div>
                 </div>
                 {c.status !== 'resolved' && (
-                  <button onClick={async () => { await resolveComplaint(c.id); toast.success('Marked resolved!'); load() }}
+                  <button onClick={async () => {
+                    await resolveComplaint(c.id)
+                    toast.success('Marked resolved!')
+                    if (c.tenant?.auth_user_id) {
+                      sendPushNotification({
+                        user_ids: [c.tenant.auth_user_id],
+                        title: '✅ Complaint Resolved',
+                        body: `Your complaint "${c.issue_type}" has been marked resolved.`,
+                        url: '/portal', tag: 'complaint',
+                      })
+                    }
+                    load()
+                  }}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-xs font-semibold transition flex-shrink-0">
                     <Check className="w-3.5 h-3.5" /> Resolve
                   </button>
@@ -112,6 +125,16 @@ export default function ComplaintsPage() {
               <button onClick={() => setModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 space-y-4">
+              {activeId === 'all' && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
+                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Select Property</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Issue Type</label>
                 <select value={form.issue_type} onChange={e => setForm(f => ({ ...f, issue_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">

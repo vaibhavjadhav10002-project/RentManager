@@ -7,6 +7,7 @@ import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, g
 import { toast } from 'sonner'
 import { Plus, Check, MessageCircle, Phone, Loader2, FileText, Zap, Trash2 } from 'lucide-react'
 import type { Payment, Collector, Tenant, ElectricityBill } from '@/types'
+import { sendPushNotification } from '@/lib/push'
 
 type Tab = 'all' | 'paid' | 'pending' | 'overdue' | 'bydue' | 'ledger'
 
@@ -22,6 +23,8 @@ export default function PaymentsPage() {
   const [billSaving, setBillSaving] = useState(false)
   const [billForm, setBillForm] = useState({ tenant_id: '', for_month: '', amount: '', due_date: '' })
   const [recordModal, setRecordModal] = useState(false)
+  const [bulkReminderModal, setBulkReminderModal] = useState(false)
+  const [remindedPhones, setRemindedPhones] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     tenant_id: '', type: 'rent', for_month: '', total_due: '', amount_received: '',
@@ -159,6 +162,10 @@ export default function PaymentsPage() {
           <p className="text-sm text-gray-500">Rent collection & ledger</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => { if (pendingRentSorted.length === 0) { toast.error('No pending rent to remind about'); return } setBulkReminderModal(true) }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-sm font-semibold transition">
+            <MessageCircle className="w-4 h-4" /> Remind All
+          </button>
           <button onClick={() => setBillModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl text-sm font-semibold transition">
             <Zap className="w-4 h-4" /> Raise Electricity Bill
@@ -270,6 +277,7 @@ export default function PaymentsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
                         <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
+                          onClick={() => { if (t.auth_user_id) sendPushNotification({ user_ids: [t.auth_user_id], title: '💰 Rent Reminder', body: `${formatINR(t.remainingDue)} rent is due. Please pay soon.`, url: '/portal', tag: 'rent-reminder' }) }}
                           target="_blank" rel="noreferrer" className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition">
                           <MessageCircle className="w-3.5 h-3.5 text-green-600" />
                         </a>
@@ -487,6 +495,43 @@ export default function PaymentsPage() {
                 className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {billSaving && <Loader2 className="w-4 h-4 animate-spin" />} Raise Bill
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Reminder Modal — was a dead button (state existed, no UI) */}
+      {bulkReminderModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-base font-bold">Remind All ({pendingRentSorted.length})</h2>
+              <button onClick={() => setBulkReminderModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-4 space-y-2 overflow-y-auto">
+              {pendingRentSorted.map(t => {
+                const done = remindedPhones.has(t.phone)
+                return (
+                  <div key={t.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">{t.name}</div>
+                      <div className="text-xs text-gray-400">{formatINR(t.remainingDue)} pending</div>
+                    </div>
+                    <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
+                      target="_blank" rel="noreferrer"
+                      onClick={() => {
+                        setRemindedPhones(prev => new Set(prev).add(t.phone))
+                        if (t.auth_user_id) sendPushNotification({ user_ids: [t.auth_user_id], title: '💰 Rent Reminder', body: `${formatINR(t.remainingDue)} rent is due. Please pay soon.`, url: '/portal', tag: 'rent-reminder' })
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${done ? 'bg-green-100 text-green-700' : 'bg-green-600 text-white hover:bg-green-700'}`}>
+                      <MessageCircle className="w-3.5 h-3.5" /> {done ? 'Reminded' : 'Remind'}
+                    </a>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="p-4 border-t border-gray-100 flex-shrink-0">
+              <button onClick={() => setBulkReminderModal(false)} className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">Done</button>
             </div>
           </div>
         </div>

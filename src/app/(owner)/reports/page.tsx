@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getFinancialHistory, getDashboardStats, getExpenses } from '@/lib/supabase/queries'
+import { getFinancialHistory, getDashboardStats, getExpenses, getPayments, getTenants } from '@/lib/supabase/queries'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Download, Loader2 } from 'lucide-react'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import type { DashboardStats } from '@/types'
 
 export default function ReportsPage() {
@@ -13,7 +14,9 @@ export default function ReportsPage() {
   const [chartData, setChartData] = useState<{ month: string; revenue: number; expenses: number; profit: number }[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [thisMonthExpenses, setThisMonthExpenses] = useState(0)
+  const [rawData, setRawData] = useState<{ payments: any[]; expenses: any[]; tenants: any[] }>({ payments: [], expenses: [], tenants: [] })
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -40,9 +43,15 @@ export default function ReportsPage() {
 
         const thisMonth = new Date()
         const monthStart = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1).toISOString().slice(0, 10)
-        const expensesLists = await Promise.all(propIds.map(id => getExpenses(id)))
-        const totalExp = expensesLists.flat().filter(e => e.expense_date >= monthStart).reduce((s, e) => s + e.amount, 0)
+        const [paymentsLists, expensesLists, tenantsLists] = await Promise.all([
+          Promise.all(propIds.map(id => getPayments(id))),
+          Promise.all(propIds.map(id => getExpenses(id))),
+          Promise.all(propIds.map(id => getTenants(id))),
+        ])
+        const allExpenses = expensesLists.flat()
+        const totalExp = allExpenses.filter(e => e.expense_date >= monthStart).reduce((s, e) => s + e.amount, 0)
         setThisMonthExpenses(totalExp)
+        setRawData({ payments: paymentsLists.flat(), expenses: allExpenses, tenants: tenantsLists.flat() })
       } catch { toast.error('Failed to load report data') }
       setLoading(false)
     }
@@ -51,6 +60,46 @@ export default function ReportsPage() {
 
   const occupancyPct = stats ? Math.round((stats.occupiedBeds / (stats.totalBeds || 1)) * 100) : 0
   const netProfit = (stats?.monthlyRevenue ?? 0) - thisMonthExpenses
+
+  function exportExcel() {
+    if (loading) { toast.error('Still loading data — try again in a moment'); return }
+    setExporting(true)
+    try {
+      const wb = XLSX.utils.book_new()
+
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        chartData.map(d => ({ Month: d.month, Revenue: d.revenue, Expenses: d.expenses, Profit: d.profit }))
+      ), 'Monthly Summary')
+
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        rawData.payments.map(p => ({
+          Tenant: p.tenant?.name ?? '—', Room: p.tenant?.room?.room_number ?? '—',
+          Type: p.type, Month: p.for_month ?? '—', 'Total Due': p.total_due,
+          'Amount Received': p.amount_received, Method: p.method ?? '—',
+          Status: p.approval_status, Date: p.payment_date,
+        }))
+      ), 'Payments')
+
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        rawData.expenses.map(e => ({ Category: e.category, Amount: e.amount, Date: e.expense_date, Notes: e.notes ?? '—' }))
+      ), 'Expenses')
+
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        rawData.tenants.map(t => ({
+          Name: t.name, Phone: t.phone, Room: t.room?.room_number ?? '—',
+          'Monthly Rent': t.monthly_rent, 'Deposit Paid': t.deposit_paid, 'Deposit Total': t.deposit_amount,
+          Status: t.status, 'Joining Date': t.joining_date,
+        }))
+      ), 'Tenants')
+
+      const propLabel = activeId === 'all' ? 'All-Properties' : (active?.name ?? 'Property').replace(/\s+/g, '-')
+      XLSX.writeFile(wb, `PG-Report-${propLabel}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast.success('Excel report downloaded!')
+    } catch (e: any) {
+      toast.error('Could not generate the export: ' + e.message)
+    }
+    setExporting(false)
+  }
 
   const summaryCards = [
     { label: 'Monthly Revenue', value: formatINR(stats?.monthlyRevenue ?? 0), color: 'text-green-600' },
@@ -75,11 +124,11 @@ export default function ReportsPage() {
           <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => toast.success('PDF export coming soon')} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+          <button onClick={() => toast.info('PDF export is on the roadmap — Excel below has the same data for now')} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
             <Download className="w-4 h-4" /> PDF
           </button>
-          <button onClick={() => toast.success('Excel export coming soon')} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition">
-            <Download className="w-4 h-4" /> Excel
+          <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Excel
           </button>
         </div>
       </div>
@@ -117,10 +166,10 @@ export default function ReportsPage() {
       {/* Report download tiles — export generation not built yet */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {['Monthly Revenue Report', 'Occupancy Report', 'Pending Rent Report', 'Expense Report', 'Profit & Loss', 'Tenant Summary'].map(r => (
-          <button key={r} onClick={() => toast.success(`${r} export coming soon`)} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between shadow-sm hover:shadow-md transition text-left">
+          <button key={r} onClick={exportExcel} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between shadow-sm hover:shadow-md transition text-left">
             <div>
               <div className="text-sm font-semibold text-gray-800">{r}</div>
-              <div className="text-xs text-gray-400">PDF & Excel</div>
+              <div className="text-xs text-gray-400">Included in Excel export</div>
             </div>
             <Download className="w-4 h-4 text-blue-500 flex-shrink-0" />
           </button>

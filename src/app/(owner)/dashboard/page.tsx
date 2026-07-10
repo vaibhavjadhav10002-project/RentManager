@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getDashboardStats, getTenants, getPayments, getFinancialHistory, getComplaints, getExpenses } from '@/lib/supabase/queries'
 import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg } from '@/lib/utils'
+import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 import { BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home, UserPlus, Receipt, Wrench } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
 import {
@@ -176,6 +177,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <EnableNotificationsBanner />
       {/* Header */}
       <div>
         <h1 className="text-xl font-extrabold text-gray-900">Dashboard</h1>

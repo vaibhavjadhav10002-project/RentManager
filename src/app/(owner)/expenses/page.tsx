@@ -115,6 +115,16 @@ export default function ExpensesPage() {
               <button onClick={() => setModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 space-y-4">
+              {activeId === 'all' && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
+                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Select Property</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Category</label>
                 <div className="grid grid-cols-3 gap-2">

@@ -1,12 +1,13 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant } from '@/lib/supabase/queries'
+import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant, getRooms, updateTenant } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
 import { formatINR, whatsappLink } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Check, X, QrCode, Copy, Loader2, Link2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import type { Room } from '@/types'
 
 export default function ApprovalsPage() {
   const { activeId, active, properties } = useProperty()
@@ -15,6 +16,10 @@ export default function ApprovalsPage() {
   const [pendingTenants, setPendingTenants] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [qrModal, setQrModal] = useState(false)
+  const [approveModal, setApproveModal] = useState<any>(null)
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [selectedRoomId, setSelectedRoomId] = useState('')
+  const [selectedBedLabel, setSelectedBedLabel] = useState('')
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [appUrl, setAppUrl] = useState('')
   useEffect(() => { setAppUrl(window.location.origin) }, [])
@@ -54,12 +59,30 @@ export default function ApprovalsPage() {
     catch (e: any) { toast.error(e.message) }
   }
 
-  async function handleApproveTenant(t: any) {
+  async function openApproveModal(t: any) {
+    setApproveModal(t)
+    setSelectedRoomId('')
+    setSelectedBedLabel('')
+    try { setRooms(await getRooms(t.property_id)) } catch { setRooms([]) }
+  }
+
+  async function confirmApproveTenant() {
+    const t = approveModal
     setApprovingId(t.id)
     const defaultPassword = 'Pass@123'
     try {
       await approveTenant(t.id, defaultPassword, t)
+      // Room assignment is a separate update so a failure here doesn't
+      // undo the approval itself — the tenant is still active either way.
+      if (selectedRoomId) {
+        try {
+          await updateTenant(t.id, { room_id: selectedRoomId, bed_label: selectedBedLabel || null })
+        } catch (roomErr: any) {
+          toast.error(`Approved, but couldn't assign the room automatically: ${roomErr.message}. Assign it manually from the Tenants page.`)
+        }
+      }
       toast.success(`${t.name} approved! Sending login details on WhatsApp…`)
+      setApproveModal(null)
       load()
       const loginUrl = `${appUrl}/login`
       const msg = `Welcome to ${t.property?.name ?? 'the PG'}! 🎉\n\nYour login is ready:\nLogin: ${loginUrl}\nUsername: ${t.phone}\nPassword: ${defaultPassword}\n\nPlease change your password after your first login.`
@@ -177,9 +200,9 @@ export default function ApprovalsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleApproveTenant(t)} disabled={approvingId === t.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                      {approvingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approve
+                    <button onClick={() => openApproveModal(t)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
+                      <Check className="w-3.5 h-3.5" /> Approve
                     </button>
                     <button onClick={() => handleRejectTenant(t.id, t.name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
                       <X className="w-3.5 h-3.5" /> Reject
@@ -218,6 +241,45 @@ export default function ApprovalsPage() {
                 className="flex items-center justify-center gap-2 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition">
                 Share via WhatsApp
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Tenant Modal — room assignment + confirm (password is auto Pass@123) */}
+      {approveModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold">Approve {approveModal.name}</h2>
+              <button onClick={() => setApproveModal(null)} className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-gray-500">
+                Login will be created automatically (username: <strong>{approveModal.phone}</strong>, password: <strong>Pass@123</strong>) and shared via WhatsApp.
+              </p>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Assign Room (optional — can also do this later)</label>
+                <select value={selectedRoomId} onChange={e => { setSelectedRoomId(e.target.value); setSelectedBedLabel('') }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">No room / assign later</option>
+                  {rooms.map(r => <option key={r.id} value={r.id}>Room {r.room_number} ({r.sharing_type})</option>)}
+                </select>
+              </div>
+              {selectedRoomId && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Bed Label (optional)</label>
+                  <input value={selectedBedLabel} onChange={e => setSelectedBedLabel(e.target.value)} placeholder="A / B / C"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={confirmApproveTenant} disabled={approvingId === approveModal.id}
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {approvingId === approveModal.id && <Loader2 className="w-4 h-4 animate-spin" />} Approve & Send Login
+              </button>
+              <button onClick={() => setApproveModal(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
             </div>
           </div>
         </div>

@@ -21,5 +21,24 @@ $$ language sql security definer;
 grant execute on function get_cotenant_birthdays(uuid) to authenticated;
 
 -- ============================================================================
+-- ROOM PHOTOS
+-- ============================================================================
+insert into storage.buckets (id, name, public)
+values ('room-photos', 'room-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Owners upload room photos" on storage.objects;
+create policy "Owners upload room photos" on storage.objects for insert
+  with check (bucket_id = 'room-photos' and auth.role() = 'authenticated');
+
+drop policy if exists "Public can view room photos" on storage.objects;
+create policy "Public can view room photos" on storage.objects for select
+  using (bucket_id = 'room-photos');
+
+drop policy if exists "Owners delete room photos" on storage.objects;
+create policy "Owners delete room photos" on storage.objects for delete
+  using (bucket_id = 'room-photos' and auth.role() = 'authenticated');
+
+-- ============================================================================
 -- DONE
 -- ============================================================================

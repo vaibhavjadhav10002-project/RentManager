@@ -6,7 +6,7 @@ import UpiPayButtons from '@/components/shared/UpiPayButtons'
 import { generateAgreementPDF, generateReceiptPDF, generateFullAgreementPDF } from '@/lib/pdf'
 import {
   getBillsForTenant, claimBillPaid, getMessagesForTenant, sendMessageAsTenant, markMessagesReadByTenant,
-  getAgreementForTenant, getUnreadNoticesForTenant, getAllActiveNoticesForTenant, markNoticeRead,
+  getAgreementForTenant, getUnreadNoticesForTenant, getAllActiveNoticesForTenant, markNoticeRead, getCotenantBirthdays,
 } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 import {
@@ -19,12 +19,14 @@ import {
 import { PieChart, Pie, Cell } from 'recharts'
 import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
+import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 
 type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices'
 
 export default function TenantPortal() {
   const router = useRouter()
   const [tenant, setTenant] = useState<any>(null)
+  const [birthdays, setBirthdays] = useState<{ name: string; date_of_birth: string }[]>([])
   const [payments, setPayments] = useState<any[]>([])
   const [complaints, setComplaints] = useState<any[]>([])
   const [bills, setBills] = useState<any[]>([])
@@ -77,6 +79,7 @@ export default function TenantPortal() {
       getBillsForTenant(t.id).then(setBills).catch(() => setBills([]))
       getMessagesForTenant(t.id).then(setMessages).catch(() => setMessages([]))
       getAgreementForTenant(t.id).then(setAgreement).catch(() => setAgreement(null))
+      getCotenantBirthdays(t.property_id).then(setBirthdays).catch(() => setBirthdays([]))
 
       getUnreadNoticesForTenant(t.id, t.property_id).then(unread => {
         setNoticeQueue(unread)
@@ -494,10 +497,46 @@ export default function TenantPortal() {
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
+              <EnableNotificationsBanner />
               <div>
                 <h1 className="text-xl font-extrabold text-gray-900">Tenant Dashboard</h1>
                 <p className="text-sm text-gray-500">Welcome back, <span className="font-semibold text-gray-700">{tenant.name}</span> 👋</p>
               </div>
+
+              {/* Upcoming birthdays of co-tenants at the same PG */}
+              {birthdays.length > 0 && (() => {
+                const today = new Date()
+                const withNextOccurrence = birthdays.map(b => {
+                  const dob = new Date(b.date_of_birth)
+                  let next = new Date(today.getFullYear(), dob.getMonth(), dob.getDate())
+                  if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+                    next = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate())
+                  }
+                  return { ...b, next }
+                }).sort((a, b) => a.next.getTime() - b.next.getTime()).slice(0, 5)
+
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                      <span className="text-base">🎂</span>
+                      <span className="font-bold text-sm text-gray-900">Upcoming Birthdays</span>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {withNextOccurrence.map((b, i) => {
+                        const isToday = b.next.toDateString() === today.toDateString()
+                        return (
+                          <div key={i} className="px-4 py-2.5 flex items-center justify-between">
+                            <span className="text-sm text-gray-800">{b.name}{isToday ? ' 🎉' : ''}</span>
+                            <span className={`text-xs font-semibold ${isToday ? 'text-pink-600' : 'text-gray-400'}`}>
+                              {isToday ? 'Today!' : b.next.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Stat cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -107,6 +107,10 @@ export default function RoomsPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-40 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mr-2" />Loading rooms…</div>
+      ) : rooms.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          No rooms yet. Click "Add Room" to get started.
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {rooms.map(room => {
@@ -155,7 +159,7 @@ export default function RoomsPage() {
               <button onClick={closeModal} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              {activeId === 'all' && (
+              {activeId === 'all' && !editingId && (
                 <div className="col-span-2">
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
                   <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
