@@ -258,16 +258,18 @@ export default function TenantPortal() {
     toast.success('Password updated!'); setPwModal(false); setPwForm({ newPw: '', confirm: '' })
   }
 
-  function downloadAgreement() {
+  async function downloadAgreement() {
     if (agreement) {
-      generateFullAgreementPDF({
+      await generateFullAgreementPDF({
         agreementNumber: agreement.agreement_number,
+        creationDate: agreement.created_at,
         tenantName: tenant.name, tenantPhone: tenant.phone, tenantEmail: tenant.email ?? undefined,
+        tenantPhotoUrl: tenant.photo_url ?? undefined,
         governmentId: agreement.government_id ? 'Photo on file' : undefined,
         emergencyContact: tenant.emergency_contact ?? undefined,
         propertyName: tenant.property?.name ?? 'PG', propertyAddress: tenant.property?.address ?? undefined,
         roomNumber: tenant.room?.room_number, bedLabel: tenant.bed_label ?? undefined,
-        ownerName: undefined,
+        joiningDate: tenant.joining_date,
         startDate: agreement.start_date, endDate: agreement.end_date,
         durationMonths: agreement.duration_months, rentCycle: agreement.rent_cycle,
         monthlyRent: agreement.monthly_rent, securityDeposit: agreement.security_deposit,
@@ -290,11 +292,13 @@ export default function TenantPortal() {
     toast.success('Agreement downloaded')
   }
 
-  function downloadReceipt(p: any) {
-    generateReceiptPDF({
+  async function downloadReceipt(p: any) {
+    await generateReceiptPDF({
       tenantName: tenant.name, propertyName: tenant.property?.name ?? 'PG',
-      roomNumber: tenant.room?.room_number, forMonth: p.for_month ?? undefined, type: p.type,
+      roomNumber: tenant.room?.room_number, bedLabel: tenant.bed_label ?? undefined,
+      forMonth: p.for_month ?? undefined, type: p.type,
       totalDue: p.total_due, amountReceived: p.amount_received, method: p.method,
+      referenceNumber: p.reference_number ?? undefined,
       paymentDate: p.payment_date, approvalStatus: p.approval_status,
       receiptNo: p.id.slice(0, 8).toUpperCase(),
     })

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Menu, Search, Bell, Sun, Moon, ChevronDown, Building2, Layers, Plus, Loader2 } from 'lucide-react'
 import { useProperty } from './PropertyContext'
 import { cn } from '@/lib/utils'
-import { addProperty, getOwnerNotifications } from '@/lib/supabase/queries'
+import { addProperty, getOwnerNotifications, getDashboardStats } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 
 interface Props {
@@ -23,12 +23,20 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
   const [form, setForm] = useState({ name: '', address: '', city: '', upi_id: '' })
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<any[]>([])
+  const [occupancy, setOccupancy] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
     if (propIds.length === 0 || propIds.some(id => !id)) return
     getOwnerNotifications(propIds).then(setNotifications).catch(() => setNotifications([]))
   }, [activeId, properties])
+
+  useEffect(() => {
+    if (!propOpen || properties.length === 0) return
+    Promise.all(properties.map(p => getDashboardStats(p.id).then(s => [p.id, Math.round((s.occupiedBeds / (s.totalBeds || 1)) * 100)] as const)))
+      .then(entries => setOccupancy(Object.fromEntries(entries)))
+      .catch(() => {})
+  }, [propOpen, properties])
 
   async function handleAddProperty() {
     if (!form.name.trim()) { toast.error('Property name is required'); return }
@@ -92,7 +100,11 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate">{p.name}</div>
-                  <div className="text-xs text-gray-400">{p.city}</div>
+                  <div className={cn('text-xs font-medium',
+                    occupancy[p.id] !== undefined && occupancy[p.id] >= 90 ? 'text-green-600' :
+                    occupancy[p.id] !== undefined && occupancy[p.id] < 50 ? 'text-red-500' : 'text-gray-400')}>
+                    {occupancy[p.id] !== undefined ? `${occupancy[p.id]}% Occupied` : p.city}
+                  </div>
                 </div>
               </button>
             ))}

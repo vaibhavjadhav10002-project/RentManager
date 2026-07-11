@@ -28,7 +28,7 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     tenant_id: '', type: 'rent', for_month: '', total_due: '', amount_received: '',
-    method: 'cash', collected_by: '', payment_date: new Date().toISOString().slice(0, 10),
+    method: 'cash', collected_by: '', payment_date: new Date().toISOString().slice(0, 10), reference_number: '',
   })
 
   const load = useCallback(async () => {
@@ -144,6 +144,7 @@ export default function PaymentsPage() {
         method: form.method as any,
         collected_by: form.collected_by || undefined,
         payment_date: form.payment_date,
+        reference_number: form.reference_number || undefined,
       })
       toast.success('Payment recorded!')
       setRecordModal(false)
@@ -359,6 +360,7 @@ export default function PaymentsPage() {
                             totalDue: p.total_due,
                             amountReceived: p.amount_received,
                             method: p.method ?? undefined,
+                            referenceNumber: p.reference_number ?? undefined,
                             paymentDate: p.payment_date,
                             approvalStatus: p.approval_status,
                             receiptNo: p.id.slice(0, 8).toUpperCase(),
@@ -435,6 +437,13 @@ export default function PaymentsPage() {
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Payment Date</label>
                 <input type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
               </div>
+              {(form.method === 'upi' || form.method === 'bank_transfer') && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Transaction / UPI Reference (optional)</label>
+                  <input value={form.reference_number} onChange={e => setForm(f => ({ ...f, reference_number: e.target.value }))} placeholder="e.g. UPI Ref No." className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                  <p className="text-xs text-gray-400 mt-1">Shown on the payment receipt</p>
+                </div>
+              )}
               <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">
                 Partial payments are supported — only the amount entered above will be recorded. If remaining balance is collected later by a different person, add a separate entry.
               </p>

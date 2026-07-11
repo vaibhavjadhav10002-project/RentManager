@@ -106,6 +106,7 @@ export interface Payment {
   submitted_by_tenant: boolean
   tenant_note: string | null
   screenshot_url: string | null
+  reference_number: string | null
   payment_date: string
   created_at: string
   // joined
@@ -273,6 +274,7 @@ export interface RecordPaymentInput {
   method: PaymentMethod
   collected_by?: string
   payment_date: string
+  reference_number?: string
 }
 
 export interface AddExpenseInput {
