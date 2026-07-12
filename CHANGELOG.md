@@ -70,3 +70,27 @@ Run `supabase/16_payment_reference_number.sql` in the Supabase SQL Editor.
 - `src/types/index.ts` (`reference_number` on `Payment`/`RecordPaymentInput`)
 - `package.json` (`qrcode`, `@types/qrcode`)
 
+---
+
+# Changelog — Phase 2: Rent & Deposit
+
+## Analyzed first (per project rules) — already implemented, not rebuilt
+- Security Deposit Management, Deposit Settlement & Refund (`deposit_refunded`, `deposit_refund_date`, `deposit_deduction_notes` + owner/tenant UI) — built in an earlier phase, verified working, untouched.
+- Partial Rent Payment — the monthly ledger already tracks partial vs pending per month.
+- Rent Payment Timeline — the tenant portal's Rent tab ledger already is this (chronological month-by-month status).
+
+## Added (the two genuinely missing pieces)
+- **Advance Rent Payment — now functional.** Previously `'advance'` was just an unused dropdown option with no logic anywhere. Added a shared `applyAdvanceBalance()` utility (`src/lib/utils`) that auto-applies an advance balance across a tenant's unpaid/partial months, oldest first — used identically on both the tenant portal (ledger + "Pay Now" amounts) and the owner dashboard (`pendingRent`), so the two views can never disagree. Tenant portal shows a live "Advance Balance" card when one exists. Owner's Record Payment form hides "For Month" when recording an advance (it isn't tied to one).
+- **Late Fee Auto Calculation — new.** Configured per property (Settings → "Late Fee (₹/day)" + "Grace Period (days)"), not per-agreement, so it applies to every tenant regardless of how they joined (owner-added tenants never get an `agreements` row). Added `calculateLateFee()` shared utility. Computed against the specific overdue month's own due date. Shown to the tenant as a separate "Late Fee Applied" card and folded into the "Pay Now" amount; flows straight into the premium receipt's `lateFee` line from Phase 1. Defaults to ₹0/day — never charges anyone unless the owner explicitly configures a rate.
+
+## Required action
+Run `supabase/17_late_fee_policy.sql` in the Supabase SQL Editor.
+
+## Files Modified
+- `src/lib/utils/index.ts` (new: `calculateLateFee`, `applyAdvanceBalance`)
+- `src/app/(tenant)/portal/page.tsx` (ledger now advance-aware, late fee card, pay amount includes late fee)
+- `src/app/(owner)/settings/page.tsx` (late fee policy fields)
+- `src/app/(owner)/payments/page.tsx` (advance-aware pending calc already shared via `getDashboardStats`; For Month hidden for advance type)
+- `src/lib/supabase/queries.ts` (`getDashboardStats.pendingRent` nets out advance balance)
+- `src/types/index.ts` (`late_fee_per_day`, `late_fee_grace_days` on `Property`)
+

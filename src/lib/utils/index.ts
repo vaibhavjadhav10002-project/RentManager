@@ -44,6 +44,36 @@ export function getOverdueDays(joiningDate: string, today = new Date()): number 
   return Math.max(0, differenceInDays(today, due))
 }
 
+// ─── Late fee auto-calculation ────────────────────────────────────────────────
+// Property-level policy (not per-agreement) so it applies to every tenant
+// regardless of how they joined. Returns 0 if the property hasn't
+// configured a late fee (never fabricates a charge that wasn't set up).
+export function calculateLateFee(overdueDays: number, feePerDay: number, graceDays: number): number {
+  if (!feePerDay || feePerDay <= 0) return 0
+  const chargeableDays = Math.max(0, overdueDays - graceDays)
+  return chargeableDays * feePerDay
+}
+
+// ─── Advance payment application ──────────────────────────────────────────────
+// Applies a lump advance-payment balance across unpaid/partial months in
+// chronological order (oldest first), same logic used everywhere this
+// calculation happens so owner and tenant views can never disagree.
+export interface LedgerMonth { label: string; amount: number; paid: number; status: 'paid' | 'partial' | 'pending' }
+
+export function applyAdvanceBalance<T extends LedgerMonth>(monthsOldestFirst: T[], advanceBalance: number): { months: T[]; remainingAdvance: number } {
+  let remaining = advanceBalance
+  const months = monthsOldestFirst.map(m => {
+    if (m.status === 'paid' || remaining <= 0) return m
+    const gap = m.amount - m.paid
+    const applied = Math.min(gap, remaining)
+    if (applied <= 0) return m
+    remaining -= applied
+    const newPaid = m.paid + applied
+    return { ...m, paid: newPaid, status: (newPaid >= m.amount ? 'paid' : 'partial') as T['status'] }
+  })
+  return { months, remainingAdvance: remaining }
+}
+
 // ─── UPI payment deep link ───────────────────────────────────────────────────
 // Built manually with encodeURIComponent (not URLSearchParams) because
 // URLSearchParams encodes spaces as "+" (form-encoding), which several UPI

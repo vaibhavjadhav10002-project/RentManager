@@ -461,7 +461,10 @@ export async function getDashboardStats(propertyId: string) {
       const paidThisMonth = (payments.data ?? [])
         .filter(p => p.tenant_id === t.id && p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent')
         .reduce((s, p) => s + p.amount_received, 0)
-      return sum + Math.max(0, t.monthly_rent - paidThisMonth)
+      const advanceBalance = (payments.data ?? [])
+        .filter(p => p.tenant_id === t.id && p.type === 'advance' && p.approval_status === 'approved')
+        .reduce((s, p) => s + p.amount_received, 0)
+      return sum + Math.max(0, t.monthly_rent - paidThisMonth - advanceBalance)
     }, 0)
 
   return {

@@ -397,14 +397,19 @@ export default function PaymentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Type</label>
-                  <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, for_month: e.target.value === 'advance' ? '' : f.for_month }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
                     {['rent', 'deposit', 'advance'].map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">For Month</label>
-                  <input value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-                </div>
+                {form.type !== 'advance' && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">For Month</label>
+                    <input value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                )}
+                {form.type === 'advance' && (
+                  <p className="text-xs text-gray-400 -mt-2">Advance payments auto-apply to the tenant's next unpaid month(s) — no need to pick a month.</p>
+                )}
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Total Due (₹)</label>
                   <input type="number" value={form.total_due} onChange={e => setForm(f => ({ ...f, total_due: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, formatDate } from '@/lib/utils'
+import { formatINR, formatDate, applyAdvanceBalance, calculateLateFee } from '@/lib/utils'
 import UpiPayButtons from '@/components/shared/UpiPayButtons'
 import { generateAgreementPDF, generateReceiptPDF, generateFullAgreementPDF } from '@/lib/pdf'
 import {
@@ -66,7 +66,7 @@ export default function TenantPortal() {
       const { data: prof } = await sb.from('profiles').select('must_change_password').eq('id', user.id).single()
       setMustChangePw(!!prof?.must_change_password)
 
-      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id)').eq('auth_user_id', user.id).single()
+      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id, late_fee_per_day, late_fee_grace_days)').eq('auth_user_id', user.id).single()
       if (!t) { router.push('/login'); return }
       setTenant(t)
 
@@ -117,17 +117,37 @@ export default function TenantPortal() {
     return months
   })()
 
+  // Advance payments (type='advance', approved) auto-apply to the oldest
+  // unpaid months first — same shared logic the owner side uses, so the
+  // two views can never disagree.
+  const advanceBalance = payments.filter(p => p.type === 'advance' && p.approval_status === 'approved').reduce((s, p) => s + p.amount_received, 0)
+  const { months: ledgerAfterAdvance, remainingAdvance } = applyAdvanceBalance(monthlyLedger, advanceBalance)
+
   // Oldest unpaid/partial month first — this is what "Pay Now" targets, so
   // a partial payment made at joining (or any earlier missed month) is
   // exactly as visible and payable as the current month's rent.
-  const oldestUnpaidMonth = [...monthlyLedger].find(m => m.status !== 'paid')
-  const totalRentPending = monthlyLedger.reduce((s, m) => s + Math.max(0, m.amount - m.paid), 0)
+  const oldestUnpaidMonth = [...ledgerAfterAdvance].find(m => m.status !== 'paid')
+  const totalRentPending = ledgerAfterAdvance.reduce((s, m) => s + Math.max(0, m.amount - m.paid), 0)
   const thisMonthPaid = totalRentPending <= 0
-  const ledgerDisplay = [...monthlyLedger].reverse()
-  const referenceMonth = oldestUnpaidMonth ?? monthlyLedger[monthlyLedger.length - 1]
+  const ledgerDisplay = [...ledgerAfterAdvance].reverse()
+  const referenceMonth = oldestUnpaidMonth ?? ledgerAfterAdvance[ledgerAfterAdvance.length - 1]
   const donutPaid = referenceMonth?.paid ?? 0
   const donutPending = Math.max(0, (referenceMonth?.amount ?? tenant?.monthly_rent ?? 0) - donutPaid)
   const donutPct = referenceMonth ? Math.round((donutPaid / (referenceMonth.amount || 1)) * 100) : 100
+
+  // Late fee — property-level policy, applies only if the owner has
+  // configured a per-day rate. Computed against the oldest unpaid month's
+  // own due date (not just "today"), so it's accurate for old backlog too.
+  const lateFee = (() => {
+    if (!tenant?.property || !oldestUnpaidMonth || !tenant.joining_date) return 0
+    const feePerDay = tenant.property.late_fee_per_day ?? 0
+    if (!feePerDay) return 0
+    const monthDate = new Date(`1 ${oldestUnpaidMonth.label}`)
+    const dueDay = new Date(tenant.joining_date).getDate()
+    const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay)
+    const overdue = Math.max(0, Math.floor((Date.now() - dueDate.getTime()) / 86400000))
+    return calculateLateFee(overdue, feePerDay, tenant.property.late_fee_grace_days ?? 0)
+  })()
 
   const tenantNotifications = [
     ...(totalRentPending > 0 && tenant?.status === 'active' ? [{
@@ -158,7 +178,7 @@ export default function TenantPortal() {
 
   const [payKind, setPayKind] = useState<'rent' | 'deposit'>('rent')
   function payAmountFor(kind: 'rent' | 'deposit') {
-    if (kind === 'rent') return Math.max(0, (oldestUnpaidMonth?.amount ?? tenant?.monthly_rent ?? 0) - (oldestUnpaidMonth?.paid ?? 0))
+    if (kind === 'rent') return Math.max(0, (oldestUnpaidMonth?.amount ?? tenant?.monthly_rent ?? 0) - (oldestUnpaidMonth?.paid ?? 0)) + lateFee
     return Math.max(0, (tenant?.deposit_amount ?? 0) - (tenant?.deposit_paid ?? 0))
   }
   const payAmount = payAmountFor(payKind)
@@ -857,6 +877,24 @@ export default function TenantPortal() {
                 <h1 className="text-xl font-extrabold text-gray-900">Rent & Payments</h1>
                 <p className="text-sm text-gray-500">Your full monthly rent history.</p>
               </div>
+              {(lateFee > 0 || remainingAdvance > 0) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {lateFee > 0 && (
+                    <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+                      <div className="text-xs font-bold text-red-700">Late Fee Applied</div>
+                      <div className="text-lg font-extrabold text-red-700 mt-0.5">{formatINR(lateFee)}</div>
+                      <div className="text-xs text-red-500 mt-0.5">Added to your next payment for {oldestUnpaidMonth?.label}</div>
+                    </div>
+                  )}
+                  {remainingAdvance > 0 && (
+                    <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
+                      <div className="text-xs font-bold text-green-700">Advance Balance</div>
+                      <div className="text-lg font-extrabold text-green-700 mt-0.5">{formatINR(remainingAdvance)}</div>
+                      <div className="text-xs text-green-600 mt-0.5">Will auto-apply to your next due month</div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {ledgerDisplay.map(m => (
                   <div key={m.label} className="flex items-center justify-between px-5 py-4 border-b border-gray-50 last:border-0">
@@ -1293,7 +1331,7 @@ export default function TenantPortal() {
             </div>
             <div className="p-5 space-y-4">
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-                Amount: <span className="font-bold">{formatINR(payAmount)}</span>. This notifies your owner that you've paid. No real payment is made here — the owner will verify and approve.
+                Amount: <span className="font-bold">{formatINR(payAmount)}</span>{payKind === 'rent' && lateFee > 0 && <span> (includes {formatINR(lateFee)} late fee)</span>}. This notifies your owner that you've paid. No real payment is made here — the owner will verify and approve.
               </div>
               {tenant.property?.upi_id && (
                 <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={payAmount} note={`${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`} />

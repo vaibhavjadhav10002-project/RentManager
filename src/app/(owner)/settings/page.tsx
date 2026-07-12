@@ -25,7 +25,7 @@ export default function SettingsPage() {
   const [collectors, setCollectors] = useState<any[]>([])
   const [newCollector, setNewCollector] = useState('')
   const [saving, setSaving] = useState(false)
-  const [pgForm, setPgForm] = useState({ name: '', address: '', city: '', upi_id: '' })
+  const [pgForm, setPgForm] = useState({ name: '', address: '', city: '', upi_id: '', late_fee_per_day: '', late_fee_grace_days: '' })
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' })
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (active) {
-      setPgForm({ name: active.name, address: active.address ?? '', city: active.city ?? '', upi_id: active.upi_id ?? '' })
+      setPgForm({ name: active.name, address: active.address ?? '', city: active.city ?? '', upi_id: active.upi_id ?? '', late_fee_per_day: String(active.late_fee_per_day ?? 0), late_fee_grace_days: String(active.late_fee_grace_days ?? 0) })
       getCollectors(active.id).then(setCollectors)
     }
   }, [active])
@@ -50,7 +50,11 @@ export default function SettingsPage() {
     if (!active) { toast.error('Select a specific property first'); return }
     setSaving(true)
     try {
-      await updateProperty(active.id, pgForm)
+      await updateProperty(active.id, {
+        ...pgForm,
+        late_fee_per_day: Number(pgForm.late_fee_per_day || 0),
+        late_fee_grace_days: Number(pgForm.late_fee_grace_days || 0),
+      } as any)
       toast.success('PG details saved!'); refresh()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -99,6 +103,8 @@ export default function SettingsPage() {
           <Field label="City" value={pgForm.city} onChange={(v: string) => setPgForm(f => ({ ...f, city: v }))} />
           <div className="sm:col-span-2"><Field label="Address" value={pgForm.address} onChange={(v: string) => setPgForm(f => ({ ...f, address: v }))} /></div>
           <Field label="UPI ID" value={pgForm.upi_id} onChange={(v: string) => setPgForm(f => ({ ...f, upi_id: v }))} />
+          <Field label="Late Fee (₹ per day)" type="number" value={pgForm.late_fee_per_day} onChange={(v: string) => setPgForm(f => ({ ...f, late_fee_per_day: v }))} />
+          <Field label="Grace Period (days)" type="number" value={pgForm.late_fee_grace_days} onChange={(v: string) => setPgForm(f => ({ ...f, late_fee_grace_days: v }))} />
         </div>
         <button onClick={savePg} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save PG Details

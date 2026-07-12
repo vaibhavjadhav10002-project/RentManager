@@ -32,6 +32,8 @@ export interface Property {
   bank_account_number: string | null
   bank_ifsc: string | null
   upi_id: string | null
+  late_fee_per_day: number
+  late_fee_grace_days: number
   created_at: string
 }
 
