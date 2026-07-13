@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getTenants, getAllTenants, addTenantByOwner } from '@/lib/supabase/queries'
+import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms, getPaymentsForTenant, setTenantLeaving, markTenantLeft } from '@/lib/supabase/queries'
 import { formatINR, formatDate, whatsappLink, rentReminderMsg } from '@/lib/utils'
+import { generateReceiptPDF } from '@/lib/pdf'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2 } from 'lucide-react'
+import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Loader2, Zap, Download, LogOut, Calendar } from 'lucide-react'
 import type { Tenant } from '@/types'
 
 const BADGE: Record<string, string> = {
@@ -26,14 +27,83 @@ export default function TenantsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [noticeModal, setNoticeModal] = useState<Tenant | null>(null)
+  const [leavingDate, setLeavingDate] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [roomOptions, setRoomOptions] = useState<{ id: string; room_number: string; sharing_type: string }[]>([])
   const [saving, setSaving] = useState(false)
+  const [viewTenant, setViewTenant] = useState<Tenant | null>(null)
+  const [viewTenantPayments, setViewTenantPayments] = useState<any[]>([])
+
+  function openView(t: Tenant) {
+    setViewTenant(t)
+    setViewTenantPayments([])
+    getPaymentsForTenant(t.id).then(setViewTenantPayments).catch(() => setViewTenantPayments([]))
+  }
+  const [editTenant, setEditTenant] = useState<Tenant | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: '', phone: '', email: '', emergency_contact: '', bed_label: '',
+    monthly_rent: '', deposit_amount: '', deposit_paid: '', notice_period_days: '', status: 'active',
+    deposit_refunded: '', deposit_refund_date: '', deposit_deduction_notes: '',
+  })
+  const [editSaving, setEditSaving] = useState(false)
+
+  function openEdit(t: Tenant) {
+    setEditTenant(t)
+    setEditForm({
+      name: t.name, phone: t.phone, email: t.email ?? '', emergency_contact: t.emergency_contact ?? '',
+      bed_label: t.bed_label ?? '', monthly_rent: String(t.monthly_rent), deposit_amount: String(t.deposit_amount),
+      deposit_paid: String(t.deposit_paid), notice_period_days: String(t.notice_period_days), status: t.status,
+      deposit_refunded: String(t.deposit_refunded ?? 0), deposit_refund_date: t.deposit_refund_date ?? '',
+      deposit_deduction_notes: t.deposit_deduction_notes ?? '',
+    })
+  }
+
+  async function handleEditSave() {
+    if (!editTenant) return
+    if (!editForm.name.trim()) { toast.error('Name is required'); return }
+    if (editForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) { toast.error('Enter a valid email address'); return }
+    if (!editForm.monthly_rent || Number(editForm.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
+    const refundAmt = Number(editForm.deposit_refunded || 0)
+    const depositPaidAmt = Number(editForm.deposit_paid || 0)
+    if (refundAmt > depositPaidAmt) { toast.error('Refund amount cannot exceed deposit paid'); return }
+    setEditSaving(true)
+    try {
+      await updateTenant(editTenant.id, {
+        name: editForm.name.trim(),
+        // Phone is intentionally NOT editable here once a login exists —
+        // the tenant's login email is derived from their original phone
+        // number, so changing it here would silently break their login.
+        email: editForm.email || undefined,
+        emergency_contact: editForm.emergency_contact || undefined,
+        bed_label: editForm.bed_label || undefined,
+        monthly_rent: Number(editForm.monthly_rent),
+        deposit_amount: Number(editForm.deposit_amount || 0),
+        deposit_paid: depositPaidAmt,
+        deposit_refunded: refundAmt,
+        deposit_refund_date: editForm.deposit_refund_date || undefined,
+        deposit_deduction_notes: editForm.deposit_deduction_notes || undefined,
+        notice_period_days: Number(editForm.notice_period_days || 30),
+        status: editForm.status as Tenant['status'],
+      })
+      toast.success('Tenant updated!')
+      setEditTenant(null)
+      load()
+    } catch (e: any) { toast.error(e.message ?? 'Failed to update tenant') }
+    setEditSaving(false)
+  }
 
   const [form, setForm] = useState({
     property_id: '', room_id: '', bed_label: '', name: '', phone: '',
-    email: '', emergency_contact: '', joining_date: '', monthly_rent: '',
-    deposit_amount: '', deposit_paid: '', notice_period_days: '30', password: '',
+    email: '', emergency_contact: '', date_of_birth: '', joining_date: '', monthly_rent: '',
+    deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '',
   })
+
+  const effectivePropertyId = activeId === 'all' ? form.property_id : activeId
+  useEffect(() => {
+    if (!effectivePropertyId) { setRoomOptions([]); return }
+    getRooms(effectivePropertyId).then(setRoomOptions).catch(() => setRoomOptions([]))
+  }, [effectivePropertyId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -55,30 +125,62 @@ export default function TenantsPage() {
      t.room?.room_number?.includes(search))
   )
 
+  const onNotice = tenants
+    .filter(t => t.status === 'leaving' && t.leaving_date)
+    .map(t => ({ ...t, daysLeft: Math.ceil((new Date(t.leaving_date!).getTime() - Date.now()) / 86400000) }))
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+
+  async function handleSetNotice() {
+    if (!noticeModal || !leavingDate) { toast.error('Pick a leaving date'); return }
+    try {
+      await setTenantLeaving(noticeModal.id, leavingDate)
+      toast.success(`${noticeModal.name} marked as leaving on ${leavingDate}`)
+      setNoticeModal(null); setLeavingDate('')
+      load()
+    } catch (e: any) { toast.error(e.message) }
+  }
+
+  async function handleMarkLeft(tenantId: string, name: string) {
+    if (!confirm(`Mark ${name} as left? This should be done after move-out and final settlement.`)) return
+    try {
+      await markTenantLeft(tenantId)
+      toast.success(`${name} marked as left`)
+      load()
+    } catch (e: any) { toast.error(e.message) }
+  }
+
   async function handleAdd() {
-    if (!form.name || !form.phone || !form.joining_date || !form.password) {
+    if (!form.name.trim() || !form.phone || !form.joining_date || !form.password) {
       toast.error('Fill all required fields'); return
     }
+    if (!effectivePropertyId) { toast.error('Select a property'); return }
+    const digitsOnly = form.phone.replace(/\D/g, '')
+    if (digitsOnly.length < 10) { toast.error('Enter a valid 10-digit mobile number'); return }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Enter a valid email address'); return }
+    if (!form.monthly_rent || Number(form.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
+    if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
     setSaving(true)
     try {
       await addTenantByOwner({
-        property_id: form.property_id || activeId,
-        room_id: form.room_id,
+        property_id: effectivePropertyId,
+        room_id: form.room_id || null,
         bed_label: form.bed_label,
-        name: form.name,
+        name: form.name.trim(),
         phone: form.phone,
         email: form.email,
         emergency_contact: form.emergency_contact,
+        date_of_birth: form.date_of_birth || undefined,
         joining_date: form.joining_date,
         monthly_rent: Number(form.monthly_rent),
-        deposit_amount: Number(form.deposit_amount),
+        deposit_amount: Number(form.deposit_amount || 0),
         deposit_paid: Number(form.deposit_paid || 0),
-        notice_period_days: Number(form.notice_period_days),
+        rent_paid_now: Number(form.rent_paid_now || 0),
+        notice_period_days: Number(form.notice_period_days || 30),
         password: form.password,
       })
       toast.success('Tenant added & login created!')
       setModalOpen(false)
-      setForm({ property_id: '', room_id: '', bed_label: '', name: '', phone: '', email: '', emergency_contact: '', joining_date: '', monthly_rent: '', deposit_amount: '', deposit_paid: '', notice_period_days: '30', password: '' })
+      setForm({ property_id: '', room_id: '', bed_label: '', name: '', phone: '', email: '', emergency_contact: '', date_of_birth: '', joining_date: '', monthly_rent: '', deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '' })
       load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -116,6 +218,36 @@ export default function TenantsPage() {
         </div>
       </div>
 
+      {/* Notice Period Tracker */}
+      {onNotice.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="w-4 h-4 text-amber-600" />
+            <span className="text-sm font-bold text-amber-800">Tenants on Notice Period ({onNotice.length})</span>
+          </div>
+          <div className="space-y-2">
+            {onNotice.map(t => (
+              <div key={t.id} className="flex items-center gap-3 bg-white rounded-xl p-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  {t.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900">{t.name} <span className="text-gray-400 font-normal">· Room {t.room?.room_number}</span></div>
+                  <div className="text-xs text-gray-500">Leaving on {formatDate(t.leaving_date!)}</div>
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${t.daysLeft <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {t.daysLeft > 0 ? `${t.daysLeft}d left` : t.daysLeft === 0 ? 'Leaving today' : `${Math.abs(t.daysLeft)}d overdue`}
+                </span>
+                <button onClick={() => handleMarkLeft(t.id, t.name)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold transition flex-shrink-0">
+                  <LogOut className="w-3.5 h-3.5" /> Mark Left
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (
@@ -140,7 +272,7 @@ export default function TenantsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                          {t.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          {(t.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
                           <div className="font-semibold text-gray-900">{t.name}</div>
@@ -192,8 +324,12 @@ export default function TenantsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <button className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
-                        <button className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => openView(t)} aria-label={`View ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
+                        <button onClick={() => openEdit(t)} aria-label={`Edit ${t.name}`} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                        {t.status === 'active' && (
+                          <button onClick={() => { setNoticeModal(t); setLeavingDate('') }} title="Give notice / mark leaving"
+                            className="p-1.5 hover:bg-amber-50 rounded-lg transition"><LogOut className="w-3.5 h-3.5 text-amber-500" /></button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -217,26 +353,41 @@ export default function TenantsPage() {
               {/* Property selector (only when "all" is selected) */}
               {activeId === 'all' && (
                 <div className="sm:col-span-2">
-                  <label className="label">Property *</label>
-                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))} className="input">
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
+                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
                     <option value="">Select Property</option>
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
 
+              {/* Room selector — dropdown of actual rooms, not a free-text UUID field */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Room</label>
+                <select value={form.room_id} onChange={e => setForm(f => ({ ...f, room_id: e.target.value }))}
+                  disabled={!effectivePropertyId}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-400">
+                  <option value="">{effectivePropertyId ? 'No room / unassigned' : 'Select a property first'}</option>
+                  {roomOptions.map(r => (
+                    <option key={r.id} value={r.id}>Room {r.room_number} ({r.sharing_type})</option>
+                  ))}
+                </select>
+              </div>
+
               {[
                 { key: 'name', label: 'Full Name', required: true },
                 { key: 'phone', label: 'Mobile Number', required: true, type: 'tel' },
                 { key: 'email', label: 'Email' },
                 { key: 'emergency_contact', label: 'Emergency Contact', type: 'tel' },
-                { key: 'room_id', label: 'Room ID (from Rooms page)' },
+                { key: 'date_of_birth', label: 'Date of Birth (optional)', type: 'date' },
                 { key: 'bed_label', label: 'Bed Label (A/B/C)' },
                 { key: 'joining_date', label: 'Joining Date', required: true, type: 'date' },
                 { key: 'notice_period_days', label: 'Notice Period (days)' },
                 { key: 'monthly_rent', label: 'Monthly Rent (₹)', required: true, type: 'number' },
                 { key: 'deposit_amount', label: 'Total Deposit (₹)', type: 'number' },
                 { key: 'deposit_paid', label: 'Deposit Paid Now (₹)', type: 'number' },
+                { key: 'rent_paid_now', label: 'Rent Paid Now (₹)', type: 'number' },
               ].map(({ key, label, required, type }) => (
                 <div key={key}>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">{label}{required && ' *'}</label>
@@ -270,6 +421,161 @@ export default function TenantsPage() {
                 {saving ? 'Adding…' : 'Add Tenant & Create Login'}
               </button>
               <button onClick={() => setModalOpen(false)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Tenant Modal */}
+      {viewTenant && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">Tenant Details</h2>
+              <button onClick={() => setViewTenant(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="p-6 space-y-3 text-sm">
+              {[
+                ['Name', viewTenant.name],
+                ['Phone', viewTenant.phone],
+                ['Email', viewTenant.email || '—'],
+                ['Emergency Contact', viewTenant.emergency_contact || '—'],
+                ['Room', viewTenant.room ? `Room ${viewTenant.room.room_number}` : '—'],
+                ['Bed', viewTenant.bed_label || '—'],
+                ['Joining Date', formatDate(viewTenant.joining_date)],
+                ['Monthly Rent', formatINR(viewTenant.monthly_rent)],
+                ['Deposit', `${formatINR(viewTenant.deposit_paid)} / ${formatINR(viewTenant.deposit_amount)}`],
+                ['Notice Period', `${viewTenant.notice_period_days} days`],
+                ['Status', viewTenant.status.replace('_', ' ')],
+                ['Aadhaar KYC', viewTenant.aadhaar_status],
+                ['PAN KYC', viewTenant.pan_status],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-gray-500">{label}</span>
+                  <span className="font-semibold text-gray-900 capitalize">{value}</span>
+                </div>
+              ))}
+
+              <div className="pt-2">
+                <div className="font-bold text-gray-900 mb-2">Payment History</div>
+                {viewTenantPayments.length === 0 ? (
+                  <div className="text-xs text-gray-400 text-center py-4">No payments recorded yet</div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {viewTenantPayments.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-800">{p.for_month ?? p.type} · {formatINR(p.amount_received)}</div>
+                          <div className="text-[11px] text-gray-400">{formatDate(p.payment_date)} · <span className="capitalize">{p.approval_status.replace('_', ' ')}</span></div>
+                        </div>
+                        {p.approval_status === 'approved' && (
+                          <button onClick={() => generateReceiptPDF({
+                            tenantName: viewTenant.name, propertyName: viewTenant.property?.name ?? 'PG',
+                            roomNumber: viewTenant.room?.room_number, forMonth: p.for_month ?? undefined, type: p.type,
+                            totalDue: p.total_due, amountReceived: p.amount_received, method: p.method ?? undefined,
+                            paymentDate: p.payment_date, approvalStatus: p.approval_status, receiptNo: p.id.slice(0, 8).toUpperCase(),
+                          })} className="p-1.5 hover:bg-gray-100 rounded-lg transition flex-shrink-0" aria-label="Download receipt">
+                            <Download className="w-3.5 h-3.5 text-gray-400" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setViewTenant(null)}
+                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Tenant Modal */}
+      {editTenant && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl my-4">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">Edit Tenant</h2>
+              <button onClick={() => setEditTenant(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto max-h-[75vh]">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Mobile Number (login username)</label>
+                <input type="tel" value={editForm.phone} disabled
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-400 cursor-not-allowed" />
+                <p className="text-xs text-gray-400 mt-1">Can't be changed here — it's tied to the tenant's login.</p>
+              </div>
+              {[
+                { key: 'name', label: 'Full Name' },
+                { key: 'email', label: 'Email' },
+                { key: 'emergency_contact', label: 'Emergency Contact', type: 'tel' },
+                { key: 'bed_label', label: 'Bed Label (A/B/C)' },
+                { key: 'monthly_rent', label: 'Monthly Rent (₹)', type: 'number' },
+                { key: 'deposit_amount', label: 'Total Deposit (₹)', type: 'number' },
+                { key: 'deposit_paid', label: 'Deposit Paid (₹)', type: 'number' },
+                { key: 'notice_period_days', label: 'Notice Period (days)', type: 'number' },
+              ].map(({ key, label, type }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+                  <input type={type ?? 'text'} value={(editForm as any)[key]}
+                    onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
+                <select value={editForm.status}
+                  onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  {['active', 'leaving', 'left', 'pending_approval'].map(s => (
+                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+
+              {(editForm.status === 'leaving' || editForm.status === 'left') && (
+                <div className="sm:col-span-2 bg-amber-50 rounded-xl p-4 space-y-3">
+                  <div className="text-xs font-bold text-amber-800">Deposit Refund / Adjustment</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Amount Refunded (₹)</label>
+                      <input type="number" value={editForm.deposit_refunded}
+                        onChange={e => setEditForm(f => ({ ...f, deposit_refunded: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Refund Date</label>
+                      <input type="date" value={editForm.deposit_refund_date}
+                        onChange={e => setEditForm(f => ({ ...f, deposit_refund_date: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Deduction Notes (damages, dues, etc.)</label>
+                    <textarea rows={2} value={editForm.deposit_deduction_notes}
+                      onChange={e => setEditForm(f => ({ ...f, deposit_deduction_notes: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Deposit paid: {formatINR(Number(editForm.deposit_paid || 0))} · Remaining to refund: {formatINR(Math.max(0, Number(editForm.deposit_paid || 0) - Number(editForm.deposit_refunded || 0)))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={handleEditSave} disabled={editSaving}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                {editSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button onClick={() => setEditTenant(null)}
                 className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
                 Cancel
               </button>

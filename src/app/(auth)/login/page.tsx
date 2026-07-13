@@ -1,26 +1,32 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Building2, Lock, User, LogIn } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
-  const [role, setRole] = useState<'owner' | 'tenant'>('owner')
+  const searchParams = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('deactivated') === '1') {
+      toast.error('Your account has been deactivated. Contact your admin.')
+    }
+  }, [searchParams])
 
   async function handleLogin() {
     if (!username || !password) { toast.error('Please fill all fields'); return }
     setLoading(true)
     const sb = createClient()
 
-    // For tenants: username = phone, we construct the synthetic email
-    const email = role === 'tenant'
-      ? `${username.replace(/\D/g, '')}@pgmanager.local`
-      : username
+    // Auto-detect: an email address logs in as owner/admin,
+    // anything else is treated as a tenant's mobile number.
+    const isEmail = username.includes('@')
+    const email = isEmail ? username.trim() : `${username.replace(/\D/g, '')}@pgmanager.local`
 
     const { data, error } = await sb.auth.signInWithPassword({ email, password })
     if (error) { toast.error(error.message); setLoading(false); return }
@@ -47,34 +53,21 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-
-          {/* Role toggle */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6">
-            {(['owner', 'tenant'] as const).map(r => (
-              <button key={r} onClick={() => setRole(r)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  role === r ? 'bg-white shadow text-blue-600' : 'text-gray-500'
-                }`}>
-                {r === 'owner' ? 'PG Owner' : 'Tenant'}
-              </button>
-            ))}
-          </div>
-
           <div className="space-y-4">
             {/* Username */}
             <div>
               <label className="text-xs font-semibold text-gray-600 tracking-wide block mb-1.5">
-                {role === 'owner' ? 'Email Address' : 'Mobile Number'}
+                Email or Mobile Number
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
-                  type={role === 'owner' ? 'email' : 'tel'}
+                  type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder={role === 'owner' ? 'owner@email.com' : '9876543210'}
+                  placeholder="owner@email.com or 9876543210"
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -90,12 +83,9 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Enter password"
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
-              {role === 'tenant' && (
-                <p className="text-xs text-gray-400 mt-1.5">Your username is your mobile number. Get credentials from your PG owner.</p>
-              )}
             </div>
 
             <button
@@ -114,5 +104,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

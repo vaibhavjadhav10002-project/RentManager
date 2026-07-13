@@ -1,8 +1,11 @@
 'use client'
-import { useState } from 'react'
-import { Menu, Search, Bell, Sun, Moon, ChevronDown, Building2, Layers, Plus } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Menu, Search, Bell, Sun, Moon, ChevronDown, Building2, Layers, Plus, Loader2 } from 'lucide-react'
 import { useProperty } from './PropertyContext'
 import { cn } from '@/lib/utils'
+import { addProperty, getOwnerNotifications, getDashboardStats } from '@/lib/supabase/queries'
+import { toast } from 'sonner'
 
 interface Props {
   onMenuClick: () => void
@@ -11,9 +14,46 @@ interface Props {
 }
 
 export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
-  const { properties, activeId, setActiveId, active } = useProperty()
+  const router = useRouter()
+  const { properties, activeId, setActiveId, active, refresh } = useProperty()
   const [propOpen, setPropOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ name: '', address: '', city: '', upi_id: '' })
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [occupancy, setOccupancy] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
+    if (propIds.length === 0 || propIds.some(id => !id)) return
+    getOwnerNotifications(propIds).then(setNotifications).catch(() => setNotifications([]))
+  }, [activeId, properties])
+
+  useEffect(() => {
+    if (!propOpen || properties.length === 0) return
+    Promise.all(properties.map(p => getDashboardStats(p.id).then(s => [p.id, Math.round((s.occupiedBeds / (s.totalBeds || 1)) * 100)] as const)))
+      .then(entries => setOccupancy(Object.fromEntries(entries)))
+      .catch(() => {})
+  }, [propOpen, properties])
+
+  async function handleAddProperty() {
+    if (!form.name.trim()) { toast.error('Property name is required'); return }
+    setSaving(true)
+    try {
+      const created = await addProperty(form)
+      toast.success('Property added!')
+      setForm({ name: '', address: '', city: '', upi_id: '' })
+      setAddOpen(false)
+      setPropOpen(false)
+      await refresh()
+      if (created?.id) setActiveId(created.id)
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to add property')
+    }
+    setSaving(false)
+  }
 
   return (
     <header className="h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3 sticky top-0 z-30 shadow-sm">
@@ -60,12 +100,17 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate">{p.name}</div>
-                  <div className="text-xs text-gray-400">{p.city}</div>
+                  <div className={cn('text-xs font-medium',
+                    occupancy[p.id] !== undefined && occupancy[p.id] >= 90 ? 'text-green-600' :
+                    occupancy[p.id] !== undefined && occupancy[p.id] < 50 ? 'text-red-500' : 'text-gray-400')}>
+                    {occupancy[p.id] !== undefined ? `${occupancy[p.id]}% Occupied` : p.city}
+                  </div>
                 </div>
               </button>
             ))}
             <div className="border-t border-gray-100">
-              <button className="w-full flex items-center gap-2 px-4 py-2.5 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition">
+              <button onClick={() => { setAddOpen(true); setPropOpen(false) }}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition">
                 <Plus className="w-4 h-4" /> Add Property
               </button>
             </div>
@@ -89,11 +134,74 @@ export default function Topbar({ onMenuClick, darkMode, onToggleDark }: Props) {
         </button>
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-gray-500">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-        </button>
+        <div className="relative">
+          <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition text-gray-500">
+            <Bell className="w-4 h-4" />
+            {notifications.length > 0 && (
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full border-2 border-white text-[9px] text-white font-bold flex items-center justify-center">
+                {notifications.length > 9 ? '9+' : notifications.length}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+              <div className="absolute top-full right-0 mt-1.5 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 font-bold text-sm text-gray-900">Notifications</div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-gray-400">You're all caught up!</div>
+                  ) : notifications.map(n => (
+                    <button key={n.id} onClick={() => { setNotifOpen(false); router.push(n.link) }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
+                      <div className="text-sm font-semibold text-gray-900">{n.title}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{n.subtitle}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Add Property Modal */}
+      {addOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold text-gray-900">Add Property</h2>
+              <button onClick={() => setAddOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {[
+                { key: 'name', label: 'Property Name *' },
+                { key: 'address', label: 'Address' },
+                { key: 'city', label: 'City' },
+                { key: 'upi_id', label: 'UPI ID' },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+                  <input value={(form as any)[key]}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={handleAddProperty} disabled={saving}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {saving ? 'Adding…' : 'Add Property'}
+              </button>
+              <button onClick={() => setAddOpen(false)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

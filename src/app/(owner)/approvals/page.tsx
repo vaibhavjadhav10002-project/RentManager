@@ -1,12 +1,13 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getPendingApprovals, approvePayment, rejectPayment, approveTenant } from '@/lib/supabase/queries'
+import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant, getRooms, updateTenant } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR } from '@/lib/utils'
+import { formatINR, whatsappLink } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Check, X, QrCode, Copy, Loader2, Link2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import type { Room } from '@/types'
 
 export default function ApprovalsPage() {
   const { activeId, active, properties } = useProperty()
@@ -16,9 +17,12 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true)
   const [qrModal, setQrModal] = useState(false)
   const [approveModal, setApproveModal] = useState<any>(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [saving, setSaving] = useState(false)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://yourapp.vercel.app'
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [selectedRoomId, setSelectedRoomId] = useState('')
+  const [selectedBedLabel, setSelectedBedLabel] = useState('')
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [appUrl, setAppUrl] = useState('')
+  useEffect(() => { setAppUrl(window.location.origin) }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -49,20 +53,45 @@ export default function ApprovalsPage() {
     catch (e: any) { toast.error(e.message) }
   }
 
-  async function handleApproveTenant() {
-    if (!newPassword || newPassword.length < 6) { toast.error('Password must be at least 6 characters'); return }
-    setSaving(true)
-    try {
-      await approveTenant(approveModal.id, newPassword, approveModal)
-      toast.success(`${approveModal.name} approved & login created!`)
-      setApproveModal(null)
-      setNewPassword('')
-      load()
-    } catch (e: any) { toast.error(e.message) }
-    setSaving(false)
+  async function handleRejectTenant(id: string, name: string) {
+    if (!confirm(`Reject ${name}'s request? This cannot be undone.`)) return
+    try { await deleteTenant(id); toast.error('Tenant request rejected'); load() }
+    catch (e: any) { toast.error(e.message) }
   }
 
-  const joinLink = active ? `${appUrl}/join/${active.qr_slug}` : `${appUrl}/join/select-property`
+  async function openApproveModal(t: any) {
+    setApproveModal(t)
+    setSelectedRoomId('')
+    setSelectedBedLabel('')
+    try { setRooms(await getRooms(t.property_id)) } catch { setRooms([]) }
+  }
+
+  async function confirmApproveTenant() {
+    const t = approveModal
+    setApprovingId(t.id)
+    const defaultPassword = 'Pass@123'
+    try {
+      await approveTenant(t.id, defaultPassword, t)
+      // Room assignment is a separate update so a failure here doesn't
+      // undo the approval itself — the tenant is still active either way.
+      if (selectedRoomId) {
+        try {
+          await updateTenant(t.id, { room_id: selectedRoomId, bed_label: selectedBedLabel || null })
+        } catch (roomErr: any) {
+          toast.error(`Approved, but couldn't assign the room automatically: ${roomErr.message}. Assign it manually from the Tenants page.`)
+        }
+      }
+      toast.success(`${t.name} approved! Sending login details on WhatsApp…`)
+      setApproveModal(null)
+      load()
+      const loginUrl = `${appUrl}/login`
+      const msg = `Welcome to ${t.property?.name ?? 'the PG'}! 🎉\n\nYour login is ready:\nLogin: ${loginUrl}\nUsername: ${t.phone}\nPassword: ${defaultPassword}\n\nPlease change your password after your first login.`
+      window.open(whatsappLink(t.phone, msg), '_blank')
+    } catch (e: any) { toast.error(e.message) }
+    setApprovingId(null)
+  }
+
+  const joinLink = active ? `${appUrl}/join/${active.qr_slug}` : ''
 
   return (
     <div className="space-y-5">
@@ -71,7 +100,7 @@ export default function ApprovalsPage() {
           <h1 className="text-xl font-extrabold text-gray-900">Approvals</h1>
           <p className="text-sm text-gray-500">Review payment claims and new tenant requests</p>
         </div>
-        <button onClick={() => setQrModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition">
+        <button onClick={() => { if (!active) { toast.error('Select a specific property first (not "All Properties")'); return } setQrModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition">
           <QrCode className="w-4 h-4" /> Tenant Join Link / QR
         </button>
       </div>
@@ -102,7 +131,7 @@ export default function ApprovalsPage() {
               <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                    {p.tenant?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                    {(p.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </div>
                   <div>
                     <div className="font-bold text-gray-900">{p.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
@@ -140,7 +169,7 @@ export default function ApprovalsPage() {
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {t.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                      {(t.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-gray-900">{t.name}</div>
@@ -150,6 +179,9 @@ export default function ApprovalsPage() {
                         <div>
                           <div className="text-[10px] text-gray-400 uppercase font-bold">Rent</div>
                           <div className="text-sm font-bold text-gray-900">{formatINR(t.monthly_rent)}</div>
+                          {t.rent_paid_at_joining < t.monthly_rent && (
+                            <div className="text-xs text-yellow-600 font-semibold">₹{(t.monthly_rent - t.rent_paid_at_joining).toLocaleString('en-IN')} pending</div>
+                          )}
                         </div>
                         <div>
                           <div className="text-[10px] text-gray-400 uppercase font-bold">Deposit Paid</div>
@@ -158,14 +190,21 @@ export default function ApprovalsPage() {
                             <div className="text-xs text-yellow-600 font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</div>
                           )}
                         </div>
+                        {t.rent_paid_at_joining > 0 && (
+                          <div>
+                            <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Paid at Joining</div>
+                            <div className="text-sm font-bold text-green-700">{formatINR(t.rent_paid_at_joining)}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setApproveModal(t)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
-                      <Check className="w-3.5 h-3.5" /> Approve & Create Login
+                    <button onClick={() => openApproveModal(t)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
+                      <Check className="w-3.5 h-3.5" /> Approve
                     </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
+                    <button onClick={() => handleRejectTenant(t.id, t.name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
                       <X className="w-3.5 h-3.5" /> Reject
                     </button>
                   </div>
@@ -207,7 +246,7 @@ export default function ApprovalsPage() {
         </div>
       )}
 
-      {/* Approve Tenant Modal */}
+      {/* Approve Tenant Modal — room assignment + confirm (password is auto Pass@123) */}
       {approveModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
@@ -216,21 +255,36 @@ export default function ApprovalsPage() {
               <button onClick={() => setApproveModal(null)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-xs text-gray-500">Set a login password for this tenant. Their username will be their mobile number: <strong>{approveModal.phone}</strong></p>
+              <p className="text-xs text-gray-500">
+                Login will be created automatically (username: <strong>{approveModal.phone}</strong>, password: <strong>Pass@123</strong>) and shared via WhatsApp.
+              </p>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Set Password *</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Assign Room (optional — can also do this later)</label>
+                <select value={selectedRoomId} onChange={e => { setSelectedRoomId(e.target.value); setSelectedBedLabel('') }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">No room / assign later</option>
+                  {rooms.map(r => <option key={r.id} value={r.id}>Room {r.room_number} ({r.sharing_type})</option>)}
+                </select>
               </div>
+              {selectedRoomId && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Bed Label (optional)</label>
+                  <input value={selectedBedLabel} onChange={e => setSelectedBedLabel(e.target.value)} placeholder="A / B / C"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button onClick={handleApproveTenant} disabled={saving} className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Approve & Create Login
+              <button onClick={confirmApproveTenant} disabled={approvingId === approveModal.id}
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {approvingId === approveModal.id && <Loader2 className="w-4 h-4 animate-spin" />} Approve & Send Login
               </button>
               <button onClick={() => setApproveModal(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   )
 }

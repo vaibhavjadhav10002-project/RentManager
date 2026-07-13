@@ -1,5 +1,10 @@
 # Changelog — PWA + Push Notifications
 
+## Build Fix — Duplicate `StatCard` declaration (Vercel build failure)
+- **Bug**: `src/app/(owner)/dashboard/page.tsx` had **two** `function StatCard(...)` declarations in the same file — a leftover from an earlier dashboard rewrite that added dark-mode support (`iconBg`/`iconColor` props) without removing the old pre-dark-mode version (`color` prop). Webpack/SWC correctly refused to compile a file with two identifiers of the same name in the same scope, failing the build with `Module parse failed: Identifier 'StatCard' has already been declared`.
+- **Fix**: Confirmed every `<StatCard ... />` call site in the file uses the newer `iconBg`/`iconColor` signature exclusively, then deleted the dead second declaration. No call sites changed, no visual/behavioral change — the component that was actually rendering is untouched.
+- **Verification**: Ran a project-wide scan for any other duplicate top-level `function`/`const`/`interface`/`type` declarations within the same file (the same class of bug); none found elsewhere.
+
 ## Added
 - **Installable PWA**: `manifest.json`, generated app icons (192/512/maskable/apple-touch), `sw.js` service worker.
 - **Service worker**: handles install/activate, push events, and notification-click routing. Deliberately does **not** cache pages or API responses — this is a financial app, and stale cached rent/payment data would be a bug, not a feature.

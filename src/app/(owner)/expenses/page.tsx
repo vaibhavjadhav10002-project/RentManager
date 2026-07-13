@@ -37,10 +37,13 @@ export default function ExpensesPage() {
   const byCategory = CATEGORIES.map(cat => ({ cat, total: expenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0) })).filter(c => c.total > 0)
 
   async function handleAdd() {
-    if (!form.amount) { toast.error('Enter amount'); return }
+    const propertyId = form.property_id || (activeId !== 'all' ? activeId : '')
+    if (!propertyId) { toast.error('Select a property'); return }
+    if (!form.amount || Number(form.amount) <= 0) { toast.error('Enter a valid amount'); return }
+    if (!form.expense_date) { toast.error('Select a date'); return }
     setSaving(true)
     try {
-      await addExpense({ property_id: form.property_id || (activeId !== 'all' ? activeId : ''), category: form.category, amount: Number(form.amount), notes: form.notes, expense_date: form.expense_date })
+      await addExpense({ property_id: propertyId, category: form.category, amount: Number(form.amount), notes: form.notes, expense_date: form.expense_date })
       toast.success('Expense added!'); setModal(false); load()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -112,6 +115,16 @@ export default function ExpensesPage() {
               <button onClick={() => setModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 space-y-4">
+              {activeId === 'all' && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
+                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Select Property</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Category</label>
                 <div className="grid grid-cols-3 gap-2">

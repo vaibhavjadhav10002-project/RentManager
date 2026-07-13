@@ -44,6 +44,65 @@ export function getOverdueDays(joiningDate: string, today = new Date()): number 
   return Math.max(0, differenceInDays(today, due))
 }
 
+// ─── Late fee auto-calculation ────────────────────────────────────────────────
+// Property-level policy (not per-agreement) so it applies to every tenant
+// regardless of how they joined. Returns 0 if the property hasn't
+// configured a late fee (never fabricates a charge that wasn't set up).
+export function calculateLateFee(overdueDays: number, feePerDay: number, graceDays: number): number {
+  if (!feePerDay || feePerDay <= 0) return 0
+  const chargeableDays = Math.max(0, overdueDays - graceDays)
+  return chargeableDays * feePerDay
+}
+
+// ─── Advance payment application ──────────────────────────────────────────────
+// Applies a lump advance-payment balance across unpaid/partial months in
+// chronological order (oldest first), same logic used everywhere this
+// calculation happens so owner and tenant views can never disagree.
+export interface LedgerMonth { label: string; amount: number; paid: number; status: 'paid' | 'partial' | 'pending' }
+
+export function applyAdvanceBalance<T extends LedgerMonth>(monthsOldestFirst: T[], advanceBalance: number): { months: T[]; remainingAdvance: number } {
+  let remaining = advanceBalance
+  const months = monthsOldestFirst.map(m => {
+    if (m.status === 'paid' || remaining <= 0) return m
+    const gap = m.amount - m.paid
+    const applied = Math.min(gap, remaining)
+    if (applied <= 0) return m
+    remaining -= applied
+    const newPaid = m.paid + applied
+    return { ...m, paid: newPaid, status: (newPaid >= m.amount ? 'paid' : 'partial') as T['status'] }
+  })
+  return { months, remainingAdvance: remaining }
+}
+
+// ─── UPI payment deep link ───────────────────────────────────────────────────
+// Built manually with encodeURIComponent (not URLSearchParams) because
+// URLSearchParams encodes spaces as "+" (form-encoding), which several UPI
+// apps fail to parse correctly in a upi:// deep link — they expect strict
+// percent-encoding ("%20").
+// ─── UPI payment deep-links ────────────────────────────────────────────────
+// A single generic `upi://` link doesn't reliably launch payment apps on
+// every device — iOS doesn't support the generic scheme at all, and some
+// Android setups need the app's own scheme to trigger correctly. This
+// returns one link per major app so the user can tap whichever they have
+// installed. All of these are free, standard URI deep-links — no payment
+// gateway or subscription involved.
+export function upiPaymentLinks(upiId: string, payeeName: string, amount: number, note: string) {
+  const params = new URLSearchParams({
+    pa: upiId, pn: payeeName, am: amount.toFixed(2), cu: 'INR', tn: note,
+  }).toString()
+  return {
+    generic: `upi://pay?${params}`,
+    gpay: `tez://upi/pay?${params}`,
+    phonepe: `phonepe://pay?${params}`,
+    paytm: `paytmmp://pay?${params}`,
+  }
+}
+
+// Kept for existing callers — returns the generic link.
+export function upiPaymentLink(upiId: string, payeeName: string, amount: number, note: string) {
+  return upiPaymentLinks(upiId, payeeName, amount, note).generic
+}
+
 // ─── QR slug generator ────────────────────────────────────────────────────────
 export function generateSlug(pgName: string) {
   return pgName
