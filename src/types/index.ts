@@ -16,7 +16,6 @@ export interface Profile {
   phone: string | null
   email: string | null
   is_active: boolean
-  must_change_password: boolean
   created_at: string
 }
 
@@ -32,8 +31,6 @@ export interface Property {
   bank_account_number: string | null
   bank_ifsc: string | null
   upi_id: string | null
-  late_fee_per_day: number
-  late_fee_grace_days: number
   created_at: string
 }
 
@@ -68,15 +65,10 @@ export interface Tenant {
   agreement_url: string | null
   notice_period_days: number
   joining_date: string
-  date_of_birth: string | null
   leaving_date: string | null
   monthly_rent: number
   deposit_amount: number
   deposit_paid: number
-  deposit_refunded: number
-  deposit_refund_date: string | null
-  deposit_deduction_notes: string | null
-  rent_paid_at_joining: number
   status: TenantStatus
   submitted_via: 'owner_added' | 'qr_link'
   approved_by: string | null
@@ -108,7 +100,6 @@ export interface Payment {
   submitted_by_tenant: boolean
   tenant_note: string | null
   screenshot_url: string | null
-  reference_number: string | null
   payment_date: string
   created_at: string
   // joined
@@ -164,80 +155,6 @@ export interface DashboardStats {
 }
 
 // ─── Form input types ────────────────────────────────────────────────────────
-export interface ElectricityBill {
-  id: string
-  property_id: string
-  tenant_id: string
-  bill_type: string
-  for_month: string
-  amount: number
-  due_date: string | null
-  status: 'pending' | 'paid' | 'pending_approval'
-  paid_date: string | null
-  method: PaymentMethod | null
-  submitted_by_tenant: boolean
-  tenant_note: string | null
-  created_at: string
-  tenant?: Tenant
-}
-
-export interface Agreement {
-  id: string
-  agreement_number: string
-  tenant_id: string
-  property_id: string
-  room_id: string | null
-  start_date: string
-  end_date: string
-  duration_months: number
-  rent_cycle: string
-  monthly_rent: number
-  security_deposit: number
-  electricity_charges: string
-  maintenance_charges: number
-  other_charges: number
-  other_charges_note: string | null
-  due_day: number
-  late_fee_policy: string
-  government_id: string | null
-  terms_version: string
-  tenant_accepted: boolean
-  tenant_signature: string | null
-  tenant_signed_name: string | null
-  tenant_signed_at: string | null
-  owner_signature: string | null
-  owner_signed_name: string | null
-  owner_signed_at: string | null
-  status: 'pending' | 'signed' | 'active' | 'expired'
-  created_at: string
-}
-
-export interface Message {
-  id: string
-  tenant_id: string
-  property_id: string
-  sender: 'tenant' | 'owner'
-  body: string
-  read_by_owner: boolean
-  read_by_tenant: boolean
-  created_at: string
-}
-
-export interface Notice {
-  id: string
-  property_id: string
-  title: string
-  description: string
-  category: 'General' | 'Maintenance' | 'Rent' | 'Electricity' | 'Emergency' | 'Event'
-  priority: 'Normal' | 'Important' | 'Urgent'
-  publish_date: string
-  expiry_date: string | null
-  attachment_url: string | null
-  attachment_name: string | null
-  created_by: string | null
-  created_at: string
-}
-
 export interface AddRoomInput {
   property_id: string
   room_number: string
@@ -250,9 +167,8 @@ export interface AddRoomInput {
 
 export interface AddTenantInput {
   property_id: string
-  room_id: string | null
+  room_id: string
   bed_label: string
-  date_of_birth?: string
   name: string
   phone: string
   email?: string
@@ -261,7 +177,6 @@ export interface AddTenantInput {
   monthly_rent: number
   deposit_amount: number
   deposit_paid: number
-  rent_paid_now?: number     // rent amount owner collected at the time of joining
   notice_period_days: number
   password: string           // owner sets this for tenant login
 }
@@ -276,7 +191,6 @@ export interface RecordPaymentInput {
   method: PaymentMethod
   collected_by?: string
   payment_date: string
-  reference_number?: string
 }
 
 export interface AddExpenseInput {

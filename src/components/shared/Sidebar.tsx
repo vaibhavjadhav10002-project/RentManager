@@ -1,5 +1,4 @@
 'use client'
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -7,11 +6,9 @@ import { toast } from 'sonner'
 import {
   LayoutDashboard, BedDouble, Users, IndianRupee, ShieldCheck,
   MessageSquareWarning, TrendingDown, BarChart3, Settings, LogOut,
-  Building2, X, MessageCircle
+  Building2, X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useProperty } from './PropertyContext'
-import { getUnreadMessageCountsForProperty } from '@/lib/supabase/queries'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -19,7 +16,6 @@ const NAV = [
   { href: '/tenants', label: 'Tenants', icon: Users },
   { href: '/payments', label: 'Payments', icon: IndianRupee },
   { href: '/approvals', label: 'Approvals', icon: ShieldCheck, badge: 'new' },
-  { href: '/messages', label: 'Messages', icon: MessageCircle },
   { href: '/complaints', label: 'Complaints', icon: MessageSquareWarning },
   { href: '/expenses', label: 'Expenses', icon: TrendingDown },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
@@ -31,16 +27,6 @@ interface Props { open: boolean; onClose: () => void; userName: string }
 export default function Sidebar({ open, onClose, userName }: Props) {
   const pathname = usePathname()
   const router = useRouter()
-  const { activeId, properties } = useProperty()
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  useEffect(() => {
-    const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
-    if (propIds.length === 0 || propIds.some(id => !id)) return
-    getUnreadMessageCountsForProperty(propIds).then(rows => {
-      setUnreadCount(new Set(rows.map((r: any) => r.tenant_id)).size)
-    }).catch(() => setUnreadCount(0))
-  }, [activeId, properties])
 
   async function logout() {
     const sb = createClient()
@@ -96,11 +82,6 @@ export default function Sidebar({ open, onClose, userName }: Props) {
                     {item.badge}
                   </span>
                 )}
-                {item.href === '/messages' && unreadCount > 0 && (
-                  <span className="text-[10px] bg-red-500 text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
               </Link>
             )
           })}
@@ -109,10 +90,10 @@ export default function Sidebar({ open, onClose, userName }: Props) {
         {/* User + Logout */}
         <div className="p-3 border-t border-gray-100 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-            {(userName || 'PG Owner').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+            {userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-gray-900 truncate">{userName || 'PG Owner'}</div>
+            <div className="text-xs font-semibold text-gray-900 truncate">{userName}</div>
             <div className="text-[10px] text-gray-400">PG Owner</div>
           </div>
           <button onClick={logout} className="text-gray-400 hover:text-red-500 transition-colors p-1">

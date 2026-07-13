@@ -1,21 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { updateProperty, addCollector, deleteCollector, getCollectors } from '@/lib/supabase/queries'
+import { updateProperty, addCollector, getCollectors } from '@/lib/supabase/queries'
 import { useProperty } from '@/components/shared/PropertyContext'
-
-// Defined outside the page component — declaring this inside the render
-// body would make React treat it as a new component type on every keystroke
-// (since typing triggers a re-render), causing the input to lose focus
-// after every single character.
-function Field({ label, value, onChange, type = 'text' }: any) {
-  return (
-    <div>
-      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-    </div>
-  )
-}
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 
@@ -25,7 +12,7 @@ export default function SettingsPage() {
   const [collectors, setCollectors] = useState<any[]>([])
   const [newCollector, setNewCollector] = useState('')
   const [saving, setSaving] = useState(false)
-  const [pgForm, setPgForm] = useState({ name: '', address: '', city: '', upi_id: '', late_fee_per_day: '', late_fee_grace_days: '' })
+  const [pgForm, setPgForm] = useState({ name: '', address: '', city: '', upi_id: '' })
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' })
 
   useEffect(() => {
@@ -41,7 +28,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (active) {
-      setPgForm({ name: active.name, address: active.address ?? '', city: active.city ?? '', upi_id: active.upi_id ?? '', late_fee_per_day: String(active.late_fee_per_day ?? 0), late_fee_grace_days: String(active.late_fee_grace_days ?? 0) })
+      setPgForm({ name: active.name, address: active.address ?? '', city: active.city ?? '', upi_id: active.upi_id ?? '' })
       getCollectors(active.id).then(setCollectors)
     }
   }, [active])
@@ -50,11 +37,7 @@ export default function SettingsPage() {
     if (!active) { toast.error('Select a specific property first'); return }
     setSaving(true)
     try {
-      await updateProperty(active.id, {
-        ...pgForm,
-        late_fee_per_day: Number(pgForm.late_fee_per_day || 0),
-        late_fee_grace_days: Number(pgForm.late_fee_grace_days || 0),
-      } as any)
+      await updateProperty(active.id, pgForm)
       toast.success('PG details saved!'); refresh()
     } catch (e: any) { toast.error(e.message) }
     setSaving(false)
@@ -70,26 +53,22 @@ export default function SettingsPage() {
     } catch (e: any) { toast.error(e.message) }
   }
 
-  async function handleDeleteCollector(id: string) {
-    if (!active) return
-    if (!confirm('Remove this collector?')) return
-    try {
-      await deleteCollector(id)
-      toast.success('Collector removed')
-      getCollectors(active.id).then(setCollectors)
-    } catch (e: any) { toast.error(e.message) }
-  }
-
   async function changePassword() {
     if (pwForm.newPw !== pwForm.confirm) { toast.error('Passwords do not match'); return }
     if (pwForm.newPw.length < 6) { toast.error('Min 6 characters'); return }
     const sb = createClient()
     const { error } = await sb.auth.updateUser({ password: pwForm.newPw })
     if (error) { toast.error(error.message); return }
-    if (profile?.id) await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
     toast.success('Password updated!')
     setPwForm({ current: '', newPw: '', confirm: '' })
   }
+
+  const Field = ({ label, value, onChange, type = 'text' }: any) => (
+    <div>
+      <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+    </div>
+  )
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -103,8 +82,6 @@ export default function SettingsPage() {
           <Field label="City" value={pgForm.city} onChange={(v: string) => setPgForm(f => ({ ...f, city: v }))} />
           <div className="sm:col-span-2"><Field label="Address" value={pgForm.address} onChange={(v: string) => setPgForm(f => ({ ...f, address: v }))} /></div>
           <Field label="UPI ID" value={pgForm.upi_id} onChange={(v: string) => setPgForm(f => ({ ...f, upi_id: v }))} />
-          <Field label="Late Fee (₹ per day)" type="number" value={pgForm.late_fee_per_day} onChange={(v: string) => setPgForm(f => ({ ...f, late_fee_per_day: v }))} />
-          <Field label="Grace Period (days)" type="number" value={pgForm.late_fee_grace_days} onChange={(v: string) => setPgForm(f => ({ ...f, late_fee_grace_days: v }))} />
         </div>
         <button onClick={savePg} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save PG Details
@@ -119,7 +96,7 @@ export default function SettingsPage() {
           {collectors.map(c => (
             <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
               <span className="text-sm text-gray-800">{c.name}</span>
-              <button onClick={() => handleDeleteCollector(c.id)} className="text-gray-400 hover:text-red-500 transition p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button className="text-gray-400 hover:text-red-500 transition p-1"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
           ))}
         </div>
