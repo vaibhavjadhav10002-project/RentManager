@@ -7,22 +7,43 @@ import { toast } from 'sonner'
 import {
   LayoutDashboard, BedDouble, Users, IndianRupee, ShieldCheck,
   MessageSquareWarning, TrendingDown, BarChart3, Settings, LogOut,
-  Building2, X, MessageCircle
+  Building2, X, MessageCircle, Megaphone, FileText,
+  QrCode, UserCheck, Package, Users2, Repeat, DownloadCloud, UploadCloud, Archive,
+  Inbox,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProperty } from './PropertyContext'
 import { getUnreadMessageCountsForProperty } from '@/lib/supabase/queries'
+import { OwnerAvatar, OwnerIconButton, OwnerBadge } from '@/components/owner/ui'
 
+// Added `properties` (O3), `notices` (O1.3), and `documents` (O10) —
+// pages that either newly exist (properties, documents) or already
+// existed but weren't linked from the sidebar (notices).
+// Phase 5 (Reports & Operations) items merged in below `reports` — these
+// pages predate Phase 7's redesign and weren't in scope for any O-phase,
+// so they keep their original icons/labels pending a future UI-polish pass.
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/properties', label: 'Properties', icon: Building2 },
   { href: '/rooms', label: 'Rooms', icon: BedDouble },
   { href: '/tenants', label: 'Tenants', icon: Users },
   { href: '/payments', label: 'Payments', icon: IndianRupee },
   { href: '/approvals', label: 'Approvals', icon: ShieldCheck, badge: 'new' },
   { href: '/messages', label: 'Messages', icon: MessageCircle },
+  { href: '/inbox', label: 'Inbox', icon: Inbox },
   { href: '/complaints', label: 'Complaints', icon: MessageSquareWarning },
+  { href: '/notices', label: 'Notices', icon: Megaphone },
+  { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/expenses', label: 'Expenses', icon: TrendingDown },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/tenant-cards', label: 'Tenant Cards', icon: QrCode },
+  { href: '/visitors', label: 'Visitors', icon: UserCheck },
+  { href: '/parcels', label: 'Parcels', icon: Package },
+  { href: '/waiting-list', label: 'Waiting List', icon: Users2 },
+  { href: '/room-change', label: 'Room Change', icon: Repeat },
+  { href: '/backup', label: 'Backup', icon: DownloadCloud },
+  { href: '/restore', label: 'Restore', icon: UploadCloud },
+  { href: '/archive', label: 'Archive', icon: Archive },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -51,55 +72,53 @@ export default function Sidebar({ open, onClose, userName }: Props) {
 
   return (
     <>
-      {/* Overlay */}
       {open && (
-        <div className="fixed inset-0 bg-black/30 z-40 lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
       )}
 
       <aside className={cn(
-        'fixed top-0 left-0 bottom-0 w-56 bg-white border-r border-gray-100 z-50 flex flex-col transition-transform duration-200 shadow-sm',
+        'fixed top-0 left-0 bottom-0 w-56 bg-owner-surface border-r border-owner-border z-50 flex flex-col transition-transform duration-200',
         open ? 'translate-x-0' : '-translate-x-full',
         'lg:translate-x-0'
       )}>
         {/* Logo */}
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+        <div className="h-14 px-4 border-b border-owner-border flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-owner-lg bg-owner-primary flex items-center justify-center shrink-0 shadow-owner-glow">
               <Building2 className="w-4 h-4 text-white" />
             </div>
-            <div>
-              <div className="text-sm font-extrabold text-gray-900">PG Manager</div>
-              <div className="text-[10px] text-gray-400">Pro Dashboard</div>
+            <div className="min-w-0">
+              <div className="text-sm font-extrabold text-owner-fg truncate">PG Manager</div>
+              <div className="text-[10px] text-owner-muted-subtle">Pro Dashboard</div>
             </div>
           </div>
-          <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-gray-600">
-            <X className="w-4 h-4" />
-          </button>
+          <OwnerIconButton aria-label="Close menu" variant="ghost" size="sm" onClick={onClose} className="lg:hidden">
+            <X />
+          </OwnerIconButton>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto">
           {NAV.map(item => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/')
             return (
               <Link key={item.href} href={item.href} onClick={onClose}
                 className={cn(
-                  'flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
+                  'flex items-center gap-2.5 px-3 py-2.5 rounded-owner-lg text-sm font-medium transition-colors group relative',
                   active
-                    ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600 pl-2'
-                    : 'text-gray-600 hover:bg-gray-50 border-l-4 border-transparent'
+                    ? 'bg-owner-primary/12 text-owner-primary'
+                    : 'text-owner-muted hover:bg-owner-surface-hover hover:text-owner-fg'
                 )}>
-                <item.icon className={cn('w-4 h-4', active ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600')} />
-                <span className="flex-1">{item.label}</span>
+                {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-owner-primary" />}
+                <item.icon className={cn('w-4 h-4 shrink-0', active ? 'text-owner-primary' : 'text-owner-muted-subtle group-hover:text-owner-muted')} />
+                <span className="flex-1 truncate">{item.label}</span>
                 {item.badge && (
-                  <span className="text-[10px] bg-purple-100 text-purple-600 font-bold px-1.5 py-0.5 rounded-full">
-                    {item.badge}
-                  </span>
+                  <OwnerBadge tone="purple" size="sm">{item.badge}</OwnerBadge>
                 )}
                 {item.href === '/messages' && unreadCount > 0 && (
-                  <span className="text-[10px] bg-red-500 text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  <OwnerBadge tone="solid-danger" size="sm" className="px-1.5 py-0 min-w-[18px] h-[18px] justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
+                  </OwnerBadge>
                 )}
               </Link>
             )
@@ -107,17 +126,15 @@ export default function Sidebar({ open, onClose, userName }: Props) {
         </nav>
 
         {/* User + Logout */}
-        <div className="p-3 border-t border-gray-100 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-            {(userName || 'PG Owner').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-          </div>
+        <div className="p-2.5 pb-safe border-t border-owner-border flex items-center gap-2.5 shrink-0">
+          <OwnerAvatar name={userName || 'PG Owner'} size="sm" />
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-gray-900 truncate">{userName || 'PG Owner'}</div>
-            <div className="text-[10px] text-gray-400">PG Owner</div>
+            <div className="text-xs font-semibold text-owner-fg truncate">{userName || 'PG Owner'}</div>
+            <div className="text-[10px] text-owner-muted-subtle">PG Owner</div>
           </div>
-          <button onClick={logout} className="text-gray-400 hover:text-red-500 transition-colors p-1">
-            <LogOut className="w-4 h-4" />
-          </button>
+          <OwnerIconButton aria-label="Log out" variant="ghost" size="sm" onClick={logout} className="hover:text-owner-danger">
+            <LogOut />
+          </OwnerIconButton>
         </div>
       </aside>
     </>

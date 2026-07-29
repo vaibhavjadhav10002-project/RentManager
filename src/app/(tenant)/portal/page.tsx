@@ -1,27 +1,35 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, formatDate, applyAdvanceBalance, calculateLateFee } from '@/lib/utils'
+import { formatINR, formatDate, applyAdvanceBalance, calculateLateFee, calculateLeaveRentAdjustment, getApprovedExtensionFor } from '@/lib/utils'
 import UpiPayButtons from '@/components/shared/UpiPayButtons'
 import { generateAgreementPDF, generateReceiptPDF, generateFullAgreementPDF } from '@/lib/pdf'
 import {
   getBillsForTenant, claimBillPaid, getMessagesForTenant, sendMessageAsTenant, markMessagesReadByTenant,
   getAgreementForTenant, getUnreadNoticesForTenant, getAllActiveNoticesForTenant, markNoticeRead, getCotenantBirthdays,
+  getTenantLeaveRequests, addLeaveRequest, getTenantRentExtensionRequests, addRentExtensionRequest,
+  getTenantMoveOutRequests, addMoveOutRequest, getMoveOutChecklist,
+  markOnboardingPasswordChanged, getProfileStatusHistory,
+  addProfileUpdateRequest, getTenantProfileUpdateRequests,
 } from '@/lib/supabase/queries'
+import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
+import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
+import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
 import {
   LogOut, Loader2, CheckCircle, Clock, FileText, MessageCircle, Lock, Download,
-  AlertCircle, LayoutDashboard, Home, ShieldCheck, User as UserIcon, Bell,
-  ChevronRight, Phone, Headset, ChevronDown, MoreVertical, Send, HelpCircle,
-  Wallet, Wrench, Users2, CalendarClock, IndianRupee, Eye, Megaphone, X,
-  ChevronLeft, Paperclip,
+  AlertCircle, LayoutDashboard, ShieldCheck, User as UserIcon, Bell,
+  ChevronRight, Headset, ChevronDown, MoreVertical, Send, HelpCircle,
+  Wallet, Wrench, Users2, CalendarClock, Eye, Megaphone, X,
+  ChevronLeft, Paperclip, Sun, Moon,
 } from 'lucide-react'
 import { PieChart, Pie, Cell } from 'recharts'
 import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
+import OnboardingWizard from '@/components/tenant/OnboardingWizard'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 
-type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices'
+type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices' | 'requests'
 
 export default function TenantPortal() {
   const router = useRouter()
@@ -35,6 +43,7 @@ export default function TenantPortal() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [rowMenuOpen, setRowMenuOpen] = useState<string | null>(null)
@@ -56,6 +65,26 @@ export default function TenantPortal() {
   const [noticeQueue, setNoticeQueue] = useState<any[]>([])
   const [noticeModalOpen, setNoticeModalOpen] = useState(false)
   const [noticeIndex, setNoticeIndex] = useState(0)
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([])
+  const [leaveModal, setLeaveModal] = useState(false)
+  const [leaveForm, setLeaveForm] = useState({ start_date: '', end_date: '', reason: '' })
+  const [savingLeave, setSavingLeave] = useState(false)
+  const [profileUpdateRequests, setProfileUpdateRequests] = useState<any[]>([])
+  const [profileUpdateModal, setProfileUpdateModal] = useState(false)
+  const [profileUpdateForm, setProfileUpdateForm] = useState({
+    name: '', email: '', aadhaar_number: '', permanent_address: '', emergency_contact_name: '', emergency_contact: '', reason: '',
+  })
+  const [savingProfileUpdate, setSavingProfileUpdate] = useState(false)
+  const [rentExtensions, setRentExtensions] = useState<any[]>([])
+  const [extensionModal, setExtensionModal] = useState(false)
+  const [extensionForm, setExtensionForm] = useState({ requested_until: '', reason: '' })
+  const [savingExtension, setSavingExtension] = useState(false)
+  const [moveOutRequests, setMoveOutRequests] = useState<any[]>([])
+  const [moveOutModal, setMoveOutModal] = useState(false)
+  const [moveOutForm, setMoveOutForm] = useState({ requested_date: '', reason: '' })
+  const [savingMoveOut, setSavingMoveOut] = useState(false)
+  const [moveOutChecklist, setMoveOutChecklist] = useState<any>(null)
+  const [requestTypeFilter, setRequestTypeFilter] = useState<'all' | 'leave' | 'extension' | 'moveout' | 'maintenance' | 'profile'>('all')
 
   useEffect(() => {
     async function load() {
@@ -66,7 +95,7 @@ export default function TenantPortal() {
       const { data: prof } = await sb.from('profiles').select('must_change_password').eq('id', user.id).single()
       setMustChangePw(!!prof?.must_change_password)
 
-      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id, late_fee_per_day, late_fee_grace_days)').eq('auth_user_id', user.id).single()
+      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id, late_fee_per_day, late_fee_grace_days, owner_id)').eq('auth_user_id', user.id).single()
       if (!t) { router.push('/login'); return }
       setTenant(t)
 
@@ -75,6 +104,12 @@ export default function TenantPortal() {
 
       const { data: c } = await sb.from('complaints').select('*').eq('tenant_id', t.id).order('created_at', { ascending: false })
       setComplaints(c ?? [])
+
+      getTenantLeaveRequests(t.id).then(setLeaveRequests).catch(() => setLeaveRequests([]))
+      getTenantRentExtensionRequests(t.id).then(setRentExtensions).catch(() => setRentExtensions([]))
+      getTenantMoveOutRequests(t.id).then(setMoveOutRequests).catch(() => setMoveOutRequests([]))
+      getTenantProfileUpdateRequests(t.id).then(setProfileUpdateRequests).catch(() => setProfileUpdateRequests([]))
+      getMoveOutChecklist(t.id).then(setMoveOutChecklist).catch(() => setMoveOutChecklist(null))
 
       getBillsForTenant(t.id).then(setBills).catch(() => setBills([]))
       getMessagesForTenant(t.id).then(setMessages).catch(() => setMessages([]))
@@ -101,17 +136,20 @@ export default function TenantPortal() {
 
   const monthlyLedger = (() => {
     if (!tenant?.joining_date) return []
-    const months: { label: string; status: 'paid' | 'pending' | 'partial'; amount: number; paid: number; paidOn?: string }[] = []
+    const months: { label: string; status: 'paid' | 'pending' | 'partial'; amount: number; paid: number; paidOn?: string; adjustment: number }[] = []
     const start = new Date(tenant.joining_date)
     const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
     const today = new Date()
     const end = tenant.leaving_date && new Date(tenant.leaving_date) < today ? new Date(tenant.leaving_date) : today
+    const approvedLeaves = leaveRequests.filter(l => l.status === 'approved')
     while (cursor <= end) {
       const label = cursor.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
       const monthPayments = payments.filter(p => p.for_month === label && p.type === 'rent' && p.approval_status === 'approved')
       const totalPaid = monthPayments.reduce((s, p) => s + p.amount_received, 0)
-      const status = totalPaid >= tenant.monthly_rent ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
-      months.push({ label, status, amount: tenant.monthly_rent, paid: totalPaid, paidOn: monthPayments[0]?.payment_date })
+      const adjustment = calculateLeaveRentAdjustment(label, tenant.monthly_rent, approvedLeaves)
+      const amount = tenant.monthly_rent - adjustment
+      const status = totalPaid >= amount ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+      months.push({ label, status, amount, paid: totalPaid, paidOn: monthPayments[0]?.payment_date, adjustment })
       cursor.setMonth(cursor.getMonth() + 1)
     }
     return months
@@ -138,13 +176,60 @@ export default function TenantPortal() {
   // Late fee — property-level policy, applies only if the owner has
   // configured a per-day rate. Computed against the oldest unpaid month's
   // own due date (not just "today"), so it's accurate for old backlog too.
+  // An approved Rent Extension for that month pushes the due date used
+  // here out to the extended date — the fee never charges during a
+  // window the owner explicitly granted.
+  const activeExtension = oldestUnpaidMonth ? getApprovedExtensionFor(oldestUnpaidMonth.label, rentExtensions) : null
+  const agreementDaysLeft = agreement?.end_date
+    ? Math.floor((new Date(agreement.end_date).getTime() - Date.now()) / 86400000)
+    : null
+
+  // Unified self-service request history — every request type the tenant
+  // can raise (leave, rent extension, move-out, maintenance/complaints)
+  // normalized into one shape so they can browse them all in one place
+  // instead of hunting across the Tenancy, Rent and Maintenance tabs.
+  const allRequests = [
+    ...leaveRequests.map(l => ({
+      id: `leave-${l.id}`, type: 'leave' as const, typeLabel: 'Leave', icon: '🧳',
+      title: `${formatDate(l.start_date)} – ${formatDate(l.end_date)}`,
+      status: l.status, created_at: l.created_at, detail: l.reason,
+    })),
+    ...rentExtensions.map(x => ({
+      id: `ext-${x.id}`, type: 'extension' as const, typeLabel: 'Rent Extension', icon: '⏳',
+      title: `${x.for_month} → pay by ${formatDate(x.requested_until)}`,
+      status: x.status, created_at: x.created_at, detail: x.reason,
+    })),
+    ...moveOutRequests.map(m => ({
+      id: `move-${m.id}`, type: 'moveout' as const, typeLabel: 'Move-Out', icon: '🚪',
+      title: `Move out on ${formatDate(m.requested_date)}`,
+      status: m.status, created_at: m.created_at, detail: m.reason,
+    })),
+    ...complaints.map(c => ({
+      id: `complaint-${c.id}`, type: 'maintenance' as const, typeLabel: 'Maintenance', icon: '🔧',
+      title: c.issue_type,
+      status: c.status === 'resolved' ? 'approved' : c.status === 'in_progress' ? 'pending' : 'pending',
+      statusLabel: c.status === 'resolved' ? 'resolved' : c.status === 'in_progress' ? 'in progress' : 'open',
+      created_at: c.created_at, detail: c.description,
+    })),
+    ...profileUpdateRequests.map(u => ({
+      id: `profile-${u.id}`, type: 'profile' as const, typeLabel: 'Profile Update', icon: '📝',
+      title: Object.keys(u.requested_changes ?? {}).join(', ') || 'Profile update',
+      status: u.status, created_at: u.created_at, detail: u.reason,
+    })),
+  ]
+    .filter(r => requestTypeFilter === 'all' || r.type === requestTypeFilter)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const lateFee = (() => {
     if (!tenant?.property || !oldestUnpaidMonth || !tenant.joining_date) return 0
     const feePerDay = tenant.property.late_fee_per_day ?? 0
     if (!feePerDay) return 0
     const monthDate = new Date(`1 ${oldestUnpaidMonth.label}`)
     const dueDay = new Date(tenant.joining_date).getDate()
-    const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay)
+    let dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay)
+    if (activeExtension) {
+      const extendedDate = new Date(activeExtension.requested_until)
+      if (extendedDate > dueDate) dueDate = extendedDate
+    }
     const overdue = Math.max(0, Math.floor((Date.now() - dueDate.getTime()) / 86400000))
     return calculateLateFee(overdue, feePerDay, tenant.property.late_fee_grace_days ?? 0)
   })()
@@ -267,6 +352,103 @@ export default function TenantPortal() {
     setSaving(false)
   }
 
+  async function submitLeaveRequest() {
+    if (!leaveForm.start_date || !leaveForm.end_date) { toast.error('Select both dates'); return }
+    if (leaveForm.end_date < leaveForm.start_date) { toast.error('End date must be after start date'); return }
+    setSavingLeave(true)
+    try {
+      const data = await addLeaveRequest({
+        property_id: tenant.property_id, tenant_id: tenant.id,
+        start_date: leaveForm.start_date, end_date: leaveForm.end_date, reason: leaveForm.reason,
+      })
+      setLeaveRequests(prev => [data, ...prev])
+      toast.success('Leave request submitted!'); setLeaveModal(false)
+      setLeaveForm({ start_date: '', end_date: '', reason: '' })
+      if (tenant.property?.owner_id) {
+        sendPushNotification({
+          user_ids: [tenant.property.owner_id],
+          title: '🧳 Leave Request',
+          body: `${tenant.name} requested leave from ${formatDate(leaveForm.start_date)} to ${formatDate(leaveForm.end_date)}.`,
+          url: '/approvals', tag: 'leave-request',
+        })
+      }
+    } catch (e: any) { toast.error(e.message) }
+    setSavingLeave(false)
+  }
+
+  async function submitProfileUpdateRequest() {
+    const changes: Record<string, string> = {}
+    ;(['name', 'email', 'aadhaar_number', 'permanent_address', 'emergency_contact_name', 'emergency_contact'] as const).forEach(key => {
+      const newVal = profileUpdateForm[key]?.trim() ?? ''
+      const currentVal = (tenant[key] ?? '').toString().trim()
+      if (newVal !== currentVal) changes[key] = newVal
+    })
+    if (Object.keys(changes).length === 0) { toast.error('No changes to submit'); return }
+    setSavingProfileUpdate(true)
+    try {
+      const data = await addProfileUpdateRequest({ id: tenant.id, property_id: tenant.property_id }, changes, profileUpdateForm.reason)
+      setProfileUpdateRequests(prev => [data, ...prev])
+      toast.success('Profile update request submitted!')
+      setProfileUpdateModal(false)
+      if (tenant.property?.owner_id) {
+        sendPushNotification({
+          user_ids: [tenant.property.owner_id],
+          title: '📝 Profile Update Request',
+          body: `${tenant.name} requested a profile update: ${Object.keys(changes).join(', ')}.`,
+          url: '/approvals', tag: 'profile-update-request',
+        })
+      }
+    } catch (e: any) { toast.error(e.message) }
+    setSavingProfileUpdate(false)
+  }
+
+  async function submitExtensionRequest() {
+    if (!extensionForm.requested_until) { toast.error('Select a date'); return }
+    setSavingExtension(true)
+    try {
+      const forMonth = oldestUnpaidMonth?.label ?? thisMonth
+      const data = await addRentExtensionRequest({
+        property_id: tenant.property_id, tenant_id: tenant.id,
+        for_month: forMonth, requested_until: extensionForm.requested_until, reason: extensionForm.reason,
+      })
+      setRentExtensions(prev => [data, ...prev])
+      toast.success('Extension request submitted!'); setExtensionModal(false)
+      setExtensionForm({ requested_until: '', reason: '' })
+      if (tenant.property?.owner_id) {
+        sendPushNotification({
+          user_ids: [tenant.property.owner_id],
+          title: '⏳ Rent Extension Request',
+          body: `${tenant.name} requested to extend ${forMonth} rent until ${formatDate(extensionForm.requested_until)}.`,
+          url: '/approvals', tag: 'rent-extension',
+        })
+      }
+    } catch (e: any) { toast.error(e.message) }
+    setSavingExtension(false)
+  }
+
+  async function submitMoveOutRequest() {
+    if (!moveOutForm.requested_date) { toast.error('Select a date'); return }
+    setSavingMoveOut(true)
+    try {
+      const data = await addMoveOutRequest({
+        property_id: tenant.property_id, tenant_id: tenant.id,
+        requested_date: moveOutForm.requested_date, reason: moveOutForm.reason,
+      })
+      setMoveOutRequests(prev => [data, ...prev])
+      toast.success('Move-out request submitted!'); setMoveOutModal(false)
+      setMoveOutForm({ requested_date: '', reason: '' })
+      if (tenant.property?.owner_id) {
+        sendPushNotification({
+          user_ids: [tenant.property.owner_id],
+          title: '🚪 Move-Out Request',
+          body: `${tenant.name} requested to move out on ${formatDate(moveOutForm.requested_date)}.`,
+          url: '/approvals', tag: 'move-out-request',
+        })
+      }
+    } catch (e: any) { toast.error(e.message) }
+    setSavingMoveOut(false)
+  }
+
   async function changePassword() {
     if (pwForm.newPw !== pwForm.confirm) { toast.error('Passwords do not match'); return }
     if (pwForm.newPw.length < 6) { toast.error('Min 6 characters'); return }
@@ -374,6 +556,49 @@ export default function TenantPortal() {
     </div>
   )
 
+  // Invited tenants (Phase 8.1) have no room/rent/agreement yet, so the
+  // normal portal (rent ledger, documents, etc.) has nothing meaningful to
+  // show them. Route them through the onboarding flow instead of mounting
+  // the full sidebar/tabs shell underneath.
+  if (tenant.status === 'invited') {
+    if (mustChangePw) {
+      return (
+        <ForcePasswordChangeModal userId={tenant.auth_user_id} onDone={async () => {
+          setMustChangePw(false)
+          if (tenant.onboarding_status === 'invitation_created') {
+            try {
+              const updated = await markOnboardingPasswordChanged(tenant)
+              setTenant((prev: any) => prev ? { ...prev, onboarding_status: updated.onboarding_status } : prev)
+              // Phase 8.6 — onboarding notifications, reusing the exact
+              // sendPushNotification() pattern already used for leave/
+              // extension/move-out requests elsewhere on this page.
+              if (tenant.property?.owner_id) {
+                sendPushNotification({
+                  user_ids: [tenant.property.owner_id],
+                  title: '📝 Tenant Registered',
+                  body: `${tenant.name} activated their account and can now complete their profile.`,
+                  url: '/approvals', tag: 'onboarding-registered',
+                })
+              }
+              if (tenant.auth_user_id) {
+                sendPushNotification({
+                  user_ids: [tenant.auth_user_id],
+                  title: '✅ Password Changed',
+                  body: `Your password was updated. Next, complete your profile for your owner to review.`,
+                  url: '/portal', tag: 'onboarding-password-changed',
+                })
+              }
+            } catch {}
+          }
+        }} />
+      )
+    }
+    if (!['submitted', 'resubmitted', 'approved'].includes(tenant.onboarding_status ?? '')) {
+      return <OnboardingWizard tenant={tenant} onComplete={(updated) => setTenant(updated)} />
+    }
+    return <OnboardingReviewScreen tenant={tenant} />
+  }
+
   const initials = (tenant.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
   const recentPayment = payments.find(p => p.approval_status === 'approved')
 
@@ -383,6 +608,7 @@ export default function TenantPortal() {
     { key: 'rent', label: 'Rent & Payments', icon: Wallet },
     { key: 'history', label: 'Payment History', icon: Clock },
     { key: 'maintenance', label: 'Maintenance', icon: Wrench },
+    { key: 'requests', label: 'My Requests', icon: CheckCircle },
     { key: 'notices', label: 'Notice Board', icon: Megaphone },
     { key: 'documents', label: 'Documents', icon: FileText },
     { key: 'messages', label: 'Messages', icon: MessageCircle },
@@ -390,9 +616,27 @@ export default function TenantPortal() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className={darkMode ? 'dark' : ''}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
       {mustChangePw && (
-        <ForcePasswordChangeModal userId={tenant.auth_user_id} onDone={() => setMustChangePw(false)} />
+        <ForcePasswordChangeModal userId={tenant.auth_user_id} onDone={async () => {
+          setMustChangePw(false)
+          // Only advance the onboarding ladder for tenants who came through
+          // the invitation flow (Phase 8.1) — QR-join and owner-added
+          // tenants never set onboarding_status, so it stays null for them
+          // and this is a no-op.
+          if (tenant.onboarding_status === 'invitation_created') {
+            try {
+              const updated = await markOnboardingPasswordChanged(tenant)
+              setTenant((prev: any) => prev ? { ...prev, onboarding_status: updated.onboarding_status } : prev)
+            } catch {
+              // Non-critical — the password itself is already changed and
+              // the gate is already cleared either way. Worst case the
+              // status ladder is one step behind until the next profile
+              // action corrects it.
+            }
+          }
+        }} />
       )}
 
       {/* Sidebar */}
@@ -453,6 +697,10 @@ export default function TenantPortal() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setDarkMode(d => !d)} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="p-2 rounded-xl bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-gray-500 dark:text-slate-400">
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             <div className="relative">
               <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition text-gray-500">
                 <Bell className="w-4 h-4" />
@@ -517,7 +765,7 @@ export default function TenantPortal() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-8 max-w-6xl w-full mx-auto">
+        <main id="main-content" className="flex-1 p-4 lg:p-8 max-w-6xl w-full mx-auto">
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
@@ -526,6 +774,40 @@ export default function TenantPortal() {
                 <h1 className="text-xl font-extrabold text-gray-900">Tenant Dashboard</h1>
                 <p className="text-sm text-gray-500">Welcome back, <span className="font-semibold text-gray-700">{tenant.name}</span> 👋</p>
               </div>
+
+              {/* Quick Actions */}
+              {tenant.status === 'active' && (
+                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+                  {[
+                    { label: 'Pay Rent', icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-50', onClick: () => openPay('rent') },
+                    { label: 'Maintenance', icon: Wrench, color: 'text-orange-600', bg: 'bg-orange-50', onClick: () => setComplaintModal(true) },
+                    { label: 'Message', icon: MessageCircle, color: 'text-blue-600', bg: 'bg-blue-50', onClick: openMessagesTab },
+                    { label: 'Request Leave', icon: Users2, color: 'text-purple-600', bg: 'bg-purple-50', onClick: () => setLeaveModal(true) },
+                    { label: 'Agreement', icon: Download, color: 'text-green-600', bg: 'bg-green-50', onClick: downloadAgreement },
+                    { label: 'My Requests', icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-50', onClick: () => setTab('requests') },
+                  ].map(a => (
+                    <button key={a.label} onClick={a.onClick}
+                      className="flex flex-col items-center gap-2 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.bg}`}>
+                        <a.icon className={`w-5 h-5 ${a.color}`} />
+                      </div>
+                      <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{a.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {agreementDaysLeft !== null && agreementDaysLeft <= 14 && (agreement.status === 'signed' || agreement.status === 'active') && (
+                <div className={`rounded-2xl p-4 border flex items-center gap-3 ${agreementDaysLeft < 0 ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
+                  <span className="text-xl">📄</span>
+                  <div className="flex-1">
+                    <div className={`text-sm font-bold ${agreementDaysLeft < 0 ? 'text-red-700' : 'text-amber-700'}`}>
+                      {agreementDaysLeft < 0 ? 'Your rent agreement has expired' : `Your rent agreement expires in ${agreementDaysLeft}d`}
+                    </div>
+                    <div className={`text-xs mt-0.5 ${agreementDaysLeft < 0 ? 'text-red-600' : 'text-amber-600'}`}>Contact your owner to renew it.</div>
+                  </div>
+                </div>
+              )}
 
               {/* Upcoming birthdays of co-tenants at the same PG */}
               {birthdays.length > 0 && (() => {
@@ -801,15 +1083,37 @@ export default function TenantPortal() {
                 <p className="text-sm text-gray-500">Your room, property and agreement details.</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-xl">
-                    {initials}
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-xl">
+                      {initials}
+                    </div>
+                    <div>
+                      <div className="text-lg font-extrabold text-gray-900">{tenant.name}</div>
+                      <div className="text-sm text-gray-500">Room {tenant.room?.room_number ?? '—'} · Bed {tenant.bed_label ?? '—'}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-lg font-extrabold text-gray-900">{tenant.name}</div>
-                    <div className="text-sm text-gray-500">Room {tenant.room?.room_number ?? '—'} · Bed {tenant.bed_label ?? '—'}</div>
-                  </div>
+                  {tenant.status === 'active' && !profileUpdateRequests.some(u => u.status === 'pending') && (
+                    <button
+                      onClick={() => {
+                        setProfileUpdateForm({
+                          name: tenant.name || '', email: tenant.email || '', aadhaar_number: tenant.aadhaar_number || '',
+                          permanent_address: tenant.permanent_address || '', emergency_contact_name: tenant.emergency_contact_name || '',
+                          emergency_contact: tenant.emergency_contact || '', reason: '',
+                        })
+                        setProfileUpdateModal(true)
+                      }}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition whitespace-nowrap"
+                    >
+                      Request Profile Update
+                    </button>
+                  )}
                 </div>
+                {profileUpdateRequests.some(u => u.status === 'pending') && (
+                  <div className="bg-amber-50 rounded-xl p-3 mb-4 text-xs text-amber-800">
+                    You have a profile update request pending owner review.
+                  </div>
+                )}
                 <div className="space-y-3">
                   {[
                     ['Mobile Number', tenant.phone],
@@ -856,9 +1160,26 @@ export default function TenantPortal() {
                           <span className="font-bold text-gray-900">{formatDate(tenant.deposit_refund_date)}</span>
                         </div>
                       )}
+                      {tenant.deposit_deduction_items?.length > 0 && (
+                        <div className="pt-1 space-y-1 border-t border-green-100 mt-1">
+                          <div className="text-xs font-semibold text-green-800 pt-1">Deductions</div>
+                          {tenant.deposit_deduction_items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between text-xs text-gray-600">
+                              <span>{item.label}</span>
+                              <span>− {formatINR(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {tenant.deposit_deduction_notes && (
                         <div className="text-xs text-gray-500 mt-1">Note: {tenant.deposit_deduction_notes}</div>
                       )}
+                    </div>
+                  )}
+                  {tenant.deposit_refunded === 0 && (tenant.status === 'leaving' || tenant.status === 'left') && tenant.deposit_paid > 0 && (
+                    <div className="bg-amber-50 rounded-xl p-4 mt-2">
+                      <div className="text-xs font-bold text-amber-800">Settlement Pending</div>
+                      <div className="text-xs text-amber-700 mt-1">Your deposit refund is being processed by the owner.</div>
                     </div>
                   )}
                 </div>
@@ -866,6 +1187,80 @@ export default function TenantPortal() {
                   <button onClick={() => openPay('deposit')} className="w-full mt-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
                     Pay {formatINR(depositDue)} Deposit
                   </button>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="font-bold text-sm text-gray-900">Temporary Leave</div>
+                  {tenant.status === 'active' && (
+                    <button onClick={() => setLeaveModal(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition">
+                      Request Leave
+                    </button>
+                  )}
+                </div>
+                {leaveRequests.length === 0 ? (
+                  <div className="text-sm text-gray-400 text-center py-6">No leave requests yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {leaveRequests.map(l => (
+                      <div key={l.id} className="border border-gray-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-gray-900">{formatDate(l.start_date)} – {formatDate(l.end_date)}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${
+                            l.status === 'approved' ? 'bg-green-100 text-green-700' : l.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>{l.status}</span>
+                        </div>
+                        {l.reason && <p className="text-sm text-gray-500 mt-1.5">{l.reason}</p>}
+                        {l.owner_note && <p className="text-xs text-gray-400 mt-1.5">Owner note: {l.owner_note}</p>}
+                        <div className="text-xs text-gray-400 mt-2">Requested {formatDate(l.created_at)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="font-bold text-sm text-gray-900">Move-Out</div>
+                  {tenant.status === 'active' && !moveOutRequests.some(m => m.status !== 'rejected') && (
+                    <button onClick={() => setMoveOutModal(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition">
+                      Request Move-Out
+                    </button>
+                  )}
+                </div>
+                {tenant.status === 'leaving' && moveOutChecklist && (
+                  <div className="mb-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
+                    <div className="text-xs font-bold text-amber-800 mb-2">
+                      Owner Move-Out Checklist ({moveOutChecklist.items.filter((i: any) => i.checked).length}/{moveOutChecklist.items.length})
+                    </div>
+                    <div className="space-y-1.5">
+                      {moveOutChecklist.items.map((i: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs text-amber-700">
+                          <span>{i.checked ? '✅' : '⬜'}</span> {i.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {moveOutRequests.length === 0 ? (
+                  <div className="text-sm text-gray-400 text-center py-6">No move-out requests yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {moveOutRequests.map(m => (
+                      <div key={m.id} className="border border-gray-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-gray-900">Move out on {formatDate(m.requested_date)}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${
+                            m.status === 'approved' ? 'bg-green-100 text-green-700' : m.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>{m.status}</span>
+                        </div>
+                        {m.reason && <p className="text-sm text-gray-500 mt-1.5">{m.reason}</p>}
+                        {m.owner_note && <p className="text-xs text-gray-400 mt-1.5">Owner note: {m.owner_note}</p>}
+                        <div className="text-xs text-gray-400 mt-2">Requested {formatDate(m.created_at)}</div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -877,7 +1272,7 @@ export default function TenantPortal() {
                 <h1 className="text-xl font-extrabold text-gray-900">Rent & Payments</h1>
                 <p className="text-sm text-gray-500">Your full monthly rent history.</p>
               </div>
-              {(lateFee > 0 || remainingAdvance > 0) && (
+              {(lateFee > 0 || remainingAdvance > 0 || (oldestUnpaidMonth?.adjustment ?? 0) > 0 || activeExtension) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {lateFee > 0 && (
                     <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
@@ -893,6 +1288,20 @@ export default function TenantPortal() {
                       <div className="text-xs text-green-600 mt-0.5">Will auto-apply to your next due month</div>
                     </div>
                   )}
+                  {(oldestUnpaidMonth?.adjustment ?? 0) > 0 && (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                      <div className="text-xs font-bold text-indigo-700">Leave Adjustment</div>
+                      <div className="text-lg font-extrabold text-indigo-700 mt-0.5">− {formatINR(oldestUnpaidMonth?.adjustment ?? 0)}</div>
+                      <div className="text-xs text-indigo-600 mt-0.5">Prorated for your approved leave in {oldestUnpaidMonth?.label}</div>
+                    </div>
+                  )}
+                  {activeExtension && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                      <div className="text-xs font-bold text-blue-700">Extension Granted</div>
+                      <div className="text-lg font-extrabold text-blue-700 mt-0.5">Until {formatDate(activeExtension.requested_until)}</div>
+                      <div className="text-xs text-blue-600 mt-0.5">No late fee for {oldestUnpaidMonth?.label} until this date</div>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -901,6 +1310,7 @@ export default function TenantPortal() {
                     <div>
                       <div className="text-sm font-semibold text-gray-900">{m.label}</div>
                       <div className="text-xs text-gray-400">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : 'Not yet paid'}</div>
+                      {m.adjustment > 0 && <div className="text-xs text-indigo-500 mt-0.5">Leave adjustment: − {formatINR(m.adjustment)}</div>}
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
@@ -917,6 +1327,32 @@ export default function TenantPortal() {
                 <button onClick={() => openPay('rent')} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
                   Pay {oldestUnpaidMonth?.label ?? thisMonth} Rent
                 </button>
+              )}
+              {!thisMonthPaid && !claimed && tenant.status === 'active' && oldestUnpaidMonth &&
+                !rentExtensions.some(e => e.for_month === oldestUnpaidMonth.label && e.status !== 'rejected') && (
+                <button onClick={() => setExtensionModal(true)} className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-semibold transition">
+                  Request Extension for {oldestUnpaidMonth.label}
+                </button>
+              )}
+
+              {rentExtensions.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                  <div className="font-bold text-sm text-gray-900 mb-3">Extension Requests</div>
+                  <div className="space-y-3">
+                    {rentExtensions.map(e => (
+                      <div key={e.id} className="border border-gray-50 rounded-xl p-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-gray-900">{e.for_month} → {formatDate(e.requested_until)}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${
+                            e.status === 'approved' ? 'bg-green-100 text-green-700' : e.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>{e.status}</span>
+                        </div>
+                        {e.reason && <p className="text-xs text-gray-500 mt-1">{e.reason}</p>}
+                        {e.owner_note && <p className="text-xs text-gray-400 mt-1">Owner note: {e.owner_note}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {bills.length > 0 && (
@@ -1039,6 +1475,45 @@ export default function TenantPortal() {
             </div>
           )}
 
+          {tab === 'requests' && (
+            <div className="space-y-5">
+              <div>
+                <h1 className="text-xl font-extrabold text-gray-900">My Requests</h1>
+                <p className="text-sm text-gray-500">Every leave, extension, move-out and maintenance request in one place.</p>
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {[['all', 'All'], ['leave', 'Leave'], ['extension', 'Extension'], ['moveout', 'Move-Out'], ['maintenance', 'Maintenance'], ['profile', 'Profile Update']].map(([v, l]) => (
+                  <button key={v} onClick={() => setRequestTypeFilter(v as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${requestTypeFilter === v ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+                {allRequests.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">No requests yet</div>
+                ) : allRequests.map(r => (
+                  <div key={r.id} className="flex items-start justify-between gap-3 px-5 py-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                        <span>{r.icon}</span> {r.title}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">{r.typeLabel} · Requested {formatDate(r.created_at)}</div>
+                      {r.detail && <div className="text-xs text-gray-500 mt-1">{r.detail}</div>}
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 capitalize ${
+                      r.status === 'approved' ? 'bg-green-100 text-green-700' : r.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {(r as any).statusLabel ?? r.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {tab === 'documents' && (
             <div className="space-y-5">
               <div>
@@ -1052,6 +1527,11 @@ export default function TenantPortal() {
                     <div>
                       <div className="text-sm font-semibold text-gray-900">Rent Agreement</div>
                       <div className="text-xs text-gray-400">{agreement ? `${agreement.agreement_number} · ${agreement.status}` : 'System-generated from your tenant record'}</div>
+                      {agreementDaysLeft !== null && agreementDaysLeft <= 30 && (agreement.status === 'signed' || agreement.status === 'active') && (
+                        <div className={`text-xs font-semibold mt-0.5 ${agreementDaysLeft < 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                          {agreementDaysLeft < 0 ? `Expired ${Math.abs(agreementDaysLeft)}d ago — ask your owner to renew` : agreementDaysLeft === 0 ? 'Expires today' : `Expires in ${agreementDaysLeft}d`}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <button onClick={downloadAgreement} aria-label="Download rent agreement" className="p-2 hover:bg-gray-100 rounded-lg transition"><Download className="w-4 h-4 text-gray-500" /></button>
@@ -1152,6 +1632,9 @@ export default function TenantPortal() {
                   </button>
                   <button onClick={() => setComplaintModal(true)} className="flex items-center justify-center gap-2 py-3 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-semibold transition">
                     <Wrench className="w-4 h-4" /> Raise Maintenance Request
+                  </button>
+                  <button onClick={() => setTab('requests')} className="flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition sm:col-span-2">
+                    <CheckCircle className="w-4 h-4" /> View All My Requests
                   </button>
                 </div>
               </div>
@@ -1399,6 +1882,140 @@ export default function TenantPortal() {
         </div>
       )}
 
+      {/* Leave Request Modal */}
+      {leaveModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold">Request Temporary Leave</h2>
+              <button onClick={() => setLeaveModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">From</label>
+                  <input type="date" value={leaveForm.start_date} onChange={e => setLeaveForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">To</label>
+                  <input type="date" value={leaveForm.end_date} onChange={e => setLeaveForm(f => ({ ...f, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
+                <textarea rows={3} value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Going home for a family function" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100">
+              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {savingLeave && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Update Request Modal (Phase 8.7) */}
+      {profileUpdateModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="text-base font-bold">Request Profile Update</h2>
+              <button onClick={() => setProfileUpdateModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <p className="text-xs text-gray-500">
+                Changes here won't take effect immediately — your owner will review and approve them first.
+              </p>
+              {[
+                ['name', 'Full Name'], ['email', 'Email'], ['aadhaar_number', 'Aadhaar Number'],
+                ['permanent_address', 'Permanent Address'], ['emergency_contact_name', 'Emergency Contact Name'],
+                ['emergency_contact', 'Emergency Contact Number'],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+                  {key === 'permanent_address' ? (
+                    <textarea rows={2} value={(profileUpdateForm as any)[key]} onChange={e => setProfileUpdateForm(f => ({ ...f, [key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                  ) : (
+                    <input value={(profileUpdateForm as any)[key]} onChange={e => setProfileUpdateForm(f => ({ ...f, [key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                  )}
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
+                <textarea rows={2} value={profileUpdateForm.reason} onChange={e => setProfileUpdateForm(f => ({ ...f, reason: e.target.value }))}
+                  placeholder="e.g. My address changed recently" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {savingProfileUpdate && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rent Extension Request Modal */}
+      {extensionModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold">Request Rent Extension</h2>
+              <button onClick={() => setExtensionModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+                Asking for more time to pay {oldestUnpaidMonth?.label ?? thisMonth} rent. No late fee will apply until the date below, if approved.
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Pay By</label>
+                <input type="date" value={extensionForm.requested_until} onChange={e => setExtensionForm(f => ({ ...f, requested_until: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
+                <textarea rows={3} value={extensionForm.reason} onChange={e => setExtensionForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Salary credits on the 5th" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100">
+              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {savingExtension && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move-Out Request Modal */}
+      {moveOutModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-bold">Request Move-Out</h2>
+              <button onClick={() => setMoveOutModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Intended Move-Out Date</label>
+                <input type="date" value={moveOutForm.requested_date} onChange={e => setMoveOutForm(f => ({ ...f, requested_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
+                <textarea rows={3} value={moveOutForm.reason} onChange={e => setMoveOutForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Relocating for a new job" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100">
+              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {savingMoveOut && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* Change Password Modal */}
       {pwModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
@@ -1421,6 +2038,35 @@ export default function TenantPortal() {
           </div>
         </div>
       )}
+    </div>
+    </div>
+  )
+}
+
+// Phase 8.5 — replaces the old static "Profile Under Review" message with
+// the Tenant Timeline, so a tenant waiting on owner review can see exactly
+// where they are (Submitted / Resubmitted / Approved) instead of a plain
+// paragraph, while keeping the exact same entry condition it had before
+// (rendered only once onboarding_status is submitted/resubmitted/approved).
+function OnboardingReviewScreen({ tenant }: { tenant: any }) {
+  const [history, setHistory] = useState<ProfileStatusHistoryEntry[]>([])
+  useEffect(() => { getProfileStatusHistory(tenant.id).then(setHistory).catch(() => setHistory([])) }, [tenant.id])
+  const completion = calculateProfileCompletion(tenant)
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 py-10">
+      <div className="text-center max-w-sm w-full">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-6 h-6 text-indigo-600" />
+        </div>
+        <h1 className="text-lg font-extrabold text-gray-900 mb-1.5">Profile Under Review</h1>
+        <p className="text-sm text-gray-500 mb-6">
+          Thanks, {tenant.name}! Your details have been submitted. Your owner will review them and activate your account shortly.
+        </p>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left shadow-sm">
+          <StatusTimeline currentStatus={tenant.onboarding_status} history={history} completionPercent={completion} variant="tenant" />
+        </div>
+      </div>
     </div>
   )
 }

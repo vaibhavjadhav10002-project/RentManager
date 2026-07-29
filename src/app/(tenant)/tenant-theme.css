@@ -1,0 +1,146 @@
+/**
+ * Tenant Mobile UI — scoped design tokens
+ * ─────────────────────────────────────────────────────────────────────────
+ * Every variable here is namespaced with `--tenant-*` and only ever read
+ * inside a `.tenant-portal` subtree (see tailwind.config.ts `tenant.*`
+ * color keys). Nothing in this file touches `:root`, `.dark`, or any of
+ * the `--background` / `--primary` / etc. variables in globals.css that
+ * the Owner, Admin and Auth screens depend on — so this can be imported
+ * app-wide with zero visual side effects outside the Tenant Portal.
+ *
+ * Theme resolution is attribute-based: <div class="tenant-portal" data-theme="dark|light">
+ * `data-theme` is written by <TenantThemeProvider> (client-side, before
+ * paint) based on the user's saved preference (dark / light / system).
+ */
+
+.tenant-portal {
+  /* Dark is the default look — applied whenever data-theme is absent
+     (e.g. for one JS-free paint) or explicitly "dark". */
+  --tenant-background: 228 24% 6%;
+  --tenant-background-subtle: 228 20% 9%;
+  --tenant-surface: 228 18% 11%;
+  --tenant-surface-elevated: 228 16% 14%;
+  --tenant-surface-hover: 228 16% 17%;
+  --tenant-border: 228 14% 18%;
+  --tenant-border-strong: 228 12% 26%;
+
+  --tenant-foreground: 220 25% 97%;
+  --tenant-muted: 220 10% 66%;
+  --tenant-muted-subtle: 220 9% 46%;
+
+  --tenant-primary: 243 75% 61%;
+  --tenant-primary-hover: 243 78% 68%;
+  --tenant-primary-foreground: 0 0% 100%;
+
+  --tenant-success: 142 69% 48%;
+  --tenant-success-subtle: 142 45% 16%;
+  --tenant-warning: 38 92% 55%;
+  --tenant-warning-subtle: 38 55% 16%;
+  --tenant-danger: 0 84% 63%;
+  --tenant-danger-subtle: 0 55% 18%;
+  --tenant-info: 217 91% 64%;
+  --tenant-info-subtle: 217 55% 18%;
+  --tenant-accent-purple: 271 81% 68%;
+  --tenant-accent-purple-subtle: 271 50% 20%;
+  --tenant-accent-teal: 172 66% 45%;
+  --tenant-accent-teal-subtle: 172 50% 16%;
+
+  --tenant-ring: 243 75% 61%;
+  --tenant-shadow-color: 228 60% 2%;
+  --tenant-glow: 243 75% 61%;
+
+  background-color: hsl(var(--tenant-background));
+  color: hsl(var(--tenant-foreground));
+  color-scheme: dark;
+}
+
+.tenant-portal[data-theme='light'] {
+  --tenant-background: 220 25% 97%;
+  --tenant-background-subtle: 220 20% 94%;
+  --tenant-surface: 0 0% 100%;
+  --tenant-surface-elevated: 0 0% 100%;
+  --tenant-surface-hover: 220 20% 95%;
+  --tenant-border: 220 15% 90%;
+  --tenant-border-strong: 220 13% 81%;
+
+  --tenant-foreground: 222 47% 12%;
+  --tenant-muted: 215 16% 44%;
+  --tenant-muted-subtle: 215 14% 58%;
+
+  --tenant-primary: 243 75% 56%;
+  --tenant-primary-hover: 243 75% 50%;
+  --tenant-primary-foreground: 0 0% 100%;
+
+  --tenant-success: 142 71% 38%;
+  --tenant-success-subtle: 142 60% 94%;
+  --tenant-warning: 32 95% 44%;
+  --tenant-warning-subtle: 38 92% 94%;
+  --tenant-danger: 0 72% 51%;
+  --tenant-danger-subtle: 0 84% 96%;
+  --tenant-info: 217 91% 55%;
+  --tenant-info-subtle: 217 91% 95%;
+  --tenant-accent-purple: 271 70% 54%;
+  --tenant-accent-purple-subtle: 271 70% 95%;
+  --tenant-accent-teal: 172 66% 35%;
+  --tenant-accent-teal-subtle: 172 60% 93%;
+
+  --tenant-ring: 243 75% 56%;
+  --tenant-shadow-color: 220 40% 60%;
+  --tenant-glow: 243 75% 56%;
+
+  color-scheme: light;
+}
+
+/* Smooth, cheap theme-switch transition — scoped so it never touches
+   Owner/Admin, and limited to color properties so layout never jitters. */
+.tenant-portal,
+.tenant-portal * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tenant-portal {
+  font-family: var(--font-inter, Inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+}
+
+/* Numerals (rupee amounts, dates, counters) — tabular so digits never
+   shift width as they update, and the tenant-display face for emphasis. */
+.tenant-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Focus ring — visible, matches brand, scoped */
+.tenant-portal :focus-visible {
+  outline: 2px solid hsl(var(--tenant-ring));
+  outline-offset: 2px;
+}
+
+/* Scrollbars inside the tenant subtree */
+.tenant-portal ::-webkit-scrollbar { width: 4px; height: 4px; }
+.tenant-portal ::-webkit-scrollbar-thumb { background: hsl(var(--tenant-border-strong)); border-radius: 10px; }
+.tenant-portal ::-webkit-scrollbar-track { background: transparent; }
+
+/* Hide scrollbar for horizontally-swipeable rows (chips, quick actions) while
+   keeping the element scrollable — used sparingly and only where a visible
+   scroll affordance would look out of place (native app chip rows). */
+.tenant-scroll-x {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tenant-scroll-x::-webkit-scrollbar { display: none; }
+
+/* Safe-area helpers for the sticky top app bar and bottom nav on notched
+   Android/iOS devices. */
+.tenant-safe-top { padding-top: env(safe-area-inset-top, 0px); }
+.tenant-safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tenant-portal,
+  .tenant-portal * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

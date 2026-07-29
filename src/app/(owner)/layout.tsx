@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import OwnerShell from '@/components/shared/OwnerShell'
+import './owner-theme.css'
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()

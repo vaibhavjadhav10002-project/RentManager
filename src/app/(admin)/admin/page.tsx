@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Loader2, Building2, Users, UserCheck } from 'lucide-react'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'

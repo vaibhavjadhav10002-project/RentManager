@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import webpush from 'web-push'
 
 // Node runtime required — web-push uses Node's crypto module, not available on edge.
@@ -36,14 +37,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 })
     }
 
+    // This previously had no auth check at all — anyone who found the URL could
+    // POST arbitrary user_ids/title/body and both spam another user's device
+    // and pollute their notification history, with fully attacker-controlled
+    // message content. Now requires a real session, and (unless the caller is
+    // a super_admin) only allows notifying tenants of properties the caller
+    // actually owns — matching the same ownership boundary every RLS policy in
+    // this app already enforces at the database level.
+    const authedClient = await createServerClient()
+    const { data: { user } } = await authedClient.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const payload: SendPushBody = await req.json()
-    const { user_ids, title, body, url = '/', tag } = payload
+    let { user_ids, title, body, url = '/', tag } = payload
 
     if (!user_ids?.length || !title || !body) {
       return NextResponse.json({ error: 'user_ids, title, and body are required' }, { status: 400 })
     }
 
     const sb = serviceClient()
+
+    const { data: callerProfile } = await sb.from('profiles').select('role').eq('id', user.id).single()
+    if (callerProfile?.role !== 'super_admin') {
+      const { data: ownedProperties } = await sb.from('properties').select('id').eq('owner_id', user.id)
+      const ownedPropertyIds = (ownedProperties ?? []).map(p => p.id)
+      const { data: ownedTenants } = ownedPropertyIds.length > 0
+        ? await sb.from('tenants').select('auth_user_id').in('auth_user_id', user_ids).in('property_id', ownedPropertyIds)
+        : { data: [] as { auth_user_id: string | null }[] }
+      const allowedIds = new Set((ownedTenants ?? []).map(t => t.auth_user_id))
+      user_ids = user_ids.filter(id => allowedIds.has(id))
+      if (user_ids.length === 0) {
+        return NextResponse.json({ error: 'None of the given user_ids belong to a tenant you own' }, { status: 403 })
+      }
+    }
 
     // Log to notification_log for every recipient regardless of push
     // delivery outcome — this is what powers the notification bell/history,
@@ -54,19 +80,27 @@ export async function POST(req: NextRequest) {
 
     const { data: subs } = await sb
       .from('push_subscriptions')
-      .select('id, user_id, endpoint, p256dh, auth_key')
+      .select('id, user_id, endpoint, p256dh, auth_key, native_token, native_platform')
       .in('user_id', user_ids)
 
     if (!subs || subs.length === 0) {
       return NextResponse.json({ sent: 0, logged: user_ids.length })
     }
 
+    // Web Push (browser/PWA) subscriptions — unchanged from before.
+    const webSubs = subs.filter(s => s.p256dh && s.auth_key)
+    // Native app (Capacitor) device tokens — see native/push.ts. These
+    // can't go through web-push at all; they need FCM (Android) / APNs
+    // (iOS) delivery, which requires a Firebase project + APNs key that
+    // don't exist yet in this codebase (account-level setup, not code).
+    const nativeSubs = subs.filter(s => s.native_token && s.native_platform)
+
     const results = await Promise.allSettled(
-      subs.map(sub =>
+      webSubs.map(sub =>
         webpush.sendNotification(
           {
             endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth_key },
+            keys: { p256dh: sub.p256dh!, auth: sub.auth_key! },
           },
           JSON.stringify({ title, body, url, tag })
         )
@@ -78,15 +112,30 @@ export async function POST(req: NextRequest) {
     results.forEach((r, i) => {
       if (r.status === 'rejected') {
         const statusCode = (r.reason as any)?.statusCode
-        if (statusCode === 404 || statusCode === 410) deadEndpoints.push(subs[i].endpoint)
+        if (statusCode === 404 || statusCode === 410) deadEndpoints.push(webSubs[i].endpoint)
       }
     })
     if (deadEndpoints.length > 0) {
       await sb.from('push_subscriptions').delete().in('endpoint', deadEndpoints)
     }
 
-    const sent = results.filter(r => r.status === 'fulfilled').length
-    return NextResponse.json({ sent, logged: user_ids.length })
+    let nativeSent = 0
+    if (nativeSubs.length > 0) {
+      // ── FCM/APNs RELAY — INTEGRATION POINT ──────────────────────────
+      // Not implemented: needs FIREBASE_SERVICE_ACCOUNT_JSON (Android)
+      // and APNS_KEY_ID/APNS_TEAM_ID/APNS_PRIVATE_KEY (iOS) as env vars,
+      // which only you can generate from your own Firebase/Apple
+      // Developer accounts. Once added, this is where you'd call the
+      // Firebase Admin SDK / a JWT-signed APNs HTTP/2 request per
+      // `nativeSubs` row (grouped by native_platform). Until then this
+      // silently no-ops rather than throwing, so web push keeps working.
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.APNS_KEY_ID) {
+        console.warn('[push/send] Native relay credentials found but relay not yet implemented — see MOBILE_BUILD_REPORT.md')
+      }
+    }
+
+    const sent = results.filter(r => r.status === 'fulfilled').length + nativeSent
+    return NextResponse.json({ sent, logged: user_ids.length, nativeTokensSkipped: nativeSubs.length })
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Failed to send notification' }, { status: 500 })
   }

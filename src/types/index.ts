@@ -1,12 +1,15 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 export type UserRole = 'super_admin' | 'pg_owner' | 'tenant'
-export type TenantStatus = 'active' | 'leaving' | 'left' | 'pending_approval'
+export type TenantStatus = 'active' | 'leaving' | 'left' | 'pending_approval' | 'invited'
 export type KycStatus = 'pending' | 'verified' | 'rejected'
 export type PaymentType = 'rent' | 'deposit' | 'advance'
 export type PaymentMethod = 'upi' | 'cash' | 'bank_transfer'
 export type PaymentApprovalStatus = 'approved' | 'pending_approval' | 'rejected'
 export type ComplaintPriority = 'low' | 'medium' | 'high'
 export type ComplaintStatus = 'open' | 'in_progress' | 'resolved'
+export type LeaveStatus = 'pending' | 'approved' | 'rejected'
+export type RentExtensionStatus = 'pending' | 'approved' | 'rejected'
+export type MoveOutStatus = 'pending' | 'approved' | 'rejected'
 
 // ─── Database row types ───────────────────────────────────────────────────────
 export interface Profile {
@@ -50,6 +53,11 @@ export interface Room {
   created_at: string
 }
 
+export interface DepositDeductionItem {
+  label: string
+  amount: number
+}
+
 export interface Tenant {
   id: string
   auth_user_id: string | null
@@ -60,9 +68,14 @@ export interface Tenant {
   phone: string
   email: string | null
   emergency_contact: string | null
+  emergency_contact_name: string | null
   photo_url: string | null
   aadhaar_url: string | null
   aadhaar_status: KycStatus
+  aadhaar_number: string | null
+  aadhaar_front_url: string | null
+  aadhaar_back_url: string | null
+  permanent_address: string | null
   pan_url: string | null
   pan_status: KycStatus
   agreement_url: string | null
@@ -76,15 +89,47 @@ export interface Tenant {
   deposit_refunded: number
   deposit_refund_date: string | null
   deposit_deduction_notes: string | null
+  deposit_deduction_items: DepositDeductionItem[]
   rent_paid_at_joining: number
   status: TenantStatus
-  submitted_via: 'owner_added' | 'qr_link'
+  onboarding_status: string | null // invitation_created | password_changed | draft | submitted | correction_requested | resubmitted | approved (Phase 8.5)
+  pending_profile: Record<string, any> | null
+  correction_note: string | null
+  submitted_via: 'owner_added' | 'qr_link' | 'owner_invited'
   approved_by: string | null
   approved_at: string | null
   created_at: string
   // joined
   room?: Room
   property?: Property
+}
+
+// Phase 8.5 — Profile Status System
+export interface ProfileStatusHistory {
+  id: string
+  property_id: string
+  tenant_id: string
+  from_status: string | null
+  to_status: string
+  note: string | null
+  changed_by: 'tenant' | 'owner' | null
+  changed_at: string
+}
+
+// Phase 8.7 — Profile Update Requests
+export interface ProfileUpdateRequest {
+  id: string
+  property_id: string
+  tenant_id: string
+  requested_changes: Record<string, any>
+  reason: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  owner_note: string | null
+  decided_at: string | null
+  decided_by: string | null
+  created_at: string
+  // joined
+  tenant?: Tenant
 }
 
 export interface Collector {
@@ -134,6 +179,67 @@ export interface Complaint {
   room?: Room
 }
 
+export interface LeaveRequest {
+  id: string
+  property_id: string
+  tenant_id: string
+  start_date: string
+  end_date: string
+  reason: string | null
+  status: LeaveStatus
+  owner_note: string | null
+  decided_at: string | null
+  created_at: string
+  // joined
+  tenant?: Tenant
+}
+
+export interface RentExtensionRequest {
+  id: string
+  property_id: string
+  tenant_id: string
+  for_month: string
+  requested_until: string
+  reason: string | null
+  status: RentExtensionStatus
+  owner_note: string | null
+  decided_at: string | null
+  created_at: string
+  // joined
+  tenant?: Tenant
+}
+
+export interface MoveOutRequest {
+  id: string
+  property_id: string
+  tenant_id: string
+  requested_date: string
+  reason: string | null
+  status: MoveOutStatus
+  owner_note: string | null
+  decided_at: string | null
+  created_at: string
+  // joined
+  tenant?: Tenant
+}
+
+export interface ChecklistItem {
+  label: string
+  checked: boolean
+  checked_at: string | null
+}
+
+export interface MoveOutChecklist {
+  id: string
+  property_id: string
+  tenant_id: string
+  move_out_request_id: string | null
+  items: ChecklistItem[]
+  completed: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Expense {
   id: string
   property_id: string
@@ -161,6 +267,14 @@ export interface DashboardStats {
   pendingRent: number
   openComplaints: number
   totalTenants: number
+  // Raw values kept alongside their derived KPI so the owner-dashboard
+  // aggregate ("all properties") view can recompute percentages
+  // correctly from summed raw numbers instead of averaging percentages.
+  lastMonthRevenue: number
+  activeRentSum: number
+  revenueTrendPct: number | null
+  collectionRatePct: number
+  avgRentPerBed: number
 }
 
 // ─── Form input types ────────────────────────────────────────────────────────
@@ -266,6 +380,16 @@ export interface AddTenantInput {
   password: string           // owner sets this for tenant login
 }
 
+// Phase 8.1 — minimal-entry alternative to AddTenantInput. Only what's
+// needed to send an invitation; everything else (room, rent, joining date)
+// is filled in later by the owner during Review, once the tenant has
+// completed their side of onboarding.
+export interface InviteTenantInput {
+  property_id: string
+  name: string
+  phone: string
+}
+
 export interface RecordPaymentInput {
   tenant_id: string
   property_id: string
@@ -295,4 +419,214 @@ export interface AddComplaintInput {
   description?: string
   priority: ComplaintPriority
   assigned_to?: string
+}
+
+export interface AddLeaveRequestInput {
+  property_id: string
+  tenant_id: string
+  start_date: string
+  end_date: string
+  reason?: string
+}
+
+export interface AddRentExtensionRequestInput {
+  property_id: string
+  tenant_id: string
+  for_month: string
+  requested_until: string
+  reason?: string
+}
+
+export interface AddMoveOutRequestInput {
+  property_id: string
+  tenant_id: string
+  requested_date: string
+  reason?: string
+}
+
+// ─── Phase 5: Visitors, Parcels, Waiting List, Room Change, Backup ──────────
+export interface Visitor {
+  id: string
+  property_id: string
+  tenant_id: string | null
+  visitor_name: string
+  visitor_phone: string | null
+  purpose: string | null
+  check_in_time: string
+  check_out_time: string | null
+  logged_by: string | null
+  archived_at: string | null
+  created_at: string
+  // joined
+  tenant?: Tenant
+}
+
+export interface Parcel {
+  id: string
+  property_id: string
+  tenant_id: string | null
+  courier_name: string | null
+  tracking_number: string | null
+  description: string | null
+  received_at: string
+  received_by: string | null
+  collected_at: string | null
+  archived_at: string | null
+  created_at: string
+  // joined
+  tenant?: Tenant
+}
+
+export type WaitingListStatus = 'waiting' | 'contacted' | 'converted' | 'expired'
+
+export interface WaitingListEntry {
+  id: string
+  property_id: string
+  name: string
+  phone: string
+  preferred_sharing: string | null
+  budget: number | null
+  notes: string | null
+  status: WaitingListStatus
+  archived_at: string | null
+  created_at: string
+}
+
+export interface RoomChange {
+  id: string
+  property_id: string
+  tenant_id: string | null
+  from_room_id: string | null
+  to_room_id: string | null
+  reason: string | null
+  changed_by: string | null
+  changed_at: string
+  // joined
+  tenant?: Tenant
+  from_room?: Room
+  to_room?: Room
+}
+
+export interface BackupSettings {
+  owner_id: string
+  enabled: boolean
+  frequency: 'daily' | 'weekly'
+  retention_count: number
+  last_run_at: string | null
+  updated_at: string
+}
+
+export interface BackupRun {
+  id: string
+  owner_id: string
+  started_at: string
+  finished_at: string | null
+  status: 'running' | 'success' | 'failed'
+  file_path: string | null
+  property_count: number | null
+  record_count: number | null
+  error_message: string | null
+}
+
+export interface AddVisitorInput {
+  property_id: string
+  tenant_id?: string | null
+  visitor_name: string
+  visitor_phone?: string
+  purpose?: string
+  logged_by?: string
+}
+
+export interface AddParcelInput {
+  property_id: string
+  tenant_id?: string | null
+  courier_name?: string
+  tracking_number?: string
+  description?: string
+  received_by?: string
+}
+
+export interface AddWaitingListInput {
+  property_id: string
+  name: string
+  phone: string
+  preferred_sharing?: string
+  budget?: number
+  notes?: string
+}
+
+export interface AddRoomChangeInput {
+  property_id: string
+  tenant_id: string
+  from_room_id: string | null
+  to_room_id: string
+  reason?: string
+  changed_by?: string
+}
+
+// ─── Communication Engine (Phase 9.1) ──────────────────────────────────────
+// New, additive types only — nothing above this line was changed.
+
+export type CommunicationChannel = 'whatsapp' | 'push' | 'sms' | 'email'
+export type CommunicationStatus = 'pending' | 'sent' | 'failed' | 'cancelled'
+export type TemplateCategory = 'rent_reminder' | 'due_today' | 'overdue' | 'welcome' | 'notice' | 'general' | 'custom'
+
+export interface MessageTemplate {
+  id: string
+  property_id: string
+  name: string
+  category: TemplateCategory
+  channel: CommunicationChannel
+  body: string
+  is_system_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CommunicationQueueItem {
+  id: string
+  property_id: string
+  tenant_id: string | null
+  template_id: string | null
+  channel: CommunicationChannel
+  rendered_message: string
+  status: CommunicationStatus
+  scheduled_for: string | null
+  attempt_count: number
+  last_error: string | null
+  created_at: string
+  sent_at: string | null
+  tenant?: { name: string; phone: string } | null
+}
+
+export interface CommunicationLogEntry {
+  id: string
+  property_id: string
+  tenant_id: string | null
+  template_id: string | null
+  channel: CommunicationChannel
+  rendered_message: string
+  status: CommunicationStatus
+  sent_by: string | null
+  created_at: string
+  tenant?: { name: string; phone: string } | null
+}
+
+export interface CommunicationSettings {
+  property_id: string
+  whatsapp_enabled: boolean
+  push_enabled: boolean
+  default_reminder_days: number
+  updated_at: string
+}
+
+/** The variable set every template body can reference as {{Variable Name}}. */
+export interface TemplateVariables {
+  'Tenant Name'?: string
+  'Property Name'?: string
+  'Room Number'?: string
+  'Amount'?: string
+  'Due Date'?: string
+  'Owner Name'?: string
+  [customVariable: string]: string | undefined
 }

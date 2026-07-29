@@ -1,7 +1,11 @@
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import QRCode from 'qrcode'
+// jsPDF/jspdf-autotable/qrcode are only needed once someone actually generates a
+// document — not on every page that merely imports this file. Importing them as
+// `type` here keeps type-checking (e.g. `doc: jsPDF` parameter annotations below)
+// with zero runtime cost, and each exported function below lazy-loads the real
+// module the moment it's called instead of at module load time.
+import type jsPDF from 'jspdf'
 import { formatINR, formatDate } from '@/lib/utils'
+import { savePdf } from '@/lib/native/share'
 
 // ─── Shared premium-document helpers ───────────────────────────────────────
 function drawLogoBadge(doc: jsPDF, propertyName: string, x: number, y: number) {
@@ -26,6 +30,7 @@ function drawWatermark(doc: jsPDF, text: string) {
 
 async function drawQRCode(doc: jsPDF, content: string, x: number, y: number, size: number) {
   try {
+    const { default: QRCode } = await import('qrcode')
     const dataUrl = await QRCode.toDataURL(content, { margin: 0, width: 200 })
     doc.addImage(dataUrl, 'PNG', x, y, size, size)
   } catch {
@@ -47,7 +52,9 @@ interface AgreementData {
   noticePeriodDays: number
 }
 
-export function generateAgreementPDF(data: AgreementData) {
+export async function generateAgreementPDF(data: AgreementData) {
+  const { default: jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = 20
@@ -105,7 +112,7 @@ export function generateAgreementPDF(data: AgreementData) {
     ty += split.length * 5 + 3
   })
 
-  doc.save(`Rent-Agreement-${data.tenantName.replace(/\s+/g, '-')}.pdf`)
+  await savePdf(doc, `Rent-Agreement-${data.tenantName.replace(/\s+/g, '-')}.pdf`)
 }
 
 interface ReceiptData {
@@ -141,6 +148,8 @@ function monthRangeFromLabel(label?: string): [string, string] | null {
 }
 
 export async function generateReceiptPDF(data: ReceiptData) {
+  const { default: jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = 16
@@ -217,7 +226,7 @@ export async function generateReceiptPDF(data: ReceiptData) {
   doc.setFontSize(8).setTextColor(150)
   doc.text('This is a system-generated receipt from PG Manager.', 14, finalY + 22)
 
-  doc.save(`Receipt-${data.receiptNo}.pdf`)
+  await savePdf(doc, `Receipt-${data.receiptNo}.pdf`)
 }
 
 // ─── Full PG Rental Agreement (premium — logo, photo, QR, watermark) ─────────
@@ -290,6 +299,8 @@ async function tryFetchImageAsDataUrl(url: string): Promise<string | null> {
 }
 
 export async function generateFullAgreementPDF(data: FullAgreementData) {
+  const { default: jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -426,5 +437,82 @@ export async function generateFullAgreementPDF(data: FullAgreementData) {
   doc.setFontSize(8).setTextColor(150)
   doc.text(`Status: ${data.status.toUpperCase()}`, 14, pageHeight - 10)
 
-  doc.save(`${data.agreementNumber}.pdf`)
+  await savePdf(doc, `${data.agreementNumber}.pdf`)
 }
+
+// ─── Phase 5.6: QR Tenant Card ──────────────────────────────────────────────
+interface TenantCardData {
+  tenantId: string
+  tenantName: string
+  tenantPhone: string
+  tenantPhotoUrl?: string | null
+  propertyName: string
+  roomNumber?: string
+  bedLabel?: string
+  joiningDate: string
+  status: string
+}
+
+/**
+ * A compact, credit-card-sized ID card per tenant with a scannable QR code.
+ * Reuses the same QR-verification pattern as the Agreement PDF (Phase 1) —
+ * the QR encodes a data summary for manual cross-checking, not a link to a
+ * public page (none exists), so nothing is implied that isn't actually built.
+ */
+export async function generateTenantIDCardPDF(data: TenantCardData) {
+  const { default: jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [85.6, 53.98] }) // standard ID-card size
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  // Border + header band
+  doc.setDrawColor(230).setLineWidth(0.4).rect(1, 1, pageWidth - 2, pageHeight - 2)
+  doc.setFillColor(37, 99, 235).rect(1, 1, pageWidth - 2, 10, 'F')
+  drawLogoBadge(doc, data.propertyName, 3, 2.2)
+  doc.setTextColor(255, 255, 255).setFontSize(8).setFont('helvetica', 'bold')
+  doc.text(data.propertyName, 19, 6, { maxWidth: pageWidth - 40 })
+  doc.setFontSize(6).setFont('helvetica', 'normal')
+  doc.text('TENANT ID CARD', 19, 9.5)
+  doc.setTextColor(0)
+
+  // Photo, if available
+  let textX = 4
+  if (data.tenantPhotoUrl) {
+    const photoData = await tryFetchImageAsDataUrl(data.tenantPhotoUrl)
+    if (photoData) {
+      try {
+        doc.addImage(photoData, pageWidth - 20, 13, 16, 16)
+      } catch { /* fall back to text-only card */ }
+    }
+  }
+
+  let y = 18
+  doc.setFontSize(10).setFont('helvetica', 'bold').setTextColor(20)
+  doc.text(data.tenantName, textX, y, { maxWidth: pageWidth - 26 })
+  y += 5
+  doc.setFontSize(7.5).setFont('helvetica', 'normal').setTextColor(90)
+  const roomLine = `${data.roomNumber ? `Room ${data.roomNumber}` : 'Room —'}${data.bedLabel ? ` · Bed ${data.bedLabel}` : ''}`
+  doc.text(roomLine, textX, y)
+  y += 4.5
+  doc.text(`Phone: ${data.tenantPhone}`, textX, y)
+  y += 4.5
+  doc.text(`Joined: ${formatDate(data.joiningDate)}`, textX, y)
+
+  // Status chip
+  doc.setFontSize(6.5).setFont('helvetica', 'bold')
+  const chipColor: [number, number, number] = data.status === 'active' ? [22, 163, 74] : [156, 163, 175]
+  doc.setFillColor(...chipColor)
+  doc.roundedRect(textX, pageHeight - 8, 16, 4.2, 1, 1, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.text(data.status.toUpperCase(), textX + 8, pageHeight - 5.2, { align: 'center' })
+  doc.setTextColor(0)
+
+  // QR verification code
+  const qrContent = `PG Manager Tenant ID\nTenant: ${data.tenantName}\nProperty: ${data.propertyName}\nRoom: ${data.roomNumber ?? '—'}\nPhone: ${data.tenantPhone}\nJoined: ${data.joiningDate}\nStatus: ${data.status}`
+  await drawQRCode(doc, qrContent, pageWidth - 17, pageHeight - 18, 13)
+  doc.setFontSize(5).setTextColor(150)
+  doc.text('Scan to verify', pageWidth - 17, pageHeight - 3.5, { maxWidth: 13 })
+
+  await savePdf(doc, `Tenant-ID-${data.tenantName.replace(/\s+/g, '-')}.pdf`)
+}
+

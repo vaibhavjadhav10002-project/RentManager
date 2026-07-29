@@ -1,0 +1,131 @@
+/**
+ * Owner Dashboard — scoped design tokens
+ * ─────────────────────────────────────────────────────────────────────────
+ * Every variable here is namespaced `--owner-*` and only ever read inside
+ * a `.owner-shell` subtree (see tailwind.config.ts `owner.*` color keys).
+ * Nothing here touches `:root`, `.dark`, the shadcn `--background` /
+ * `--primary` / etc. (used by Admin/Auth), or the tenant-* variables used
+ * only inside the Tenant Portal. The three shells are intentionally
+ * independent.
+ *
+ * Theme resolution is attribute-based: <div class="owner-shell" data-theme="dark|light">
+ * `data-theme` is written by <OwnerThemeProvider> (client-side, before
+ * paint) based on the owner's saved preference (dark / light / system).
+ *
+ * NOTE: OwnerThemeProvider *also* toggles the literal global `.dark` class
+ * on the same wrapper, purely so existing `dark:` utility classes already
+ * used on pages not yet migrated to this design system (e.g. the current
+ * Dashboard page, before its own UI phase) keep working exactly as before.
+ * Once every owner page has been migrated to `owner-*` tokens, that global
+ * class can be retired — tracked in the CHANGELOG.
+ */
+
+.owner-shell {
+  /* Dark is the default look — applied whenever data-theme is absent or
+     explicitly "dark". */
+  --owner-background: 224 28% 7%;
+  --owner-background-subtle: 224 24% 10%;
+  --owner-surface: 222 22% 12%;
+  --owner-surface-elevated: 222 20% 15%;
+  --owner-surface-hover: 222 18% 18%;
+  --owner-border: 222 15% 20%;
+  --owner-border-strong: 222 13% 27%;
+
+  --owner-foreground: 220 20% 97%;
+  --owner-muted: 220 10% 65%;
+  --owner-muted-subtle: 220 9% 46%;
+
+  --owner-primary: 243 75% 61%;
+  --owner-primary-hover: 243 78% 68%;
+  --owner-primary-foreground: 0 0% 100%;
+
+  --owner-success: 142 69% 48%;
+  --owner-success-subtle: 142 45% 16%;
+  --owner-warning: 38 92% 55%;
+  --owner-warning-subtle: 38 55% 16%;
+  --owner-danger: 0 84% 63%;
+  --owner-danger-subtle: 0 55% 18%;
+  --owner-info: 217 91% 64%;
+  --owner-info-subtle: 217 55% 18%;
+  --owner-accent-purple: 271 81% 68%;
+  --owner-accent-purple-subtle: 271 50% 20%;
+  --owner-accent-teal: 172 66% 45%;
+  --owner-accent-teal-subtle: 172 50% 16%;
+
+  --owner-ring: 243 75% 61%;
+  --owner-shadow-color: 224 60% 2%;
+  --owner-glow: 243 75% 61%;
+
+  background-color: hsl(var(--owner-background));
+  color: hsl(var(--owner-foreground));
+  color-scheme: dark;
+}
+
+.owner-shell[data-theme='light'] {
+  --owner-background: 220 25% 97%;
+  --owner-background-subtle: 220 20% 94%;
+  --owner-surface: 0 0% 100%;
+  --owner-surface-elevated: 0 0% 100%;
+  --owner-surface-hover: 220 20% 95%;
+  --owner-border: 220 15% 90%;
+  --owner-border-strong: 220 13% 81%;
+
+  --owner-foreground: 222 47% 12%;
+  --owner-muted: 215 16% 44%;
+  --owner-muted-subtle: 215 14% 58%;
+
+  --owner-primary: 243 75% 56%;
+  --owner-primary-hover: 243 75% 50%;
+  --owner-primary-foreground: 0 0% 100%;
+
+  --owner-success: 142 71% 38%;
+  --owner-success-subtle: 142 60% 94%;
+  --owner-warning: 32 95% 44%;
+  --owner-warning-subtle: 38 92% 94%;
+  --owner-danger: 0 72% 51%;
+  --owner-danger-subtle: 0 84% 96%;
+  --owner-info: 217 91% 55%;
+  --owner-info-subtle: 217 91% 95%;
+  --owner-accent-purple: 271 70% 54%;
+  --owner-accent-purple-subtle: 271 70% 95%;
+  --owner-accent-teal: 172 66% 35%;
+  --owner-accent-teal-subtle: 172 60% 93%;
+
+  --owner-ring: 243 75% 56%;
+  --owner-shadow-color: 220 40% 60%;
+  --owner-glow: 243 75% 56%;
+
+  color-scheme: light;
+}
+
+.owner-shell,
+.owner-shell * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.owner-shell {
+  font-family: var(--font-inter, Inter), -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.owner-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.owner-shell :focus-visible {
+  outline: 2px solid hsl(var(--owner-ring));
+  outline-offset: 2px;
+}
+
+.owner-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+.owner-shell ::-webkit-scrollbar-thumb { background: hsl(var(--owner-border-strong)); border-radius: 10px; }
+.owner-shell ::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .owner-shell,
+  .owner-shell * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

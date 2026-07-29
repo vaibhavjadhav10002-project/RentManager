@@ -54,6 +54,58 @@ export function calculateLateFee(overdueDays: number, feePerDay: number, graceDa
   return chargeableDays * feePerDay
 }
 
+// ─── Smart Rent Adjustment (approved leave) ───────────────────────────────────
+// Prorates a billing month's rent down for any *approved* leave days that
+// fall inside it. Per-day rate = monthlyRent / calendar days in that month,
+// so shorter/longer months are charged fairly. Only ever reduces rent —
+// never increases it — and never below zero for the month.
+export interface ApprovedLeave { start_date: string; end_date: string }
+
+export function calculateLeaveRentAdjustment(monthLabel: string, monthlyRent: number, approvedLeaves: ApprovedLeave[]): number {
+  if (!approvedLeaves.length || !monthlyRent) return 0
+  const monthDate = new Date(`1 ${monthLabel}`)
+  const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
+  const daysInMonth = monthEnd.getDate()
+  const perDay = monthlyRent / daysInMonth
+
+  let leaveDays = 0
+  for (const l of approvedLeaves) {
+    const start = new Date(l.start_date)
+    const end = new Date(l.end_date)
+    const overlapStart = start > monthStart ? start : monthStart
+    const overlapEnd = end < monthEnd ? end : monthEnd
+    if (overlapEnd >= overlapStart) {
+      leaveDays += Math.floor((overlapEnd.getTime() - overlapStart.getTime()) / 86400000) + 1
+    }
+  }
+  return Math.min(monthlyRent, Math.round(leaveDays * perDay))
+}
+
+// ─── Rent Extension lookup ─────────────────────────────────────────────────
+// Finds an *approved* extension for a given billing month, if one exists.
+// Used to push out the effective due date used for late-fee calculation and
+// to show owner-side "extension granted" badges instead of a false overdue
+// flag. Extension never changes the rent amount owed — only its timing.
+export interface RentExtension { for_month: string; requested_until: string; status: string }
+
+export function getApprovedExtensionFor(monthLabel: string, extensions: RentExtension[]): RentExtension | null {
+  return extensions.find(e => e.for_month === monthLabel && e.status === 'approved') ?? null
+}
+
+// ─── Move-Out Checklist ─────────────────────────────────────────────────────
+// Standard PG move-out items. Fixed for now (not owner-configurable) —
+// keeps this sub-phase scoped; a per-property custom checklist can be a
+// future improvement if owners ask for one.
+export const DEFAULT_MOVE_OUT_CHECKLIST: string[] = [
+  'Room keys returned',
+  'No pending rent or bill dues',
+  'Room & furniture inspected for damage',
+  'Electricity meter reading noted',
+  'Personal belongings removed',
+  'Deposit settlement discussed with tenant',
+]
+
 // ─── Advance payment application ──────────────────────────────────────────────
 // Applies a lump advance-payment balance across unpaid/partial months in
 // chronological order (oldest first), same logic used everywhere this

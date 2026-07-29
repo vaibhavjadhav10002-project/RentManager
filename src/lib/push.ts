@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
+import { isNative } from '@/lib/native/platform'
+import { registerNativePush } from '@/lib/native/push'
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -30,6 +32,10 @@ export async function getNotificationPermissionState(): Promise<NotificationPerm
 /** Requests permission (if needed), subscribes to push, and saves the
  * subscription to Supabase for the currently logged-in user. */
 export async function enablePushNotifications(): Promise<boolean> {
+  // Native shell (Android/iOS app): use FCM/APNs device tokens instead of
+  // the browser Web Push API, which iOS WKWebView doesn't support at all.
+  if (isNative()) return registerNativePush()
+
   if (!isPushSupported()) return false
 
   const permission = await Notification.requestPermission()
@@ -65,6 +71,14 @@ export async function enablePushNotifications(): Promise<boolean> {
 }
 
 export async function disablePushNotifications(): Promise<void> {
+  if (isNative()) {
+    const sb = createClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (user) await sb.from('push_subscriptions').delete().eq('user_id', user.id).like('endpoint', 'native:%')
+    const { PushNotifications } = await import('@capacitor/push-notifications')
+    await PushNotifications.unregister().catch(() => {})
+    return
+  }
   if (!isPushSupported()) return
   const registration = await navigator.serviceWorker.getRegistration()
   const subscription = await registration?.pushManager.getSubscription()
@@ -73,6 +87,24 @@ export async function disablePushNotifications(): Promise<void> {
   const sb = createClient()
   await sb.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint)
   await subscription.unsubscribe()
+}
+
+/** Whether this browser currently has an active push subscription —
+ * used by the Settings notification toggle to reflect real state instead
+ * of just whether permission was ever granted (permission can be 'granted'
+ * while no subscription actually exists, e.g. right after disabling). */
+export async function hasActiveSubscription(): Promise<boolean> {
+  if (isNative()) {
+    const sb = createClient()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return false
+    const { data } = await sb.from('push_subscriptions').select('id').eq('user_id', user.id).like('endpoint', 'native:%').limit(1)
+    return !!data?.length
+  }
+  if (!isPushSupported()) return false
+  const registration = await navigator.serviceWorker.getRegistration()
+  const subscription = await registration?.pushManager.getSubscription()
+  return !!subscription
 }
 
 /** Fire-and-forget push notification trigger — call this right after a

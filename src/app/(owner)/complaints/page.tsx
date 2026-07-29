@@ -1,21 +1,21 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getComplaints, addComplaint, resolveComplaint, updateComplaint } from '@/lib/supabase/queries'
-import { formatDate } from '@/lib/utils'
+import { getComplaints, addComplaint, resolveComplaint } from '@/lib/supabase/queries'
+import { formatDate, cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Check, Loader2 } from 'lucide-react'
+import { Plus, Check, X, User, DoorOpen, Calendar, ArrowRight, MessageSquareWarning } from 'lucide-react'
 import { sendPushNotification } from '@/lib/push'
+import {
+  OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
+  type OwnerBadgeProps,
+} from '@/components/owner/ui'
 
-const PRIORITY_COLOR: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-600',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-red-100 text-red-700',
+const PRIORITY_TONE: Record<string, NonNullable<OwnerBadgeProps['tone']>> = {
+  low: 'neutral', medium: 'warning', high: 'danger',
 }
-const STATUS_COLOR: Record<string, string> = {
-  open: 'bg-yellow-100 text-yellow-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  resolved: 'bg-green-100 text-green-700',
+const STATUS_TONE: Record<string, NonNullable<OwnerBadgeProps['tone']>> = {
+  open: 'warning', in_progress: 'info', resolved: 'success',
 }
 
 export default function ComplaintsPage() {
@@ -57,113 +57,113 @@ export default function ComplaintsPage() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Complaints</h1>
-          <p className="text-sm text-gray-500">{complaints.filter(c => c.status !== 'resolved').length} open · {complaints.filter(c => c.status === 'resolved').length} resolved</p>
+          <h1 className="text-xl font-extrabold text-owner-fg">Complaints</h1>
+          <p className="text-sm text-owner-muted">{complaints.filter(c => c.status !== 'resolved').length} open · {complaints.filter(c => c.status === 'resolved').length} resolved</p>
         </div>
-        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
-          <Plus className="w-4 h-4" /> Add Complaint
-        </button>
+        <OwnerButton onClick={() => setModal(true)} icon={<Plus className="w-4 h-4" />}>
+          Add Complaint
+        </OwnerButton>
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
         {['all', 'open', 'in_progress', 'resolved'].map(s => (
-          <button key={s} onClick={() => setFilter(s)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${filter === s ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <button key={s} onClick={() => setFilter(s)}
+            className={cn('px-3 py-1.5 rounded-owner-full text-xs font-semibold transition-colors', filter === s ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg')}>
             {s === 'all' ? 'All' : s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
           </button>
         ))}
       </div>
 
-      {loading ? <div className="flex items-center justify-center h-40 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div> : (
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
+        </div>
+      ) : (
         <div className="space-y-3">
           {filtered.map(c => (
-            <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <OwnerCard key={c.id}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="font-bold text-gray-900 text-sm">{c.issue_type}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${PRIORITY_COLOR[c.priority]}`}>{c.priority}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>{c.status.replace('_', ' ')}</span>
+                    <span className="font-bold text-owner-fg text-sm">{c.issue_type}</span>
+                    <OwnerBadge tone={PRIORITY_TONE[c.priority]} className="capitalize">{c.priority}</OwnerBadge>
+                    <OwnerBadge tone={STATUS_TONE[c.status]}>{c.status.replace('_', ' ')}</OwnerBadge>
                   </div>
-                  {c.description && <p className="text-sm text-gray-600 mb-2">{c.description}</p>}
-                  <div className="flex gap-3 text-xs text-gray-400 flex-wrap">
-                    {c.tenant && <span>👤 {c.tenant.name}</span>}
-                    {c.room && <span>🚪 Room {c.room.room_number}</span>}
-                    <span>📅 {formatDate(c.created_at)}</span>
-                    {c.assigned_to && <span className="text-blue-600 font-semibold">→ {c.assigned_to}</span>}
+                  {c.description && <p className="text-sm text-owner-muted mb-2">{c.description}</p>}
+                  <div className="flex gap-3 text-xs text-owner-muted-subtle flex-wrap items-center">
+                    {c.tenant && <span className="flex items-center gap-1"><User className="w-3 h-3" /> {c.tenant.name}</span>}
+                    {c.room && <span className="flex items-center gap-1"><DoorOpen className="w-3 h-3" /> Room {c.room.room_number}</span>}
+                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(c.created_at)}</span>
+                    {c.assigned_to && <span className="flex items-center gap-1 text-owner-primary font-semibold"><ArrowRight className="w-3 h-3" /> {c.assigned_to}</span>}
                   </div>
                 </div>
                 {c.status !== 'resolved' && (
-                  <button onClick={async () => {
-                    await resolveComplaint(c.id)
-                    toast.success('Marked resolved!')
-                    if (c.tenant?.auth_user_id) {
-                      sendPushNotification({
-                        user_ids: [c.tenant.auth_user_id],
-                        title: '✅ Complaint Resolved',
-                        body: `Your complaint "${c.issue_type}" has been marked resolved.`,
-                        url: '/portal', tag: 'complaint',
-                      })
-                    }
-                    load()
-                  }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-xs font-semibold transition flex-shrink-0">
-                    <Check className="w-3.5 h-3.5" /> Resolve
-                  </button>
+                  <OwnerButton
+                    onClick={async () => {
+                      await resolveComplaint(c.id)
+                      toast.success('Marked resolved!')
+                      if (c.tenant?.auth_user_id) {
+                        sendPushNotification({
+                          user_ids: [c.tenant.auth_user_id],
+                          title: '✅ Complaint Resolved',
+                          body: `Your complaint "${c.issue_type}" has been marked resolved.`,
+                          url: '/portal', tag: 'complaint',
+                        })
+                      }
+                      load()
+                    }}
+                    variant="secondary" size="sm" icon={<Check className="w-3.5 h-3.5 text-owner-success" />}
+                  >
+                    Resolve
+                  </OwnerButton>
                 )}
               </div>
-            </div>
+            </OwnerCard>
           ))}
-          {filtered.length === 0 && <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">No complaints found</div>}
+          {filtered.length === 0 && (
+            <OwnerCard>
+              <OwnerEmptyState icon={MessageSquareWarning} title="No complaints found" />
+            </OwnerCard>
+          )}
         </div>
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold">Add Complaint</h2>
-              <button onClick={() => setModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
+              <h2 className="text-base font-bold text-owner-fg">Add Complaint</h2>
+              <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setModal(false)}>
+                <X />
+              </OwnerIconButton>
             </div>
             <div className="p-6 space-y-4">
               {activeId === 'all' && (
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Property *</label>
-                  <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
-                    <option value="">Select Property</option>
-                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
+                <OwnerSelect label="Property *" value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}>
+                  <option value="">Select Property</option>
+                  {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </OwnerSelect>
               )}
+              <OwnerSelect label="Issue Type" value={form.issue_type} onChange={e => setForm(f => ({ ...f, issue_type: e.target.value }))}>
+                {['Plumbing', 'Electrical', 'WiFi', 'Cleaning', 'AC', 'Maintenance', 'Other'].map(t => <option key={t}>{t}</option>)}
+              </OwnerSelect>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Issue Type</label>
-                <select value={form.issue_type} onChange={e => setForm(f => ({ ...f, issue_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
-                  {['Plumbing', 'Electrical', 'WiFi', 'Cleaning', 'AC', 'Maintenance', 'Other'].map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Priority</label>
+                <label className="text-xs font-semibold text-owner-muted block mb-1.5">Priority</label>
                 <div className="flex gap-2">
                   {['low', 'medium', 'high'].map(p => (
                     <button key={p} onClick={() => setForm(f => ({ ...f, priority: p }))}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition capitalize ${form.priority === p ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{p}</button>
+                      className={cn('flex-1 py-2 rounded-owner-lg text-xs font-semibold border transition-colors capitalize', form.priority === p ? 'border-owner-primary bg-owner-primary/10 text-owner-primary' : 'border-owner-border text-owner-muted hover:bg-owner-surface-hover')}>
+                      {p}
+                    </button>
                   ))}
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
-                <textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the issue…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Assign To</label>
-                <input value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} placeholder="e.g. Plumber Raju" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
-              </div>
+              <OwnerTextarea label="Description" rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the issue…" />
+              <OwnerInput label="Assign To" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} placeholder="e.g. Plumber Raju" />
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit
-              </button>
-              <button onClick={() => setModal(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
+            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
+              <OwnerButton onClick={handleAdd} loading={saving} fullWidth>Submit</OwnerButton>
+              <OwnerButton onClick={() => setModal(false)} variant="secondary" fullWidth>Cancel</OwnerButton>
             </div>
           </div>
         </div>
