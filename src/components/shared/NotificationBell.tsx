@@ -73,7 +73,7 @@ export default function NotificationBell() {
             </div>
             <div className="max-h-80 overflow-y-auto">
               {items.length === 0 ? (
-                <div className="text-center py-8 text-sm text-gray-400">You're all caught up!</div>
+                <div className="text-center py-8 text-sm text-gray-400">You&apos;re all caught up!</div>
               ) : items.map(n => (
                 <button key={n.id} onClick={() => handleClick(n)}
                   className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition ${!n.read ? 'bg-blue-50/40' : ''}`}>

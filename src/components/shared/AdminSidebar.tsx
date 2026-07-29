@@ -95,7 +95,7 @@ export default function AdminSidebar({ open, onClose, adminEmail }: Props) {
           <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl p-4 relative overflow-hidden">
             <div className="text-[10px] font-semibold text-purple-100/80 uppercase tracking-wide mb-1">Platform Billing</div>
             <div className="text-sm font-extrabold text-white mb-2">Not set up yet</div>
-            <div className="text-[11px] text-purple-100/70 mb-3">This app doesn't charge PG owners yet.</div>
+            <div className="text-[11px] text-purple-100/70 mb-3">This app doesn&apos;t charge PG owners yet.</div>
             <button onClick={() => toast.info('Billing/subscriptions are a future feature — see the Subscriptions & Billing panel on the dashboard.')} className="w-full bg-white text-purple-700 text-xs font-bold py-2 rounded-xl hover:bg-purple-50 transition">
               Learn More
             </button>
