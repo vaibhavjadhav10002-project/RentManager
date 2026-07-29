@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli'
+import { KeyboardResize } from '@capacitor/keyboard'
 
 // ─────────────────────────────────────────────────────────────────────────
 // WHY "server.url" INSTEAD OF A STATIC BUNDLE
@@ -69,7 +70,7 @@ const config: CapacitorConfig = {
       backgroundColor: '#2563EB',
     },
     Keyboard: {
-      resize: 'body',
+      resize: KeyboardResize.Body,
       resizeOnFullScreen: true,
     },
     PushNotifications: {

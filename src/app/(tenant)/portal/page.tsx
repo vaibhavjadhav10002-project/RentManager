@@ -16,6 +16,7 @@ import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
 import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
 import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
+import type { DepositDeductionItem } from '@/types'
 import {
   LogOut, Loader2, CheckCircle, Clock, FileText, MessageCircle, Lock, Download,
   AlertCircle, LayoutDashboard, ShieldCheck, User as UserIcon, Bell,
@@ -1163,7 +1164,7 @@ export default function TenantPortal() {
                       {tenant.deposit_deduction_items?.length > 0 && (
                         <div className="pt-1 space-y-1 border-t border-green-100 mt-1">
                           <div className="text-xs font-semibold text-green-800 pt-1">Deductions</div>
-                          {tenant.deposit_deduction_items.map((item, idx) => (
+                          {tenant.deposit_deduction_items.map((item: DepositDeductionItem, idx: number) => (
                             <div key={idx} className="flex justify-between text-xs text-gray-600">
                               <span>{item.label}</span>
                               <span>− {formatINR(item.amount)}</span>

@@ -24,7 +24,7 @@ export default function VisitorsPage() {
       const ids = activeId === 'all' ? properties.map(p => p.id) : [activeId]
       if (ids.length === 0 || ids.some(id => !id)) { setVisitors([]); setTenants([]); setLoading(false); return }
       const [visitorLists, tenantLists] = await Promise.all([
-        Promise.all(ids.map(getVisitors)),
+        Promise.all(ids.map(id => getVisitors(id))),
         Promise.all(ids.map(getTenants)),
       ])
       setVisitors(visitorLists.flat() as Visitor[])

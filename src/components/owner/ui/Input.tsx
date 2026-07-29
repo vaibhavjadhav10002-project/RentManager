@@ -90,10 +90,11 @@ OwnerTextarea.displayName = 'OwnerTextarea'
 export interface OwnerSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
+  hint?: string
 }
 
 export const OwnerSelect = forwardRef<HTMLSelectElement, OwnerSelectProps>(
-  ({ className, label, error, id, children, ...props }, ref) => {
+  ({ className, label, error, hint, id, children, ...props }, ref) => {
     const selectId = id ?? props.name
     return (
       <div className="w-full">
@@ -113,7 +114,11 @@ export const OwnerSelect = forwardRef<HTMLSelectElement, OwnerSelectProps>(
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-owner-muted pointer-events-none" />
         </div>
-        {error && <p className="text-xs text-owner-danger mt-1.5">{error}</p>}
+        {error ? (
+          <p className="text-xs text-owner-danger mt-1.5">{error}</p>
+        ) : hint ? (
+          <p className="text-xs text-owner-muted-subtle mt-1.5">{hint}</p>
+        ) : null}
       </div>
     )
   }

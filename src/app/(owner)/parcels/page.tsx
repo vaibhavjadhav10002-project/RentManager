@@ -25,7 +25,7 @@ export default function ParcelsPage() {
       const ids = activeId === 'all' ? properties.map(p => p.id) : [activeId]
       if (ids.length === 0 || ids.some(id => !id)) { setParcels([]); setTenants([]); setLoading(false); return }
       const [parcelLists, tenantLists] = await Promise.all([
-        Promise.all(ids.map(getParcels)),
+        Promise.all(ids.map(id => getParcels(id))),
         Promise.all(ids.map(getTenants)),
       ])
       setParcels(parcelLists.flat() as Parcel[])

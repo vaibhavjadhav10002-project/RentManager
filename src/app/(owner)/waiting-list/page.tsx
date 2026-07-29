@@ -33,7 +33,7 @@ export default function WaitingListPage() {
       const ids = activeId === 'all' ? properties.map(p => p.id) : [activeId]
       if (ids.length === 0 || ids.some(id => !id)) { setEntries([]); setRooms([]); setTenants([]); setLoading(false); return }
       const [entryLists, roomLists, tenantLists] = await Promise.all([
-        Promise.all(ids.map(getWaitingList)),
+        Promise.all(ids.map(id => getWaitingList(id))),
         Promise.all(ids.map(getRooms)),
         Promise.all(ids.map(getTenants)),
       ])
