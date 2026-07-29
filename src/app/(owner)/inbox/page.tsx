@@ -376,7 +376,7 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
           <div className="font-bold text-sm text-owner-fg">Needs a Reminder ({candidates.length})</div>
         </div>
         <p className="text-xs text-owner-muted-subtle mb-4">
-          Unpaid for the current month, not reminded in the last {reminderLeadDays} day{reminderLeadDays === 1 ? '' : 's'}. Uses the "{defaultTemplate.name}" template — change the default in Templates.
+          Unpaid for the current month, not reminded in the last {reminderLeadDays} day{reminderLeadDays === 1 ? '' : 's'}. Uses the &quot;{defaultTemplate.name}&quot; template — change the default in Templates.
         </p>
         {candidates.length === 0 ? (
           <OwnerEmptyState icon={Sparkles} title="Nobody needs a reminder right now" className="py-8" />
@@ -411,7 +411,7 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
           <AlertTriangle className="w-4 h-4 text-owner-danger" />
           <div className="font-bold text-sm text-owner-fg">Retry Queue ({failedQueue.length})</div>
         </div>
-        <p className="text-xs text-owner-muted-subtle mb-4">Messages that couldn't be prepared — usually a missing phone number.</p>
+        <p className="text-xs text-owner-muted-subtle mb-4">Messages that couldn&apos;t be prepared — usually a missing phone number.</p>
         {failedQueue.length === 0 ? (
           <OwnerEmptyState icon={CheckCheck} title="Nothing to retry" className="py-8" />
         ) : (

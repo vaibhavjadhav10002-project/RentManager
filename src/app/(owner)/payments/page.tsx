@@ -329,7 +329,7 @@ export default function PaymentsPage() {
         <div className="space-y-2">
           {tab === 'ledger' && (
             <p className="text-xs text-owner-muted px-1">
-              Every partial payment is logged separately with the collector's name. Past entries are never changed.
+              Every partial payment is logged separately with the collector&apos;s name. Past entries are never changed.
             </p>
           )}
           <OwnerTable>
@@ -437,7 +437,7 @@ export default function PaymentsPage() {
                   <OwnerInput label="For Month" value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" />
                 )}
                 {form.type === 'advance' && (
-                  <p className="text-xs text-owner-muted-subtle -mt-2 col-span-1 self-end pb-2">Advance payments auto-apply to the tenant's next unpaid month(s) — no need to pick a month.</p>
+                  <p className="text-xs text-owner-muted-subtle -mt-2 col-span-1 self-end pb-2">Advance payments auto-apply to the tenant&apos;s next unpaid month(s) — no need to pick a month.</p>
                 )}
                 <OwnerInput label="Total Due (₹)" type="number" value={form.total_due} onChange={e => setForm(f => ({ ...f, total_due: e.target.value }))} />
                 <OwnerInput label="Amount Received (₹) *" type="number" value={form.amount_received} onChange={e => setForm(f => ({ ...f, amount_received: e.target.value }))} />

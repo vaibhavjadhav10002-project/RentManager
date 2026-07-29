@@ -100,7 +100,7 @@ function LoginForm() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">
-          Don't have access? Contact your PG owner or admin.
+          Don&apos;t have access? Contact your PG owner or admin.
         </p>
       </div>
     </div>

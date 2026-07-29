@@ -33,7 +33,7 @@ export default function ForcePasswordChangeModal({ userId, onDone }: { userId: s
         </div>
         <h2 className="text-lg font-bold text-gray-900 mb-1">Set a new password</h2>
         <p className="text-sm text-gray-500 mb-5">
-          For your account's security, please set your own password before continuing.
+          For your account&apos;s security, please set your own password before continuing.
         </p>
 
         <div className="space-y-3">

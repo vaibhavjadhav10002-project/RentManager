@@ -257,7 +257,7 @@ export default function Topbar({ onMenuClick }: Props) {
                 <div className="px-4 py-3 border-b border-owner-border font-bold text-sm text-owner-fg">Notifications</div>
                 <div className="max-h-80 overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-owner-muted">You're all caught up!</div>
+                    <div className="text-center py-8 text-sm text-owner-muted">You&apos;re all caught up!</div>
                   ) : notifications.map(n => (
                     <button key={n.id} onClick={() => { setNotifOpen(false); router.push(n.link) }}
                       className="w-full text-left px-4 py-3 hover:bg-owner-surface-hover border-b border-owner-border last:border-0 transition-colors">

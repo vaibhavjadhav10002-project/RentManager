@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getNoticesForProperty, addNotice, deleteNotice } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
@@ -32,13 +32,13 @@ export default function NoticesPage() {
   })
   const [attachment, setAttachment] = useState<{ url: string; name: string } | null>(null)
 
-  function load() {
+  const load = useCallback(() => {
     if (activeId === 'all' || !activeId) { setNotices([]); setLoading(false); return }
     setLoading(true)
     getNoticesForProperty(activeId).then(setNotices).catch(() => setNotices([])).finally(() => setLoading(false))
-  }
+  }, [activeId])
 
-  useEffect(() => { load() }, [activeId])
+  useEffect(() => { load() }, [load])
 
   async function handleAttachmentSelect(file: File | null) {
     if (!file) return

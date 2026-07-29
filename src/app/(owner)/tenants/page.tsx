@@ -546,7 +546,7 @@ export default function TenantsPage() {
               <div className="p-6 space-y-4">
                 <p className="text-sm text-owner-muted">
                   Share these login details with <span className="font-semibold text-owner-fg">{inviteResult.name}</span> so
-                  they can log in and complete their profile. They'll be asked to set their own password on first login.
+                  they can log in and complete their profile. They&apos;ll be asked to set their own password on first login.
                 </p>
                 <div className="bg-owner-surface rounded-owner-lg border border-owner-border p-4 space-y-3">
                   <div>
@@ -574,7 +574,7 @@ export default function TenantsPage() {
                   </div>
                 </div>
                 <p className="text-xs text-owner-muted-subtle">
-                  This password won't be shown again — copy it now, or reset it later from the tenant's profile.
+                  This password won&apos;t be shown again — copy it now, or reset it later from the tenant&apos;s profile.
                 </p>
                 <OwnerButton onClick={closeInviteModal} fullWidth>Done</OwnerButton>
               </div>
@@ -583,7 +583,7 @@ export default function TenantsPage() {
                 <div className="p-6 space-y-4">
                   <p className="text-sm text-owner-muted">
                     Just their name and number — the tenant logs in and fills out the rest of their profile themselves.
-                    You'll review and approve it before they're marked active.
+                    You&apos;ll review and approve it before they&apos;re marked active.
                   </p>
                   {activeId === 'all' && (
                     <OwnerSelect label="Property *" value={inviteForm.property_id} onChange={e => setInviteForm(f => ({ ...f, property_id: e.target.value }))}>
@@ -819,8 +819,8 @@ export default function TenantsPage() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-owner-muted">
-                Set a leaving date for <span className="font-semibold text-owner-fg">{noticeModal.name}</span>. They'll be moved to
-                "Leaving" status and appear in the Notice Period tracker until then.
+                Set a leaving date for <span className="font-semibold text-owner-fg">{noticeModal.name}</span>. They&apos;ll be moved to
+                &quot;Leaving&quot; status and appear in the Notice Period tracker until then.
               </p>
               <OwnerInput
                 label="Leaving Date *"
@@ -866,7 +866,7 @@ export default function TenantsPage() {
                   ))}
                   {checklist.completed && (
                     <div className="text-xs text-green-600 font-semibold text-center pt-2">
-                      All items checked — ready to Mark Left when you're set.
+                      All items checked — ready to Mark Left when you&apos;re set.
                     </div>
                   )}
                 </div>

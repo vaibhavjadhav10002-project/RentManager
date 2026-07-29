@@ -125,7 +125,7 @@ export default function TenantPortal() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
   const thisMonth = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
   const nextDueDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date(tenant?.joining_date ?? Date.now()).getDate())
@@ -717,7 +717,7 @@ export default function TenantPortal() {
                     <div className="px-4 py-3 border-b border-gray-100 font-bold text-sm text-gray-900">Notifications</div>
                     <div className="max-h-80 overflow-y-auto">
                       {tenantNotifications.length === 0 ? (
-                        <div className="text-center py-8 text-sm text-gray-400">You're all caught up!</div>
+                        <div className="text-center py-8 text-sm text-gray-400">You&apos;re all caught up!</div>
                       ) : tenantNotifications.map(n => (
                         <button key={n.id} onClick={() => { setNotifOpen(false); n.tab === 'messages' ? openMessagesTab() : setTab(n.tab) }}
                           className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
@@ -1447,7 +1447,7 @@ export default function TenantPortal() {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-xl font-extrabold text-gray-900">Maintenance</h1>
-                  <p className="text-sm text-gray-500">Track issues you've raised.</p>
+                  <p className="text-sm text-gray-500">Track issues you&apos;ve raised.</p>
                 </div>
                 <button onClick={() => setComplaintModal(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
                   <Wrench className="w-4 h-4" /> Raise New
@@ -1573,7 +1573,7 @@ export default function TenantPortal() {
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-gray-400">Document upload isn't available yet — ask your PG owner if they need physical/digital copies of your KYC documents.</p>
+              <p className="text-xs text-gray-400">Document upload isn&apos;t available yet — ask your PG owner if they need physical/digital copies of your KYC documents.</p>
             </div>
           )}
 
@@ -1814,7 +1814,7 @@ export default function TenantPortal() {
             </div>
             <div className="p-5 space-y-4">
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-                Amount: <span className="font-bold">{formatINR(payAmount)}</span>{payKind === 'rent' && lateFee > 0 && <span> (includes {formatINR(lateFee)} late fee)</span>}. This notifies your owner that you've paid. No real payment is made here — the owner will verify and approve.
+                Amount: <span className="font-bold">{formatINR(payAmount)}</span>{payKind === 'rent' && lateFee > 0 && <span> (includes {formatINR(lateFee)} late fee)</span>}. This notifies your owner that you&apos;ve paid. No real payment is made here — the owner will verify and approve.
               </div>
               {tenant.property?.upi_id && (
                 <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={payAmount} note={`${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`} />
@@ -1925,7 +1925,7 @@ export default function TenantPortal() {
             </div>
             <div className="p-5 space-y-4 overflow-y-auto">
               <p className="text-xs text-gray-500">
-                Changes here won't take effect immediately — your owner will review and approve them first.
+                Changes here won&apos;t take effect immediately — your owner will review and approve them first.
               </p>
               {[
                 ['name', 'Full Name'], ['email', 'Email'], ['aadhaar_number', 'Aadhaar Number'],

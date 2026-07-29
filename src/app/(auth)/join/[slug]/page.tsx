@@ -90,7 +90,7 @@ export default function JoinPage() {
     loadProperty()
   }, [params.slug])
 
-  useEffect(() => { if (form.name && !signedName) setSignedName(form.name) }, [form.name])
+  useEffect(() => { if (form.name) setSignedName((prev) => prev || form.name) }, [form.name])
 
   async function handleGovIdSelect(file: File | null) {
     if (!file) return
@@ -268,7 +268,7 @@ export default function JoinPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-sm w-full text-center">
         <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-4" />
         <h2 className="text-lg font-extrabold text-gray-900 mb-2">Request Submitted!</h2>
-        <p className="text-sm text-gray-500">Your details and signed agreement have been sent to the PG owner. They'll review, assign your room, and create your login. You'll receive your credentials soon.</p>
+        <p className="text-sm text-gray-500">Your details and signed agreement have been sent to the PG owner. They&apos;ll review, assign your room, and create your login. You&apos;ll receive your credentials soon.</p>
       </div>
     </div>
   )

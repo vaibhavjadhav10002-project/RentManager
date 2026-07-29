@@ -358,7 +358,7 @@ export default function ApprovalsPage() {
                   <div>
                     <div className="font-bold text-gray-900">{p.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
                     <div className="text-xs text-gray-500 mt-1">{p.for_month} · <span className="capitalize">{p.method?.replace('_', ' ')}</span></div>
-                    {p.tenant_note && <div className="text-xs text-gray-400 italic mt-1">"{p.tenant_note}"</div>}
+                    {p.tenant_note && <div className="text-xs text-gray-400 italic mt-1">&quot;{p.tenant_note}&quot;</div>}
                     <div className="text-xs text-gray-400 mt-1">Submitted {new Date(p.created_at).toLocaleString('en-IN')}</div>
                   </div>
                 </div>
@@ -500,7 +500,7 @@ export default function ApprovalsPage() {
                       </button>
                     </div>
                   </div>
-                  {req.reason && <div className="text-xs text-gray-500 italic bg-gray-50 rounded-lg px-3 py-2 mb-3">"{req.reason}"</div>}
+                  {req.reason && <div className="text-xs text-gray-500 italic bg-gray-50 rounded-lg px-3 py-2 mb-3">&quot;{req.reason}&quot;</div>}
                   <div className="border border-gray-100 rounded-xl overflow-hidden">
                     <div className="grid grid-cols-3 bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wide px-3 py-2">
                       <span>Field</span><span>Current</span><span>Requested</span>
@@ -536,7 +536,7 @@ export default function ApprovalsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-gray-900">{l.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {l.tenant?.room?.room_number ?? '—'}</span></div>
                       <div className="text-xs text-gray-500 mt-1">{formatDate(l.start_date)} – {formatDate(l.end_date)}</div>
-                      {l.reason && <div className="text-xs text-gray-400 italic mt-1">"{l.reason}"</div>}
+                      {l.reason && <div className="text-xs text-gray-400 italic mt-1">&quot;{l.reason}&quot;</div>}
                       <div className="text-xs text-gray-400 mt-1">Requested {formatDate(l.created_at)}</div>
                     </div>
                   </div>
@@ -577,7 +577,7 @@ export default function ApprovalsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-gray-900">{x.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {x.tenant?.room?.room_number ?? '—'}</span></div>
                       <div className="text-xs text-gray-500 mt-1">{x.for_month} rent → pay by {formatDate(x.requested_until)}</div>
-                      {x.reason && <div className="text-xs text-gray-400 italic mt-1">"{x.reason}"</div>}
+                      {x.reason && <div className="text-xs text-gray-400 italic mt-1">&quot;{x.reason}&quot;</div>}
                       <div className="text-xs text-gray-400 mt-1">Requested {formatDate(x.created_at)}</div>
                     </div>
                   </div>
@@ -618,7 +618,7 @@ export default function ApprovalsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-gray-900">{m.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {m.tenant?.room?.room_number ?? '—'}</span></div>
                       <div className="text-xs text-gray-500 mt-1">Move out on {formatDate(m.requested_date)}</div>
-                      {m.reason && <div className="text-xs text-gray-400 italic mt-1">"{m.reason}"</div>}
+                      {m.reason && <div className="text-xs text-gray-400 italic mt-1">&quot;{m.reason}&quot;</div>}
                       <div className="text-xs text-gray-400 mt-1">Requested {formatDate(m.created_at)}</div>
                     </div>
                   </div>
@@ -808,7 +808,7 @@ export default function ApprovalsPage() {
               <button onClick={() => setQrModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-xs text-gray-500">Share this link or QR code with new tenants. They fill in their details, it lands in "New Tenant Requests" for your approval.</p>
+              <p className="text-xs text-gray-500">Share this link or QR code with new tenants. They fill in their details, it lands in &quot;New Tenant Requests&quot; for your approval.</p>
               <div className="flex justify-center p-4 bg-gray-50 rounded-xl">
                 <QRCodeSVG value={joinLink} size={160} />
               </div>

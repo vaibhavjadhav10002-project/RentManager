@@ -97,7 +97,7 @@ export function StatusTimeline({ currentStatus, history, completionPercent, vari
                 )}
                 {step.key === 'correction_requested' && entry?.note && (
                   <div className={cn('text-xs mt-1 italic rounded-lg px-2.5 py-1.5', isTenant ? 'bg-tenant-warning/10 text-tenant-fg' : 'bg-amber-50 text-amber-800')}>
-                    "{entry.note}"
+                    &quot;{entry.note}&quot;
                   </div>
                 )}
               </div>

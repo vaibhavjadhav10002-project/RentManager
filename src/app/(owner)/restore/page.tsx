@@ -202,7 +202,7 @@ export default function RestorePage() {
           </p>
 
           {matchingProperties.length === 0 ? (
-            <p className="text-xs text-amber-600">None of the properties in this backup belong to your account — there's nothing to restore.</p>
+            <p className="text-xs text-amber-600">None of the properties in this backup belong to your account — there&apos;s nothing to restore.</p>
           ) : (
             <div className="space-y-2">
               {matchingProperties.map(pb => {
