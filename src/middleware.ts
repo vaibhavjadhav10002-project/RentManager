@@ -1,0 +1,80 @@
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function middleware(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const { pathname } = request.nextUrl
+
+  // Public routes — always accessible
+  const publicPaths = ['/login', '/join', '/welcome']
+  const isPublic = publicPaths.some(p => pathname.startsWith(p))
+
+  // Explore Mode: an unauthenticated visitor who tapped "Explore Rentivo"
+  // on the first-launch screen (src/lib/explore/cookies.ts is the only
+  // thing that ever sets this cookie). A real session is always checked
+  // first above, so a real login always takes priority. Scoped to the
+  // owner-area routes only (not /admin, not /portal).
+  const isExploring = request.cookies.get('rentivo_explore')?.value === '1'
+  const isOwnerArea = !pathname.startsWith('/admin') && !pathname.startsWith('/portal') && !isPublic
+
+  if (!user && !isPublic) {
+    if (isExploring && isOwnerArea) {
+      return supabaseResponse
+    }
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (user && pathname === '/login') {
+    // Redirect logged-in users to their dashboard based on role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role === 'super_admin') return NextResponse.redirect(new URL('/admin', request.url))
+    if (profile?.role === 'tenant') return NextResponse.redirect(new URL('/portal', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Protect admin routes
+  if (pathname.startsWith('/admin')) {
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', user!.id).single()
+    if (profile?.role !== 'super_admin')
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Protect tenant portal
+  if (pathname.startsWith('/portal')) {
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', user!.id).single()
+    if (profile?.role !== 'tenant')
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  return supabaseResponse
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+}

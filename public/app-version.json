@@ -1,0 +1,13 @@
+{
+  "latestVersion": "1.0.0",
+  "versionCode": 1,
+  "minimumSupportedVersion": "1.0.0",
+  "minimumSupportedVersionCode": 1,
+  "forceUpdate": false,
+  "releaseDate": "2026-07-29",
+  "apkDownloadUrl": "https://smartpgrent.vercel.app/downloads/rentivo-latest.apk",
+  "apkSizeMB": 18.4,
+  "releaseNotes": [
+    "Initial Android release of Rentivo"
+  ]
+}
