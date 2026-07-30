@@ -1,4 +1,86 @@
-# Changelog — Final Production Merge & Release Candidate Audit
+# Changelog — Broken Import Fix & Full Production Audit (Post-RC)
+
+## Scope
+Investigated a `next build` failure reporting `./lock-bus` and `./cookies`
+as unresolvable from `src/components/shared/ExploreLockSheet.tsx`, then
+performed a full whole-project audit (imports, TypeScript, ESLint, PWA
+assets, env references, Capacitor sync) as requested.
+
+## Root cause
+Not missing files. `src/lib/explore/lock-bus.ts` and
+`src/lib/explore/cookies.ts` both exist with their real implementations
+intact. `ExploreLockSheet.tsx` imported them with sibling-relative paths
+(`./lock-bus`, `./cookies`) as if they lived in `components/shared/`,
+but they live in `lib/explore/`. No recreation was needed or performed.
+
+## Fixed
+- `src/components/shared/ExploreLockSheet.tsx` — corrected imports to
+  `@/lib/explore/lock-bus` and `@/lib/explore/cookies`.
+- `src/lib/explore/lock-bus.ts` — `onExploreLockRequested`'s returned
+  cleanup closure returned `Set.delete`'s `boolean` result; React's
+  `useEffect` destructor must return `void`. Wrapped in a block body.
+- `src/lib/explore/sample-data.ts` — `EXPLORE_PROFILE.role` was
+  inferred as `string`, not the `UserRole` union; added `as const`.
+  `EXPLORE_TABLES` was typed `Record<string, unknown[]>`, incompatible
+  with the mock query builder's `Store` type; retyped to
+  `Record<string, Record<string, any>[]>`.
+- `src/lib/supabase/client.ts` — the deliberate mock-client cast to
+  `SupabaseClient` needed an `unknown` intermediate step; the two
+  shapes only partially overlap by design (mock, not real client).
+
+## Verified (whole project)
+- **Import graph** — every relative (`./`, `../`) and alias (`@/`)
+  import in `src/` scanned programmatically and resolved to a real
+  file. Zero broken imports found beyond the one fixed above.
+- `npm install` — passes, 0 errors.
+- `npm run lint` — passes, 0 errors (2 pre-existing `no-img-element`
+  warnings, unrelated to this audit, left as-is per "no unrelated
+  changes").
+- `npx tsc --noEmit` — passes, 0 errors.
+- `npm run build` — passes, all 39 routes compiled and generated.
+- **PWA assets** — `public/manifest.json` valid JSON; every icon path
+  it references exists on disk; `public/sw.js` present.
+- **Env references** — every `process.env.*` read in `src/` is
+  documented in `.env.local.example` (including the optional
+  FCM/APNs keys, which the code and docs both mark as not required to
+  build).
+- **Supabase imports** — `client.ts`, `server.ts`, `queries.ts` all
+  resolve everywhere they're imported.
+- `npx cap add android` + `npx cap sync android` — ran successfully;
+  `android/` project generated, 9 Capacitor plugins registered, Gradle
+  sync succeeded.
+
+## Known, by-design limitation (not a bug)
+`android/app/src/main/assets/public/index.html` is **not** generated,
+and this is expected. `capacitor.config.ts` intentionally configures
+`server.url` (remote-URL / live-site mode), not a bundled static
+export — documented in-file: the app has real server-rendered routes
+and API routes (`/api/push/send`, `/api/cron/automatic-backup`,
+middleware-based auth via cookies) that `next export` cannot produce as
+static HTML. The build output confirms this: 34 of 39 routes are
+server-rendered (`ƒ`), only 5 are static (`○`). In remote-URL mode,
+Capacitor's `webDir` is unused for app content by design (per the
+code comment already in the file) — the WebView loads `CAPACITOR_SERVER_URL`
+over the network at runtime instead of bundling `index.html` locally.
+Producing a real `index.html` here would require re-architecting the
+app to a static export, which would mean removing or relocating the
+API routes, cron job, and cookie-based middleware auth — a business-logic
+change explicitly out of scope. The Android project itself still builds;
+it just needs `CAPACITOR_SERVER_URL` set to your real deployed domain
+before running `cap sync` for a production APK.
+
+## Not independently verified in this environment
+This sandbox has no Android SDK, Gradle, or network access to Google's
+Maven/Gradle distribution servers, so an actual `./gradlew assembleDebug`
+APK compile could not be run here. The generated `android/` project
+structure, plugin registration, and Gradle sync step all completed
+without error, which is the portion of the Android toolchain reachable
+from this environment — the remaining Gradle/SDK build step needs to
+run on a machine (or CI) with the Android SDK installed.
+
+---
+
+
 
 ## Scope
 Merged Explore Mode and the App Update System (both built in a separate

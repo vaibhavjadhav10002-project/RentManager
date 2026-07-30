@@ -11,7 +11,7 @@ const P2 = 'explore-prop-0000-0000-000000000002'
 
 export const EXPLORE_PROFILE = {
   id: EXPLORE_OWNER_ID,
-  role: 'pg_owner',
+  role: 'pg_owner' as const,
   full_name: 'Explorer',
   phone: '9800000000',
   email: 'explore@rentivo.app',
@@ -135,7 +135,7 @@ export const parcels = [
   { id: 'parcel-2', property_id: P2, tenant_id: 'tenant-8', courier_name: 'Flipkart', received_at: '2026-07-26T11:00:00Z', collected_at: '2026-07-27T09:00:00Z', created_at: '2026-07-26T11:00:00Z' },
 ]
 
-export const EXPLORE_TABLES: Record<string, unknown[]> = {
+export const EXPLORE_TABLES: Record<string, Record<string, any>[]> = {
   profiles: [EXPLORE_PROFILE],
   properties, rooms, tenants, payments, complaints, notices, expenses, visitors, parcels,
 }

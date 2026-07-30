@@ -8,7 +8,7 @@ const listeners = new Set<Listener>()
 
 export function onExploreLockRequested(fn: Listener) {
   listeners.add(fn)
-  return () => listeners.delete(fn)
+  return () => { listeners.delete(fn) }
 }
 
 export function requestExploreLock() {

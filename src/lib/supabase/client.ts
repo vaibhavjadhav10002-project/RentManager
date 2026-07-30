@@ -4,7 +4,7 @@ import { createExploreClient } from '@/lib/explore/mock-client'
 
 export function createClient() {
   if (isExploreModeClient()) {
-    return createExploreClient() as ReturnType<typeof createBrowserClient>
+    return createExploreClient() as unknown as ReturnType<typeof createBrowserClient>
   }
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

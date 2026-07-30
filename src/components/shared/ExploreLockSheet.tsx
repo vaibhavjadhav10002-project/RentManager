@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
-import { onExploreLockRequested } from './lock-bus'
-import { exitExploreMode } from './cookies'
+import { onExploreLockRequested } from '@/lib/explore/lock-bus'
+import { exitExploreMode } from '@/lib/explore/cookies'
 
 /**
  * Mounted once in the root layout (next to NativeBootstrap/PWARegister —
