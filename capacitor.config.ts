@@ -35,8 +35,8 @@ function safeHostname(url: string): string {
 }
 
 const config: CapacitorConfig = {
-  appId: 'com.pgmanager.app',
-  appName: 'PG Manager',
+  appId: 'com.rentivo.app',
+  appName: 'Rentivo',
   webDir: 'public', // unused in remote-url mode, but required by the CLI schema
   server: {
     url: PRODUCTION_URL,

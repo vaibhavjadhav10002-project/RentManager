@@ -100,7 +100,7 @@ export default function BackupPage() {
       }
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      await saveBlob(blob, `pg-manager-backup-${exportedAt.slice(0, 10)}.json`)
+      await saveBlob(blob, `rentivo-backup-${exportedAt.slice(0, 10)}.json`)
 
       setLastExport({ at: exportedAt, properties: properties.length, records: recordCount })
       toast.success('Backup downloaded!')

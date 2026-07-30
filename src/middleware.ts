@@ -25,10 +25,21 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes — always accessible
-  const publicPaths = ['/login', '/join']
+  const publicPaths = ['/login', '/join', '/welcome']
   const isPublic = publicPaths.some(p => pathname.startsWith(p))
 
+  // Explore Mode: an unauthenticated visitor who tapped "Explore Rentivo"
+  // on the first-launch screen (src/lib/explore/cookies.ts is the only
+  // thing that ever sets this cookie). A real session is always checked
+  // first above, so a real login always takes priority. Scoped to the
+  // owner-area routes only (not /admin, not /portal).
+  const isExploring = request.cookies.get('rentivo_explore')?.value === '1'
+  const isOwnerArea = !pathname.startsWith('/admin') && !pathname.startsWith('/portal') && !isPublic
+
   if (!user && !isPublic) {
+    if (isExploring && isOwnerArea) {
+      return supabaseResponse
+    }
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

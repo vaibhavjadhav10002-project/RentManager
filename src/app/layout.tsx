@@ -4,11 +4,15 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import PWARegister from '@/components/shared/PWARegister'
 import NativeBootstrap from '@/components/shared/NativeBootstrap'
+import { ExploreModeProvider } from '@/lib/explore/context'
+import ExploreBadge from '@/components/shared/ExploreBadge'
+import ExploreLockSheet from '@/components/shared/ExploreLockSheet'
+import AppUpdateChecker from '@/components/shared/AppUpdateChecker'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'PG Manager — Smart PG Management',
+  title: 'Rentivo — Smart PG & Property Management',
   description: 'Manage your PG properties, tenants, payments and more.',
   manifest: '/manifest.json',
   icons: {
@@ -18,7 +22,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'PG Manager',
+    title: 'Rentivo',
   },
 }
 
@@ -37,10 +41,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-xl focus:text-sm focus:font-semibold">
           Skip to content
         </a>
-        {children}
-        <Toaster richColors position="bottom-right" />
-        <PWARegister />
-        <NativeBootstrap />
+        <ExploreModeProvider>
+          {children}
+          <Toaster richColors position="bottom-right" />
+          <PWARegister />
+          <NativeBootstrap />
+          <ExploreBadge />
+          <ExploreLockSheet />
+          <AppUpdateChecker />
+        </ExploreModeProvider>
       </body>
     </html>
   )

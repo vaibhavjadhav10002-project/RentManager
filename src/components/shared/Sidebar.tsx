@@ -88,7 +88,7 @@ export default function Sidebar({ open, onClose, userName }: Props) {
               <Building2 className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-extrabold text-owner-fg truncate">PG Manager</div>
+              <div className="text-sm font-extrabold text-owner-fg truncate">Rentivo</div>
               <div className="text-[10px] text-owner-muted-subtle">Pro Dashboard</div>
             </div>
           </div>

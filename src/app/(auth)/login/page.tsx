@@ -48,7 +48,7 @@ function LoginForm() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg mb-3">
             <Building2 className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-xl font-extrabold text-gray-900">PG Manager</h1>
+          <h1 className="text-xl font-extrabold text-gray-900">Rentivo</h1>
           <p className="text-sm text-gray-500 mt-1">Smart property management</p>
         </div>
 

@@ -119,8 +119,9 @@ export default function JoinPage() {
   function validateStep(s: number): boolean {
     if (s === 0) {
       if (!form.name.trim()) { toast.error('Full name is required'); return false }
+      if (form.name.trim().length > 80) { toast.error('Full name is too long'); return false }
       const digits = form.phone.replace(/\D/g, '')
-      if (digits.length < 10) { toast.error('Enter a valid 10-digit mobile number'); return false }
+      if (digits.length !== 10) { toast.error('Enter a valid 10-digit mobile number'); return false }
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error('Enter a valid email address'); return false }
       if (!govIdUrl) { toast.error('Please upload a photo of your Government ID'); return false }
       if (!form.emergency_contact.trim()) { toast.error('Emergency contact is required'); return false }

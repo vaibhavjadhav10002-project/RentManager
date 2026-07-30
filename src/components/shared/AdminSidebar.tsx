@@ -51,7 +51,7 @@ export default function AdminSidebar({ open, onClose, adminEmail }: Props) {
               <Crown className="w-4.5 h-4.5 text-white" />
             </div>
             <div>
-              <div className="text-sm font-extrabold text-white leading-tight">PG Manager</div>
+              <div className="text-sm font-extrabold text-white leading-tight">Rentivo</div>
               <div className="text-[10px] text-purple-300/70">Super Admin</div>
             </div>
           </div>

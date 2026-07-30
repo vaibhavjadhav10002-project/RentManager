@@ -103,7 +103,7 @@ export async function generateAgreementPDF(data: AgreementData) {
     `1. The tenant agrees to pay a monthly rent of ${formatINR(data.monthlyRent)}, due on the same date each month as the joining date.`,
     `2. A security deposit of ${formatINR(data.depositAmount)} has been collected and is refundable upon vacating, subject to deductions for damages or dues.`,
     `3. The tenant must provide ${data.noticePeriodDays} days' written notice before vacating the property.`,
-    `4. This document confirms occupancy details as recorded in the PG Manager system and does not replace a formal registered rental agreement where legally required.`,
+    `4. This document confirms occupancy details as recorded in the Rentivo system and does not replace a formal registered rental agreement where legally required.`,
   ]
   let ty = finalY
   terms.forEach(line => {
@@ -218,13 +218,13 @@ export async function generateReceiptPDF(data: ReceiptData) {
   doc.setTextColor(0).setFontSize(9)
   doc.text(data.ownerName || 'Authorized Signatory', 14, finalY + 10)
 
-  const qrContent = `PG Manager Receipt\nNo: ${data.receiptNo}\nTenant: ${data.tenantName}\nAmount: ${data.amountReceived}\nDate: ${data.paymentDate}\nStatus: ${data.approvalStatus}`
+  const qrContent = `Rentivo Receipt\nNo: ${data.receiptNo}\nTenant: ${data.tenantName}\nAmount: ${data.amountReceived}\nDate: ${data.paymentDate}\nStatus: ${data.approvalStatus}`
   await drawQRCode(doc, qrContent, pageWidth - 38, finalY - 12, 22)
   doc.setFontSize(7).setTextColor(150)
   doc.text('Scan to verify', pageWidth - 38, finalY + 13)
 
   doc.setFontSize(8).setTextColor(150)
-  doc.text('This is a system-generated receipt from PG Manager.', 14, finalY + 22)
+  doc.text('This is a system-generated receipt from Rentivo.', 14, finalY + 22)
 
   await savePdf(doc, `Receipt-${data.receiptNo}.pdf`)
 }
@@ -428,7 +428,7 @@ export async function generateFullAgreementPDF(data: FullAgreementData) {
   // verification website.
   const qrY = y + 42
   if (qrY < pageHeight - 30) {
-    const qrContent = `PG Manager Agreement\nNo: ${data.agreementNumber}\nTenant: ${data.tenantName}\nProperty: ${data.propertyName}\nRoom: ${data.roomNumber ?? '—'}\nStart: ${data.startDate}\nRent: ${data.monthlyRent}\nStatus: ${data.status}`
+    const qrContent = `Rentivo Agreement\nNo: ${data.agreementNumber}\nTenant: ${data.tenantName}\nProperty: ${data.propertyName}\nRoom: ${data.roomNumber ?? '—'}\nStart: ${data.startDate}\nRent: ${data.monthlyRent}\nStatus: ${data.status}`
     await drawQRCode(doc, qrContent, pageWidth - 38, qrY, 24)
     doc.setFontSize(7).setTextColor(150)
     doc.text('Scan to verify', pageWidth - 38, qrY + 28)
@@ -508,7 +508,7 @@ export async function generateTenantIDCardPDF(data: TenantCardData) {
   doc.setTextColor(0)
 
   // QR verification code
-  const qrContent = `PG Manager Tenant ID\nTenant: ${data.tenantName}\nProperty: ${data.propertyName}\nRoom: ${data.roomNumber ?? '—'}\nPhone: ${data.tenantPhone}\nJoined: ${data.joiningDate}\nStatus: ${data.status}`
+  const qrContent = `Rentivo Tenant ID\nTenant: ${data.tenantName}\nProperty: ${data.propertyName}\nRoom: ${data.roomNumber ?? '—'}\nPhone: ${data.tenantPhone}\nJoined: ${data.joiningDate}\nStatus: ${data.status}`
   await drawQRCode(doc, qrContent, pageWidth - 17, pageHeight - 18, 13)
   doc.setFontSize(5).setTextColor(150)
   doc.text('Scan to verify', pageWidth - 17, pageHeight - 3.5, { maxWidth: 13 })

@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { addProperty } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 import { OwnerButton, OwnerIconButton, OwnerInput } from '@/components/owner/ui'
+import { validateName, validateUPI, friendlyError } from '@/lib/validation'
 
 interface Props {
   open: boolean
@@ -26,16 +27,19 @@ export default function AddPropertyModal({ open, onClose, onCreated }: Props) {
   if (!open) return null
 
   async function handleAdd() {
-    if (!form.name.trim()) { toast.error('Property name is required'); return }
+    const nameError = validateName(form.name, { label: 'Property name' })
+    if (nameError) { toast.error(nameError); return }
+    const upiError = validateUPI(form.upi_id, { required: false })
+    if (upiError) { toast.error(upiError); return }
     setSaving(true)
     try {
-      const created = await addProperty(form)
+      const created = await addProperty({ ...form, name: form.name.trim() })
       toast.success('Property added!')
       setForm({ name: '', address: '', city: '', upi_id: '' })
       onClose()
       if (created?.id) onCreated(created.id)
-    } catch (e: any) {
-      toast.error(e.message ?? 'Failed to add property')
+    } catch (e) {
+      toast.error(friendlyError(e, 'Failed to add property'))
     }
     setSaving(false)
   }

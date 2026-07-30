@@ -1,3 +1,64 @@
+# Changelog — Final Production Merge & Release Candidate Audit
+
+## Scope
+Merged Explore Mode and the App Update System (both built in a separate
+project copy) into this authoritative codebase, applied Rentivo
+branding in code (previously only delivered as a design asset package),
+and performed a real, verified production audit. Full detail across
+`PRODUCTION_AUDIT.md`, `VALIDATION_REPORT.md`, `EXPLORE_MODE_REPORT.md`,
+`APP_UPDATE_SYSTEM.md`, `DEPLOYMENT_CHECKLIST.md`, `KNOWN_LIMITATIONS.md`.
+
+## Fixed — real, verified bugs
+- **Brand icon files were fully transparent everywhere** — a masking
+  bug in the icon-generation pipeline (black-on-black mask misread by
+  `CopyOpacity`, which uses luminance not alpha). Found via pixel
+  sampling, fixed, reverified. Affected favicon, apple-touch-icon, and
+  every rounded/circle/maskable app icon variant.
+- **Explore Mode nested-embed bug** — `getPayments()`'s
+  `tenant:tenants(..., room:rooms(...))` embed silently dropped the
+  inner `room`. Fixed with a recursive resolver, verified with a direct
+  reproduction test.
+- **Update checker had no Android/iOS scoping** — would have prompted
+  an APK download on iPhone, where that makes no sense. Fixed.
+- Join form's mobile validation accepted 11+ digit numbers instead of
+  exactly 10; no max-length on the name field. Both fixed.
+- `AddPropertyModal`'s UPI ID field had zero format validation. Fixed,
+  plus upgraded its error handling off a raw `any`-typed catch.
+
+## Added
+- `src/lib/explore/`, `src/lib/update/`, `ExploreBadge`,
+  `ExploreLockSheet`, `AppUpdateChecker`, `AppUpdateDialog`,
+  `/welcome` onboarding, `public/app-version.json` — merged in from the
+  separate project copy where they were originally built (see the merge
+  notes at the top of `EXPLORE_MODE_REPORT.md`).
+- `src/lib/validation.ts` — shared, reusable field validators (name,
+  mobile, email, PAN, Aadhaar, IFSC, account number, UPI, positive
+  amounts, dates, required selections, uploads).
+- `PRODUCTION_AUDIT.md`, `VALIDATION_REPORT.md`,
+  `DEPLOYMENT_CHECKLIST.md`, `KNOWN_LIMITATIONS.md`.
+
+## Branding applied in code (previously design-only)
+- `capacitor.config.ts` (`appId`/`appName`), `manifest.json`, root
+  layout metadata, and every app icon/favicon file replaced with the
+  real Rentivo assets.
+- "PG Manager" → "Rentivo" text fixed in sidebars, the login heading,
+  the restore error message, the downloaded backup filename, and
+  generated PDF content.
+- **Deliberately left unchanged** (functional identifiers, not
+  branding): the phone-login email domain and the backup-format version
+  string — see `KNOWN_LIMITATIONS.md` for why changing either would
+  break existing users' logins/backups.
+
+## Modified (additive only — same pattern as prior merges)
+- `src/middleware.ts`, `src/app/page.tsx`, `src/app/(owner)/layout.tsx`,
+  `src/app/layout.tsx`, `src/lib/supabase/client.ts` — one additive
+  branch each for Explore Mode / Update System, matching this project's
+  actual current implementations (verified line-by-line before editing,
+  since this codebase had diverged from the copy these features were
+  first built in).
+
+---
+
 # Changelog — Spec Re-check (no code changes)
 
 ## Scope

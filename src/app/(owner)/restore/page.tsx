@@ -56,7 +56,7 @@ export default function RestorePage() {
     try {
       const json = JSON.parse(text)
       if (json.backup_format !== 'pg-manager-saas-v1' || !Array.isArray(json.data)) {
-        setParseError('This file doesn\'t look like a PG Manager backup.')
+        setParseError('This file doesn\'t look like a Rentivo backup.')
         setParsed(null)
         return
       }
