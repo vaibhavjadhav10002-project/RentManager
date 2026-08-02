@@ -353,20 +353,66 @@ export default function DashboardPage() {
         </OwnerCard>
       )}
 
-      {/* Stat Cards */}
+      {/* Stat Cards — mobile gets real hierarchy (hero number, then
+          actionable, then informational), desktop keeps the original
+          flat 7-column grid exactly as before. */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
-          <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
-          <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
-          <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
-          <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
-            trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
-          <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
-          <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
-          <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
-          <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
-        </div>
+        <>
+          <div className="lg:hidden space-y-4">
+            {/* Hero: the single number an owner checks most often, given
+                real visual weight instead of competing equally with 8
+                other cards. */}
+            <div className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-owner-purple p-5 text-white shadow-owner-lg">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white/75 uppercase tracking-wide">Monthly Revenue</div>
+                  <div className="owner-numeric text-[28px] leading-tight font-extrabold mt-1 truncate">{formatINR(stats.monthlyRevenue)}</div>
+                  {stats.revenueTrendPct !== null && (
+                    <div className="text-xs font-semibold mt-1.5 text-white/90">
+                      {stats.revenueTrendPct >= 0 ? '↑' : '↓'} {Math.abs(stats.revenueTrendPct)}% vs last month
+                    </div>
+                  )}
+                </div>
+                <div className="w-11 h-11 rounded-owner-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <IndianRupee className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2.5 px-0.5">Needs Attention</div>
+              <div className="grid grid-cols-2 gap-3">
+                <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
+                <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} tone="teal" />
+                <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
+                <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2.5 px-0.5">Property Overview</div>
+              <div className="grid grid-cols-2 gap-3">
+                <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
+                <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
+                <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
+                <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} tone="info" />
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden lg:grid lg:grid-cols-4 xl:grid-cols-7 gap-4">
+            <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
+            <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
+            <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
+            <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
+            <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
+              trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
+            <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
+            <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
+            <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
+            <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
+          </div>
+        </>
       )}
 
       {/* Quick Actions */}
@@ -381,9 +427,9 @@ export default function DashboardPage() {
             { href: '/approvals', label: 'Approvals', icon: ShieldCheck, tone: 'info' as const },
             { href: '/reports', label: 'View Reports', icon: BarChart3, tone: 'teal' as const },
           ].map(({ href, label, icon: Icon, tone }) => (
-            <Link key={href} href={href} className="flex flex-col items-center gap-2 py-1 group">
+            <Link key={href} href={href} className="flex flex-col items-center gap-2 py-1 group active:scale-95 transition-transform">
               <span className={cn(
-                'w-11 h-11 rounded-owner-xl flex items-center justify-center transition-transform group-hover:scale-105',
+                'relative w-11 h-11 rounded-owner-xl flex items-center justify-center transition-transform group-hover:scale-105 after:absolute after:-inset-1 after:content-[""]',
                 TONE_BG[tone]
               )}>
                 <Icon className={cn('w-5 h-5', TONE_FG[tone])} />

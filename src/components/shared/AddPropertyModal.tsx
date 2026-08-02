@@ -45,8 +45,8 @@ export default function AddPropertyModal({ open, onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border animate-owner-scale-in">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
         <div className="px-5 py-4 border-b border-owner-border flex items-center justify-between">
           <h2 className="text-base font-bold text-owner-fg">Add Property</h2>
           <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={onClose}>

@@ -1,25 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 import { KeyboardResize } from '@capacitor/keyboard'
-import { existsSync } from 'node:fs'
-import path from 'node:path'
-import dotenv from 'dotenv'
-
-// ─────────────────────────────────────────────────────────────────────────
-// WHY THIS FILE LOADS .env.local ITSELF
-// ─────────────────────────────────────────────────────────────────────────
-// `next build` / `next dev` auto-load .env.local into process.env — but the
-// Capacitor CLI (`cap sync`, `cap copy`, and therefore `npm run cap:sync`)
-// is a plain Node script with no knowledge of Next.js's env conventions.
-// Run it directly (as CI, Android Studio, and most local workflows do) and
-// process.env.CAPACITOR_SERVER_URL is simply undefined, even though the
-// value is sitting in .env.local — which is exactly how the placeholder
-// domain below ends up baked into android/app/src/main/assets/capacitor.config.json.
-// Loading dotenv here makes this file self-sufficient regardless of how
-// or by what tool it's invoked.
-for (const file of ['.env.local', '.env']) {
-  const p = path.resolve(__dirname, file)
-  if (existsSync(p)) dotenv.config({ path: p })
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // WHY "server.url" INSTEAD OF A STATIC BUNDLE

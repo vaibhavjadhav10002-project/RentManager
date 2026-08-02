@@ -1,15 +1,31 @@
 'use client'
 import { useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, IndianRupee, Users, ShieldCheck, Settings } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import { PropertyProvider } from './PropertyContext'
 import ForcePasswordChangeModal from './ForcePasswordChangeModal'
 import { OwnerThemeProvider } from '@/components/owner/ui'
+import { OwnerBottomNav } from '@/components/owner/ui/OwnerBottomNav'
 import type { Profile } from '@/types'
+
+// The 5 most frequently used owner actions, matching real existing
+// routes exactly (no new pages) — mirrors Sidebar.tsx's own href list.
+const BOTTOM_NAV_ITEMS = [
+  { key: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: '/payments', label: 'Payments', icon: IndianRupee },
+  { key: '/tenants', label: 'Add Tenant', icon: Users },
+  { key: '/approvals', label: 'Approvals', icon: ShieldCheck },
+  { key: '/settings', label: 'Profile', icon: Settings },
+]
 
 function OwnerShellInner({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mustChangePw, setMustChangePw] = useState(profile.must_change_password)
+  const pathname = usePathname()
+  const router = useRouter()
+  const activeBottomNavKey = BOTTOM_NAV_ITEMS.find(i => pathname?.startsWith(i.key))?.key ?? '/dashboard'
 
   return (
     <PropertyProvider>
@@ -24,10 +40,15 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
         />
         <div className="flex-1 flex flex-col lg:ml-56">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main id="main-content" className="flex-1 p-5 lg:p-7 animate-fade-in">
+          <main id="main-content" className="flex-1 p-5 pb-24 lg:p-7 lg:pb-7 animate-fade-in">
             {children}
           </main>
         </div>
+        <OwnerBottomNav
+          items={BOTTOM_NAV_ITEMS}
+          activeKey={activeBottomNavKey}
+          onChange={(key) => router.push(key)}
+        />
       </div>
     </PropertyProvider>
   )

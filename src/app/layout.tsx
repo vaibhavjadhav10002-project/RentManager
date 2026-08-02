@@ -8,6 +8,7 @@ import { ExploreModeProvider } from '@/lib/explore/context'
 import ExploreBadge from '@/components/shared/ExploreBadge'
 import ExploreLockSheet from '@/components/shared/ExploreLockSheet'
 import AppUpdateChecker from '@/components/shared/AppUpdateChecker'
+import { ExperienceProvider } from '@/components/shared/ExperienceProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -41,15 +42,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-xl focus:text-sm focus:font-semibold">
           Skip to content
         </a>
-        <ExploreModeProvider>
-          {children}
-          <Toaster richColors position="bottom-right" />
-          <PWARegister />
-          <NativeBootstrap />
-          <ExploreBadge />
-          <ExploreLockSheet />
-          <AppUpdateChecker />
-        </ExploreModeProvider>
+        <ExperienceProvider>
+          <ExploreModeProvider>
+            {children}
+            <Toaster richColors position="bottom-right" />
+            <PWARegister />
+            <NativeBootstrap />
+            <ExploreBadge />
+            <ExploreLockSheet />
+            <AppUpdateChecker />
+          </ExploreModeProvider>
+        </ExperienceProvider>
       </body>
     </html>
   )

@@ -19,7 +19,7 @@ export default function AdminTopbar({ onMenuClick, adminEmail }: Props) {
   }, [])
 
   return (
-    <header className="h-16 bg-white border-b border-gray-100 flex items-center px-4 lg:px-6 gap-3 sticky top-0 z-30">
+    <header className="min-h-16 native-safe-top bg-white border-b border-gray-100 flex items-center px-4 lg:px-6 gap-3 sticky top-0 z-30">
       <button onClick={onMenuClick} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 lg:hidden">
         <Menu className="w-5 h-5" />
       </button>

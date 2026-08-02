@@ -688,7 +688,7 @@ export default function TenantPortal() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-gray-100 px-4 lg:px-8 h-16 flex items-center justify-between sticky top-0 z-20">
+        <header className="bg-white border-b border-gray-100 px-4 lg:px-8 min-h-16 native-safe-top flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
             <div className="hidden sm:block">
@@ -766,7 +766,7 @@ export default function TenantPortal() {
           </div>
         </header>
 
-        <main id="main-content" className="flex-1 p-4 lg:p-8 max-w-6xl w-full mx-auto">
+        <main id="main-content" className="flex-1 p-4 pb-24 lg:p-8 lg:pb-8 max-w-6xl w-full mx-auto">
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
@@ -788,7 +788,7 @@ export default function TenantPortal() {
                     { label: 'My Requests', icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-50', onClick: () => setTab('requests') },
                   ].map(a => (
                     <button key={a.label} onClick={a.onClick}
-                      className="flex flex-col items-center gap-2 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
+                      className="flex flex-col items-center gap-2 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 active:shadow-sm transition">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.bg}`}>
                         <a.icon className={`w-5 h-5 ${a.color}`} />
                       </div>
@@ -845,8 +845,42 @@ export default function TenantPortal() {
                 )
               })()}
 
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Stat cards — mobile gets a hero "next due" card (the
+                  single thing a tenant checks most) plus a simpler
+                  secondary grid; desktop keeps the original 4-card grid
+                  exactly as before. */}
+              <div className="lg:hidden space-y-3">
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 p-5 text-white shadow-lg">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-white/75 uppercase tracking-wide">
+                        {thisMonthPaid ? "You're all caught up" : 'Next Rent Due'}
+                      </div>
+                      <div className="text-[26px] leading-tight font-extrabold mt-1 truncate">{formatINR(totalRentPending)}</div>
+                      <div className={`text-xs font-semibold mt-1.5 ${daysLeft <= 3 && !thisMonthPaid ? 'text-red-100' : 'text-white/85'}`}>
+                        {formatDate(nextDueDate.toISOString())} · {thisMonthPaid ? 'Paid' : daysLeft > 0 ? `${daysLeft} days left` : 'Overdue'}
+                      </div>
+                    </div>
+                    <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                      <CalendarClock className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 flex items-center justify-center mb-2"><Wallet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /></div>
+                    <div className="text-lg font-extrabold text-gray-900 dark:text-white truncate">{formatINR(tenant.monthly_rent)}</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Monthly Rent</div>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
+                    <div className="w-9 h-9 rounded-xl bg-green-50 dark:bg-green-500/15 flex items-center justify-center mb-2"><Download className="w-4 h-4 text-green-600 dark:text-green-400" /></div>
+                    <div className="text-lg font-extrabold text-green-600 dark:text-green-400 truncate">{formatINR(donutPaid)}</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 truncate">{referenceMonth?.label ?? thisMonth}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden lg:grid lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-xs font-semibold text-gray-500">Total Rent</div>
@@ -1707,6 +1741,55 @@ export default function TenantPortal() {
           )}
 
         </main>
+
+        {/* Mobile bottom nav — desktop keeps the sidebar, this is hidden at lg:.
+            Reuses this page's own existing tab state / profile menu / message
+            tab helpers; no new routes, tabs, or business logic introduced.
+            Same premium treatment as OwnerBottomNav (animated pill, icon pop,
+            CSS-only ripple, elevation shadow) for consistency across the app. */}
+        <nav className="lg:hidden pb-safe fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-100 dark:border-slate-800 shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)]">
+          <div className="flex items-stretch justify-around px-1">
+            {[
+              { key: 'dashboard' as Tab, label: 'Dashboard', icon: LayoutDashboard },
+              { key: 'rent' as Tab, label: 'Payments', icon: Wallet },
+              { key: 'requests' as Tab, label: 'Requests', icon: CheckCircle },
+              { key: 'messages' as Tab, label: 'Chat', icon: MessageCircle, badge: unreadMessages },
+            ].map(({ key, label, icon: Icon, badge }) => {
+              const active = tab === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => (key === 'messages' ? openMessagesTab() : setTab(key))}
+                  className="relative flex flex-col items-center justify-center gap-1 flex-1 py-2.5 min-w-0 overflow-hidden before:absolute before:inset-0 before:rounded-lg before:bg-gray-900/5 dark:before:bg-white/5 before:scale-0 before:opacity-0 active:before:scale-100 active:before:opacity-100 before:transition before:duration-300"
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <span className={`relative flex items-center justify-center h-8 w-11 rounded-full transition-all duration-300 ease-out ${active ? 'bg-indigo-50 dark:bg-indigo-500/15 scale-100' : 'scale-90'}`}>
+                    <Icon className={`transition-all duration-300 ease-out ${active ? 'h-5 w-5 text-indigo-600 dark:text-indigo-400' : 'h-[19px] w-[19px] text-gray-400 dark:text-slate-500'}`} />
+                    {badge ? (
+                      <span className="absolute -top-0.5 right-1.5 flex items-center justify-center rounded-full bg-red-500 text-white font-bold ring-2 ring-white dark:ring-slate-900 min-w-[15px] h-[15px] text-[9px] px-0.5">
+                        {badge > 9 ? '9+' : badge}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className={`text-[10.5px] font-semibold truncate max-w-full transition-colors duration-300 ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'}`}>
+                    {label}
+                  </span>
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setProfileMenuOpen(o => !o)}
+              className="relative flex flex-col items-center justify-center gap-1 flex-1 py-2.5 min-w-0 overflow-hidden before:absolute before:inset-0 before:rounded-lg before:bg-gray-900/5 dark:before:bg-white/5 before:scale-0 before:opacity-0 active:before:scale-100 active:before:opacity-100 before:transition before:duration-300"
+            >
+              <span className="relative flex items-center justify-center h-8 w-11 rounded-full">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-bold text-[9px]">
+                  {initials}
+                </div>
+              </span>
+              <span className="text-[10.5px] font-semibold truncate max-w-full text-gray-400 dark:text-slate-500">Profile</span>
+            </button>
+          </div>
+        </nav>
       </div>
 
       {/* Notice Announcement Modal */}

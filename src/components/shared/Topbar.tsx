@@ -98,7 +98,7 @@ export default function Topbar({ onMenuClick }: Props) {
   const ThemeIcon = resolvedTheme === 'dark' ? Moon : Sun
 
   return (
-    <header className="h-14 bg-owner-surface border-b border-owner-border flex items-center px-4 gap-3 sticky top-0 z-30">
+    <header className="min-h-14 native-safe-top bg-owner-surface border-b border-owner-border flex items-center px-4 gap-3 sticky top-0 z-30">
       {/* Hamburger */}
       <OwnerIconButton aria-label="Open menu" variant="ghost" size="md" onClick={onMenuClick} className="lg:hidden">
         <Menu />

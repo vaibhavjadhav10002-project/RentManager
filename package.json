@@ -60,7 +60,6 @@
     "tailwindcss-animate": "^1.0.7",
     "@capacitor/cli": "^6.1.2",
     "@capacitor/android": "^6.1.2",
-    "@capacitor/ios": "^6.1.2",
-    "dotenv": "^16.4.5"
+    "@capacitor/ios": "^6.1.2"
   }
 }

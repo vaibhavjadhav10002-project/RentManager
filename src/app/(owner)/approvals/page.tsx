@@ -645,9 +645,9 @@ export default function ApprovalsPage() {
 
       {/* Profile Review Modal (Phase 8.4) */}
       {reviewModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl my-8">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-2xl shadow-2xl my-8 pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 rounded-t-2xl">
               <div>
                 <h2 className="text-base font-bold">Review Profile</h2>
                 <p className="text-xs text-gray-400">{reviewModal.phone}</p>
@@ -669,8 +669,8 @@ export default function ApprovalsPage() {
               {/* Previous / New / Source comparison */}
               <div>
                 <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Submitted Details</div>
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-sm min-w-[480px]">
                     <thead>
                       <tr className="bg-gray-50 text-left text-xs text-gray-500">
                         <th className="px-3 py-2 font-semibold">Field</th>
@@ -777,9 +777,9 @@ export default function ApprovalsPage() {
 
       {/* Profile Update Reject Modal (Phase 8.7) */}
       {updateRejectModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-base font-bold">Reject Profile Update</h2>
               <button onClick={() => setUpdateRejectModal(null)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
@@ -801,9 +801,9 @@ export default function ApprovalsPage() {
 
       {/* QR / Join Link Modal */}
       {qrModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-base font-bold">Tenant Join Link</h2>
               <button onClick={() => setQrModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
@@ -832,9 +832,9 @@ export default function ApprovalsPage() {
 
       {/* Approve Tenant Modal — room assignment + confirm (password is auto Pass@123) */}
       {approveModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-base font-bold">Approve {approveModal.name}</h2>
               <button onClick={() => setApproveModal(null)} className="text-gray-400 text-xl font-bold">×</button>
             </div>

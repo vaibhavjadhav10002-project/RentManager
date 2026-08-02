@@ -410,8 +410,8 @@ export default function PaymentsPage() {
 
       {/* Record Payment Modal */}
       {recordModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">Record Payment</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setRecordModal(false)}>
@@ -486,8 +486,8 @@ export default function PaymentsPage() {
 
       {/* Raise Electricity Bill Modal */}
       {billModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">Raise Electricity Bill</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setBillModal(false)}>
@@ -521,8 +521,8 @@ export default function PaymentsPage() {
 
       {/* Bulk Reminder Modal — was a dead button (state existed, no UI) */}
       {bulkReminderModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border max-h-[85vh] flex flex-col animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border max-h-[85vh] flex flex-col pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between shrink-0">
               <h2 className="text-base font-bold text-owner-fg">Remind All ({pendingRentSorted.length})</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setBulkReminderModal(false)}>

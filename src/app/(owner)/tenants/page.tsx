@@ -449,8 +449,8 @@ export default function TenantsPage() {
 
       {/* Add Tenant Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-2xl shadow-owner-lg border border-owner-border my-4 animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-2xl shadow-owner-lg border border-owner-border my-4 pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">Add New Tenant</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setModalOpen(false)}>
@@ -533,8 +533,8 @@ export default function TenantsPage() {
 
       {/* Invite Tenant Modal — Phase 8.1: minimal-entry alternative to Add Tenant */}
       {inviteModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border my-4 animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border my-4 pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">{inviteResult ? 'Invitation Sent' : 'Invite Tenant'}</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={closeInviteModal}>
@@ -610,8 +610,8 @@ export default function TenantsPage() {
 
       {/* View Tenant Modal */}
       {viewTenant && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">Tenant Details</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setViewTenant(null)}>
@@ -688,8 +688,8 @@ export default function TenantsPage() {
 
       {/* Edit Tenant Modal */}
       {editTenant && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-2xl shadow-owner-lg border border-owner-border my-4 animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-2xl shadow-owner-lg border border-owner-border my-4 pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">Edit Tenant</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setEditTenant(null)}>
@@ -809,8 +809,8 @@ export default function TenantsPage() {
           This is that missing dialog — zero new business logic, just the
           UI for a handler that was already fully written. */}
       {noticeModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold text-owner-fg">Give Notice</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => { setNoticeModal(null); setLeavingDate('') }}>
@@ -843,9 +843,9 @@ export default function TenantsPage() {
           restyling every ported feature is a larger effort than this merge
           covers. Functions identically to the redesigned surfaces around it. */}
       {checklistTenant && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold">Move-Out Checklist</h2>
                 <p className="text-xs text-gray-400">{checklistTenant.name} · Room {checklistTenant.room?.room_number}</p>

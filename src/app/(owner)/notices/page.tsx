@@ -172,8 +172,8 @@ export default function NoticesPage() {
 
       {/* New Notice Modal */}
       {modal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-lg shadow-owner-lg border border-owner-border max-h-[90vh] flex flex-col animate-owner-scale-in">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-lg shadow-owner-lg border border-owner-border max-h-[90vh] flex flex-col pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between shrink-0">
               <h2 className="text-base font-bold text-owner-fg flex items-center gap-2"><Megaphone className="w-4 h-4 text-owner-primary" /> New Notice</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setModal(false)}>

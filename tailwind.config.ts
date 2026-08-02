@@ -192,7 +192,19 @@ const config: Config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    require('tailwindcss-animate'),
+    // Native-app-feel fix: by default Tailwind's `hover:` compiles to a
+    // plain `:hover`, which stays applied on touchscreens after a tap
+    // until the user taps elsewhere ("sticky hover") — a classic
+    // "this feels like a website" tell. Redefining the variant to only
+    // engage on pointers that support true hovering (mouse/trackpad)
+    // fixes every `hover:` class across the whole app (55 files) with
+    // this one change — no component file needs editing.
+    function ({ addVariant }: { addVariant: (name: string, definition: string) => void }) {
+      addVariant('hover', '@media (hover: hover) and (pointer: fine) { &:hover }')
+    },
+  ],
 }
 
 export default config

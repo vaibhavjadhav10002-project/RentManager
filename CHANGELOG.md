@@ -1,3 +1,633 @@
+# Changelog — Experience Engine Phase 7 (Final — Rollout Docs + Website-Readiness Notes, No Code Changes)
+
+## Scope
+Final phase of the original roadmap. Documentation only — no engine,
+provider, schema, or pack changes (confirmed unchanged from Phase 6).
+Consolidates Phases 1–6 into an operating guide.
+
+## Added
+- `EXPERIENCE_ENGINE_ROLLOUT.md` — new document covering:
+  - **How to actually turn this on**: a minimal example consumer
+    (`DashboardGreeting`, reading `useExperience()`, with an explicit
+    fallback so it's behavior-identical to today whenever no pack is
+    active), a staged flag-rollout plan (local → preview/staging →
+    production), and what's needed before decorative assets can render
+    for real (actual files at each pack's placeholder `ref` path).
+  - **Deferred items tracker**: `experience-tokens.css`, Tailwind
+    `exp.*` mapping, remote config source, annual Festival date refresh,
+    real decorative assets, and a Campaign activation UI — each with
+    current status and what triggers building it, so nothing here is an
+    open-ended gap.
+  - **Website readiness assessment**: `src/lib/experience/` (schema
+    through all 60 packs) is framework-agnostic, zero React/DOM/
+    Capacitor dependency, and directly reusable by a future Website
+    codebase as-is. `ExperienceProvider.tsx` is the one piece that needs
+    a Website-side port (same documented contract, not new design work).
+    Recommends extracting `src/lib/experience/` into a shared private
+    package once a Website repo exists, to avoid pack-content drift
+    between the two apps — the concrete fulfillment of the original
+    brief's "Website and APK should eventually share the same
+    Experience Engine architecture."
+
+## Verified
+No new code to verify. Confirmed (md5sum) that `engine.ts`,
+`dateResolver.ts`, `priorityResolver.ts`, `types.ts`,
+`ExperienceProvider.tsx`, `layout.tsx`, and every `packs/*.ts` file
+remain byte-for-byte identical to their Phase 6 state.
+
+## Project-wide summary (Phases 1–7)
+- 60 immutable, schema-validated Experience Packs across 5 categories.
+- Engine core untouched since Phase 2 — every pack-content phase (3–6)
+  added exactly one new file + one aggregator line, zero engine changes,
+  proven by md5sum at the end of every phase.
+- 353 total assertions run against the real compiled module graph across
+  Phases 1–6, zero failures.
+- Feature flag defaults OFF; shipped state is pixel- and behavior-
+  identical to pre-Phase-1 production, verified at every phase.
+- Nothing renders yet — by design. `EXPERIENCE_ENGINE_ROLLOUT.md` is the
+  starting point for whoever picks up the first real UI integration.
+
+---
+
+# Changelog — Experience Engine Phase 6 (Campaign Packs — All 5 Categories Now Complete)
+
+## Scope
+All 11 Campaign packs as pure, immutable configuration — the fifth and
+final pack category from the product brief. Registry now totals 60
+packs across all five categories (Seasonal, National, Remembrance,
+Festival, Campaign). Zero engine, provider, or `types.ts` changes this
+phase (md5-confirmed identical to Phase 3–5 state). Still flag-gated OFF
+by default; still no screen/layout/navigation/business-logic change.
+Full reasoning in `EXPERIENCE_ENGINE.md`.
+
+## Added
+- `src/lib/experience/packs/campaign.ts` — all 11 Campaign packs
+  (Admission Open, Limited Rooms Available, Freshers Welcome, Refer &
+  Earn, Cricket Fever, Cinema Week, Pizza Night, Weekend Event,
+  Anniversary, Offer Week, New Facility Launch). `category: 'campaign'`,
+  priority 1 (highest in the whole ladder). Every pack uses
+  `dateRule: { type: 'manual' }` — there's no real calendar date for any
+  of these (an "Offer Week" or "Anniversary" date is business-specific
+  and unknown to this codebase), so the honest, correct rule is "the
+  enabled flag IS the schedule." **Every pack ships `enabled: false`** —
+  see the safety note below. Cricket Fever and Cinema Week keep their
+  copy and decoration deliberately generic per the brief (no team/studio
+  branding — copyright-safe).
+- `src/lib/experience/packs/helpers.ts` — added `manualPack()`, third
+  authoring-convenience factory alongside `fixedDatePack()`/
+  `explicitDatePack()`. Defaults `enabled` to `false` (opposite of the
+  other two helpers' `true` default) — documented inline as a
+  deliberate safety choice, not an inconsistency.
+
+## Modified
+- `src/lib/experience/packs/index.ts` — `allPacks` now also spreads
+  `campaignPacks` (one added line). All five categories from the brief
+  are now aggregated here.
+
+## ⚠️ Safety note: why every campaign ships disabled
+Campaign is priority 1 — the single highest tier. An `enabled: true`
+campaign doesn't compete on a date the way every other pack does; it's
+simply the active experience the instant the feature flag is on,
+overriding every calendar-driven pack unconditionally. Shipping any
+campaign pre-enabled would mean flipping the master flag on turns that
+campaign on everywhere, immediately. All 11 ship `enabled: false`, and
+`manualPack()`'s default reinforces this for any future campaign added
+the same way.
+
+## Verified
+105/105 assertions against the real compiled module graph:
+- Pack count (11), all pass `validatePack()`, all frozen once inside
+  `localPacks` (60 total, no duplicate ids across the full registry).
+- Every campaign pack directly inspected: `enabled === false` and
+  `dateRule.type === 'manual'`.
+- With the shipped defaults (all 11 campaigns disabled — the real
+  production state), calendar resolution is completely unaffected:
+  Nov 8 still resolves to Diwali, Jan 1 still resolves to New Year.
+- **The core Phase 6 guarantee**: an `enabled: true` campaign (simulated
+  via a local override, not by changing the shipped file) correctly
+  overrides Festival + Season simultaneously (Nov 8) and Remembrance +
+  National simultaneously (Nov 26) — Campaign's priority-1 status holds
+  against every other category at once, not just pairwise.
+- Two simultaneously-enabled campaigns resolve to exactly one
+  (deterministic id tie-break) — never merged, consistent with every
+  prior phase's priority-resolver guarantee.
+- Flag off ignores everything, including a force-enabled campaign.
+- Static check (md5sum): `engine.ts`, `dateResolver.ts`,
+  `priorityResolver.ts`, `types.ts`, `ExperienceProvider.tsx`, and
+  `layout.tsx` are byte-for-byte identical to their Phase 5 state.
+
+## Explicit scope boundaries this phase
+- No hardcoded colors/animations/decorations in any engine file.
+- No screen, layout, navigation, or business-logic change.
+- No actual decorative asset files — placeholder path strings only.
+- No engine, provider, or schema (`types.ts`) file touched.
+- No campaign pack enabled by default — confirmed as the shipped state,
+  not just a test assumption.
+- All five categories from the product brief (Seasonal, National,
+  Remembrance, Festival, Campaign) are now present in `localPacks` — no
+  category work remains; Phase 7 (per the original roadmap) is
+  documentation/website-readiness only, not new pack content.
+
+---
+
+# Changelog — Experience Engine Phase 5 (Festival Packs — Config Only, Still No Visuals)
+
+## Scope
+All 18 Festival packs as pure, immutable configuration — Makar Sankranti
+through Tulsi Vivah — bringing the registry to 49 total. Zero engine,
+provider, or `types.ts` changes this phase (md5-confirmed identical to
+Phase 3/4 state). Still flag-gated OFF by default; still no
+screen/layout/navigation/business-logic change. Full reasoning in
+`EXPERIENCE_ENGINE.md`.
+
+## Added
+- `src/lib/experience/packs/festival.ts` — all 18 Festival packs
+  (`category: 'festival'`), using `explicit-dates` rules (not
+  `fixed-date` — these are lunisolar/panchang-based and shift Gregorian
+  date every year). **2026 dates only**, sourced from Drik Panchang
+  (drikpanchang.com) and cross-checked against several independent
+  calendar sources, on 2026-08-02. Extending any pack to 2027+ is
+  appending one date string to that pack's array — nothing else changes.
+  Two multi-day festivals carry a short `windowDaysAfter`/`windowDaysBefore`
+  as ordinary config: Navratri spans its own 9 nights
+  (`windowDaysAfter: 8`); Diwali gets a 1-day pre/post window for its
+  conventional 5-day span (Bhai Dooj remains its own separate pack).
+- `src/lib/experience/packs/helpers.ts` — added `explicitDatePack()`
+  alongside the existing `fixedDatePack()`, same authoring-convenience
+  pattern, for the `explicit-dates` rule type.
+
+## Modified
+- `src/lib/experience/packs/index.ts` — `allPacks` now also spreads
+  `festivalPacks` (one added line).
+
+## Verified
+82/82 assertions against the real compiled module graph:
+- Pack count (18), all pass `validatePack()`, all frozen once inside
+  `localPacks` (49 total, no duplicate ids across the full registry).
+- Date resolution: Diwali's pre/post window boundaries, Navratri's full
+  9-night span and correct cutoff the day Dussehra (a separate pack)
+  begins, and — importantly — a festival pack correctly resolves
+  **inactive** in a year outside its `explicit-dates` list (2025),
+  proving `explicit-dates` doesn't silently recur like `fixed-date`
+  would.
+- **A real cross-category collision**: Sep 14, 2026 has both Hindi Diwas
+  (national, priority 3) and Ganesh Chaturthi (festival, priority 4) —
+  correctly resolves to Hindi Diwas, no special-case code involved.
+- Festival correctly beats Season (Diwali over Winter on Nov 8); a plain
+  festival day with no override resolves to the festival itself (Holi,
+  Mar 4).
+- Flag off ignores the full real 49-pack registry, including Diwali.
+- Static check (md5sum): `engine.ts`, `dateResolver.ts`,
+  `priorityResolver.ts`, `types.ts`, `ExperienceProvider.tsx`, and
+  `layout.tsx` are byte-for-byte identical to their Phase 4 state.
+
+## Explicit scope boundaries this phase
+- No Campaign packs.
+- No hardcoded colors/animations/decorations in any engine file.
+- No screen, layout, navigation, or business-logic change.
+- No actual decorative asset files — placeholder path strings only.
+- No engine, provider, or schema (`types.ts`) file touched.
+- Only 2026 dates populated — see the maintenance note in
+  `festival.ts`'s header and `EXPERIENCE_ENGINE.md` for the annual
+  update process.
+
+---
+
+# Changelog — Experience Engine Phase 4 (National + Remembrance Packs — Config Only, Still No Visuals)
+
+## Scope
+National Day (21) and Remembrance Day (6) packs as pure, immutable
+configuration — 27 new packs, bringing the registry to 31 total. Zero
+engine, provider, or `types.ts` changes this phase (md5-confirmed
+identical to end of Phase 3). Still flag-gated OFF by default; still no
+screen/layout/navigation/business-logic change. Full reasoning in
+`EXPERIENCE_ENGINE.md`.
+
+## Added
+- `src/lib/experience/packs/helpers.ts` — `fixedDatePack()`, a plain
+  authoring-convenience factory that assembles an `ExperiencePack` object
+  literal from a shorter input shape. Lives entirely under `packs/`;
+  never imported by `engine.ts` or any resolver. Every pack it produces
+  is a normal, indistinguishable `ExperiencePack` object.
+- `src/lib/experience/packs/national.ts` — all 21 National Day packs from
+  the brief (New Year through New Year's Eve), `category: 'national'`,
+  fixed recurring dates. Independence Day and Republic Day carry a 1-day
+  pre-window; every other day is exact. All content-driven (accent
+  palettes, greetings, placeholder decorative assets, subtle GPU-friendly
+  animation profiles) — no engine file knows any of these ids exist.
+- `src/lib/experience/packs/remembrance.ts` — all 6 Remembrance Day packs
+  from the brief. Every pack sets `respectfulMode: true` (required since
+  Phase 1's schema — a pack missing it fails `validatePack()` and is
+  skipped). "No celebration animations. No confetti. No flashy effects."
+  is expressed structurally: `animationProfile` is omitted on every pack
+  (nothing to animate), `decorativeAssets` use only the `'illustration'`
+  type (never `'particle'`), and `accentPalette`/tokens use deliberately
+  muted, low-saturation tones.
+
+## Modified
+- `src/lib/experience/packs/index.ts` — `allPacks` now spreads
+  `nationalPacks` and `remembrancePacks` alongside `seasonalPacks` (two
+  added lines).
+- `src/lib/experience/localPacks.ts` — unchanged in content (still
+  `freezeDeep(allPacks)`); registry it exports now resolves to 31 packs
+  because `allPacks` grew. No line in this file changed.
+
+## Verified
+89/89 assertions against the real compiled module graph:
+- Pack counts (21 national, 6 remembrance, 31 total), all pass
+  `validatePack()`, all frozen once inside `localPacks`.
+- No duplicate ids across all 31 packs.
+- Remembrance content discipline enforced by direct inspection: every
+  remembrance pack has `respectfulMode: true`, no `animationProfile`, and
+  no `particle`-type decorative assets.
+- Date resolution spot-checks (Independence Day exact day + pre-window
+  boundary, Ambedkar Jayanti).
+- **Two intentional real-calendar collisions resolved correctly**: Oct 2
+  (Lal Bahadur Shastri Jayanti / Gandhi Jayanti) and Nov 26 (26/11
+  Remembrance / Constitution Day) both correctly resolve to the
+  Remembrance pack — remembrance (priority 2) outranking national
+  (priority 3) — with zero special-case code making that happen.
+- Cross-category priority: Independence Day (national) correctly beats
+  Monsoon (season) on Aug 15; a plain day with no national/remembrance
+  pack correctly falls through to the right seasonal pack (Spring, Mar
+  10).
+- Flag off ignores the full real 31-pack registry, including
+  Independence Day — zero-regression path re-verified against actual
+  production content.
+- Static check (md5sum): `engine.ts`, `dateResolver.ts`,
+  `priorityResolver.ts`, `ExperienceProvider.tsx`, `layout.tsx`, and
+  `types.ts` are byte-for-byte identical to their Phase 3 state.
+
+## Explicit scope boundaries this phase
+- No Festival or Campaign packs.
+- No hardcoded colors/animations/decorations in any engine file.
+- No screen, layout, navigation, or business-logic change.
+- No actual decorative asset files — placeholder path strings only.
+- No engine, provider, or schema (`types.ts`) file touched.
+
+---
+
+# Changelog — Experience Engine Phase 3 (Seasonal Packs — Config Only, Still No Visuals)
+
+## Scope
+First real pack content: the four Seasonal packs (Spring, Summer,
+Monsoon, Winter) as pure, immutable configuration objects. Engine core
+(`engine.ts`, `dateResolver.ts`, `priorityResolver.ts`) and the provider
+(`ExperienceProvider.tsx`) are untouched — confirmed by grep, zero
+season-specific code exists anywhere outside the pack files themselves.
+Still flag-gated OFF by default; still no screen/layout/navigation/
+business-logic change. Full reasoning in `EXPERIENCE_ENGINE.md`.
+
+## Added
+- `src/lib/experience/packs/seasonal.ts` — `springPack`, `summerPack`,
+  `monsoonPack`, `winterPack`, each a plain `ExperiencePack` object
+  (`category: 'season'`), plus `seasonalPacks` (array of all four).
+  Recurring `date-range` rules covering the full year exactly once, no
+  gaps or overlaps (Winter Oct 01–Feb 14 wraps the year boundary, reusing
+  the wrap-around logic already verified in Phase 1). Each pack sets
+  `accentPalette`, `greeting`, `decorativeAssets` (placeholder refs, no
+  actual asset files), `animationProfile` (transform/opacity-only style
+  name, `gpuFriendly: true`, `respectsReducedMotion: true`), and
+  `accessibility` (`decorativeOnly: true`, `respectsReducedMotion: true`).
+- `src/lib/experience/packs/index.ts` — `allPacks`, aggregating every
+  category's array (`seasonalPacks` today; a future category adds two
+  lines here and nothing else).
+
+## Modified
+- `src/lib/experience/types.ts` — added five new **category-agnostic**
+  fields to `ExperiencePack`: `accentPalette`, `greeting`,
+  `decorativeAssets`, `animationProfile`, `accessibility`. Every field is
+  optional and generic — no season/festival/national/campaign-specific
+  typing anywhere. `validatePack()` gained two generic rules (not
+  season-specific): any pack with an `animationProfile` must set
+  `gpuFriendly: true` and `respectsReducedMotion: true`; any pack with
+  `accessibility` must set `respectsReducedMotion: true` and
+  `decorativeOnly: true`. These apply identically to every future
+  category.
+- `src/lib/experience/localPacks.ts` — now imports `allPacks` instead of
+  an empty literal; still frozen on export. This is the *only* file that
+  changed to make Phase 3 content live in the engine — exactly the "one
+  new configuration object, zero engine changes" guarantee from the
+  original brief.
+- `src/lib/experience/index.ts` — exports the five new schema types.
+
+## Verified
+43/43 assertions against the real compiled module graph:
+- All 4 packs load, pass `validatePack()`, and are present + frozen
+  (including nested `accentPalette`/`animationProfile`) in `localPacks`.
+- Date resolution: mid-season dates, both boundaries of every pack
+  (including Winter's year-wrap and the Feb 14 → Feb 15 Winter→Spring
+  handoff), and — critically — exactly one seasonal pack active on every
+  sampled boundary/mid-point across the full year (no gap, no overlap).
+- Priority resolution: `resolveHighestPriorityPack` picks the correct
+  single seasonal pack for a given date.
+- End-to-end via `resolveActiveExperience()` with the real `localPacks`
+  registry: correct pack resolved with flag on; **all four real packs
+  ignored entirely with flag off** (zero-regression path exercised
+  against actual production content, not a mock).
+- Generic schema validation: an `animationProfile` with
+  `gpuFriendly: false` and an `accessibility` with
+  `decorativeOnly: false` both correctly fail `validatePack()` — proving
+  the performance/accessibility rules are enforced schema-wide, not
+  hardcoded per season.
+- Static check: `engine.ts`, `dateResolver.ts`, `priorityResolver.ts`,
+  and `ExperienceProvider.tsx` grepped clean of any
+  season/spring/summer/monsoon/winter reference — all decision-making
+  remains generic.
+
+## Explicit scope boundaries this phase
+- No Festival, National Day, Remembrance Day, or Campaign packs.
+- No colors, animations, or decorations hardcoded in the engine — every
+  visual value lives in the pack config objects, consumed generically.
+- No screen, layout, navigation, or business-logic change — packs exist
+  as configuration only; nothing renders them yet.
+- No actual decorative asset files created — `decorativeAssets` use
+  placeholder path strings, as explicitly permitted.
+- `layout.tsx` and `ExperienceProvider.tsx` untouched this phase (grep-
+  confirmed) — the provider already knows how to consume `tokens` from
+  Phase 2; it will pick up seasonal `tokens` automatically once the flag
+  is turned on, with no code change required.
+
+---
+
+# Changelog — Experience Engine Phase 2 (Provider Wiring, Still No Visuals)
+
+## Scope
+Wires the Phase 1 engine into the app via a lightweight provider — the
+first phase where the engine actually runs at runtime. Still zero real
+pack content, still zero decoration, still flag-gated to OFF by default.
+Full reasoning in `EXPERIENCE_ENGINE.md`.
+
+## Added
+- `src/lib/experience/immutable.ts` — `freezeDeep()`. Theme Packs are now
+  treated as immutable configuration end-to-end: every validated pack is
+  deep-frozen immediately after validation in `engine.ts`, and the final
+  `ResolvedExperience` returned to callers is deep-frozen too. Mutating
+  any field of a resolved pack throws in strict mode.
+- `src/components/shared/ExperienceProvider.tsx` — the provider. Calls
+  `resolveActiveExperience()`, reflects the result as a `data-experience`
+  attribute and `--exp-*` CSS custom properties on `document.documentElement`
+  (`<html>`), and exposes the result via a `useExperience()` context hook.
+  Contains no date logic, no priority logic, no event matching, no theme
+  selection — that all remains in the engine core, by design. Renders no
+  DOM node of its own (a `Context.Provider` has no DOM footprint), so
+  mounting it cannot disturb any existing layout.
+
+## Modified
+- `src/app/layout.tsx` — wraps `children` in `<ExperienceProvider>`
+  (2-line diff: one import, one wrapping tag pair). No new DOM element
+  introduced. No other change.
+- `src/lib/experience/engine.ts` — freezes packs post-validation and
+  freezes the returned `ResolvedExperience` (all three branches:
+  flag-disabled, no-pack-active, active).
+- `src/lib/experience/localPacks.ts` — the exported (still-empty) array
+  is now itself frozen, reinforcing immutability at the source.
+- `src/lib/experience/index.ts` — exports `freezeDeep`.
+
+## Verified
+- 10/10 new assertions (immutability: resolved object, pack, nested
+  `dateRule`/`tokens` all frozen; mutation throws; frozen empty registry;
+  empty-registry-with-flag-on still resolves inactive; flag-off ignores
+  matching packs; `freezeDeep` idempotent) — run against the real
+  compiled module graph, same method as Phase 1.
+- Static check: `ExperienceProvider.tsx` contains zero date/priority/
+  business-logic tokens (grepped for date APIs, category-priority
+  constants, and pack-field branching — none present).
+- Static check: no `data-theme` collision — the new `data-experience`
+  attribute lives on `<html>`; the existing Owner/Tenant `data-theme`
+  attributes live on their own `.owner-shell`/`.tenant-portal` wrapper
+  elements, as before. `OwnerThemeProvider`/`TenantThemeProvider`
+  themselves are byte-for-byte unmodified.
+- Confirmed via filesystem diff that exactly three files were touched
+  this phase (`ExperienceProvider.tsx` new, `layout.tsx` two-line mount,
+  `index.ts` one export) plus the engine-side immutability additions —
+  no business logic, route, or Supabase file touched.
+
+## Explicit scope boundaries this phase
+- No real pack content — `localPacks` is still an empty, frozen array.
+- No static `experience-tokens.css` file — with no pack contributing
+  tokens yet, the CSS-variable *injection mechanism* (provider →
+  `element.style.setProperty`) is the deliverable this phase; a static
+  token-defaults stylesheet is deferred until a real pack exists to
+  define values for it (see EXPERIENCE_ENGINE.md).
+- No Tailwind `exp.*` token mapping — not required yet; nothing consumes
+  `--exp-*` via a Tailwind utility class this phase.
+- No decorations, animations, or screen changes.
+- With the flag off (default) or on with an empty registry, the provider
+  sets no attribute, sets no CSS variable, and adds no DOM node — the app
+  is unchanged.
+
+---
+
+# Changelog — Experience Engine Phase 1 (Core, Not Wired to UI)
+
+## Scope
+First phase of the Rentivo Experience Engine (seasonal/festival/national-
+day/remembrance/campaign theming layer). This phase ships the engine's
+brain only — schema, resolvers, feature flag, config source abstraction —
+with zero UI connection, zero visual change, and zero business-logic
+touch. Full reasoning in `EXPERIENCE_ENGINE.md`.
+
+## Added (all new files, nothing existing modified)
+- `src/lib/experience/types.ts` — `ExperiencePack` schema, `DateRule`
+  union (fixed-date / explicit-dates / date-range / datetime-range /
+  manual), category priority ladder, `validatePack()`.
+- `src/lib/experience/flag.ts` — master feature flag,
+  `NEXT_PUBLIC_EXPERIENCE_ENGINE_ENABLED`, defaults OFF.
+- `src/lib/experience/configSource.ts` — `ExperienceConfigSource`
+  interface + `LocalConfigSource` implementation; documents how a future
+  Supabase/Admin-Panel source plugs into the same interface.
+- `src/lib/experience/dateResolver.ts` — timezone-aware (IANA, default
+  `Asia/Kolkata`) date/window matching for all four schedulable rule
+  types.
+- `src/lib/experience/priorityResolver.ts` — picks exactly one pack from
+  a set of simultaneously-active packs; deterministic tie-break; never
+  merges themes.
+- `src/lib/experience/engine.ts` — `resolveActiveExperience()`, the
+  single orchestrating entry point; short-circuits on the flag before
+  touching the config source; skips invalid packs defensively instead of
+  throwing.
+- `src/lib/experience/localPacks.ts` — empty pack registry (real packs
+  start Phase 3, Seasonal first, per the approved roadmap).
+- `src/lib/experience/index.ts` — public barrel export
+  (`@/lib/experience`).
+- `EXPERIENCE_ENGINE.md` — engine documentation for this and future
+  phases.
+
+## Verified
+24/24 assertions passing against the actual compiled module graph
+(not a mock): schema validation, all four date-rule types incl.
+year-wrap seasonal ranges and remembrance-day window padding, enabled-
+flag filtering, priority precedence across all five categories,
+deterministic tie-breaks, flag-off short-circuit (ignores matching packs
+entirely), flag-on end-to-end resolution, empty-config handling, and
+graceful skipping of a malformed pack. See "Verification Strategy" in
+`EXPERIENCE_ENGINE.md` for how to re-run.
+
+## Explicit scope boundaries this phase
+- Not imported by `layout.tsx` or any screen — zero runtime effect even
+  with the flag on, since nothing calls the engine yet.
+- No CSS tokens, no components, no decorations.
+- No real pack content (`localPacks.ts` is empty on purpose).
+- No business logic, routing, Supabase schema, or existing theme
+  provider touched.
+
+---
+
+# Changelog — Final Native Android Polish (Dashboard Redesign + Premium Bottom Nav)
+
+## Scope
+Completes the mobile dashboard redesign that was intentionally deferred
+last session, adds premium polish (animated indicator, CSS-only ripple,
+elevation) to both bottom navigations, and fixes one real, previously
+undetected table-overflow bug. No routing, business logic, database
+logic, or authentication changed. Full detail, including explicit scope
+boundaries on what was and wasn't covered, in `MOBILE_UX_AUDIT_REPORT.md`
+Session 3 and `FINAL_PRODUCTION_VERIFICATION_REPORT.md`.
+
+## Added / Redesigned (mobile only — desktop untouched in every case)
+- **Owner dashboard:** hero Monthly Revenue card + two labeled,
+  grouped stat sections (Needs Attention / Property Overview),
+  replacing the flat 9-card equal-weight grid on mobile.
+- **Tenant dashboard:** hero "Next Rent Due" card + simplified
+  secondary pair, replacing the flat 4-card grid on mobile.
+- **Both bottom navs:** animated active-tab pill (scale transition, not
+  just a color fade), icon "pop" on activation, CSS-only tap ripple,
+  and an elevation shadow.
+- Touch feedback (`active:scale-95`) added to both dashboards' Quick
+  Actions tiles, which previously only had non-functional `hover:`
+  states on touch devices.
+
+## Fixed
+- `approvals/page.tsx`'s 3-column review table (with live input fields)
+  had no `overflow-x-auto` wrapper — the only table in the app missing
+  one. Fixed; every other table already had it, confirmed by checking
+  all five `<table>` usages in the codebase.
+
+## Verified, not bugs
+Two other `flex gap-2` button rows were checked for the same overflow
+risk and confirmed safe (`flex-1` distributes width evenly) — left
+unchanged rather than "fixed" for no reason.
+
+## Explicit scope boundaries (see reports for full reasoning)
+- The dashboards' charts/calendar/analytics sections and ~14 other
+  individually-listed pages (Payments, Tenants, Complaints, etc.) were
+  not each redesigned this session — a targeted overflow/overlap audit
+  was run across them instead. Named explicitly rather than silently
+  narrowed.
+- Nothing in this session was verified by actually rendering the app —
+  this sandbox has no network access to `npm install`. Real-device
+  verification is the top recommendation in both reports.
+
+---
+
+# Changelog — Mobile UX Merge + Status Bar / Bottom Nav / Dashboard Native Feel
+
+## Scope
+Two parts: (1) merged the "Native App Feel" mobile UX pass — which
+existed in a separate project copy — into this project with zero loss
+(verified via full diff both before and after, see below); (2) new
+native-feel work per the attached reference brief: status bar overlap
+fix, owner + tenant bottom navigation, and completed dark-mode dialog
+work. No routing, business logic, database logic, or authentication
+changed. Full detail in `MOBILE_UX_AUDIT_REPORT.md`.
+
+## Part 1 — Merge verification
+Only one project ZIP was actually attached despite the request
+referencing two; the described "previous Mobile UX work" (sticky hover
+fix, 48×48dp touch targets, native bottom-sheet dialogs, horizontal
+overflow protection, `MOBILE_UX_AUDIT_REPORT.md`) matches this
+session's own prior "Native App Feel" pass exactly, so that was used as
+the merge source — flagged explicitly rather than silently assumed.
+Diffed the two projects first: confirmed a clean, linear history (this
+project was the same base *before* that pass), copied every one of the
+19 differing files across, merged `CHANGELOG.md` by prepending rather
+than overwriting (nothing from either history lost), then re-diffed to
+confirm only `CHANGELOG.md` still differed — i.e., the merge is
+complete and verified, not assumed.
+
+## Part 2 — New fixes
+- **Status bar overlap, the actual root cause.** `Topbar.tsx`,
+  `AdminTopbar.tsx`, and the Tenant Portal's header all used a fixed
+  height + `sticky top-0` with zero safe-area padding — despite a code
+  comment already saying a `native-safe-top` utility existed for
+  exactly this purpose. Fixed on all three (`h-*` → `min-h-*` +
+  safe-area class). Separately found `TopAppBar.tsx` (used by the
+  tenant `OnboardingWizard`) referenced a `tenant-safe-top` class that
+  didn't exist anywhere — defined it.
+- **Added real bottom navigation** for both Owner (Dashboard, Payments,
+  Add Tenant, Approvals, Profile) and Tenant (Dashboard, Payments,
+  Requests, Chat, Profile) — neither had one before; both relied
+  entirely on a hamburger + sidebar drawer. Owner's is a new themed
+  component (`owner/ui/OwnerBottomNav.tsx`) wired to 5 real existing
+  routes. Tenant's is inline in `portal/page.tsx`, mapped onto the
+  existing tab state and message/profile-menu handlers — no new route,
+  tab, or page.
+- **Completed dark-mode support for 6 of the 7 previously-flagged
+  modals** (card + header shell). The 7th (`join/[slug]`) was checked
+  and confirmed to be an intentionally always-light pre-auth flow with
+  no dark-mode toggle at all — left as-is on purpose.
+
+## Files touched (Part 2 only — Part 1's file list is Session 1's own changelog entry, preserved below)
+`src/components/shared/Topbar.tsx`, `AdminTopbar.tsx`,
+`src/components/tenant/ui/TopAppBar.tsx`, `src/app/globals.css`,
+`src/components/owner/ui/OwnerBottomNav.tsx` (new),
+`src/components/shared/OwnerShell.tsx`,
+`src/app/(tenant)/portal/page.tsx`, and 6 modal files listed in
+`MOBILE_UX_AUDIT_REPORT.md` (dark-mode shell fix).
+
+## Important note carried into KNOWN_LIMITATIONS-equivalent territory
+The `tenant/ui` design system (`BottomNav`, `TopAppBar`, `IconButton`)
+is not actually usable inside the real Tenant Portal page as it
+currently exists — its CSS tokens are never loaded there. Documented in
+full in `MOBILE_UX_AUDIT_REPORT.md`'s "important architecture note."
+
+---
+
+# Changelog — Native App Feel (Capacitor Android + Installed PWA)
+
+## Scope
+Mobile UX pass making the app feel like a native Android app rather than
+a website, when installed via Capacitor or Chrome's "Add to Home
+Screen." No redesign, no branding change, no business logic touched.
+Full findings in `MOBILE_UX_AUDIT_REPORT.md`.
+
+## Fixed
+- **Sticky hover on tap, app-wide.** Redefined Tailwind's `hover:`
+  variant (`tailwind.config.ts`) to only engage on true hover-capable
+  pointers — fixes all 55 files using `hover:` classes with one change.
+- **Icon button touch targets below 48×48dp** (owner: 28–44px, tenant:
+  32–40px). Added invisible hit-area expansion to both design systems'
+  `IconButton` size variants — visible size and layout unchanged.
+- **No horizontal-overflow safeguard.** Added `overflow-x: hidden` to
+  `html, body`.
+- **Every dialog used a centered "website popup" pattern on mobile.**
+  Converted all 25 modal instances across 14 files to a responsive
+  bottom-sheet-on-mobile / unchanged-centered-on-desktop pattern
+  (verified zero missed, zero mismatched pairs).
+
+## Added
+- `MOBILE_UX_AUDIT_REPORT.md`
+
+## Files touched
+`tailwind.config.ts`, `src/app/globals.css`,
+`src/components/owner/ui/IconButton.tsx`,
+`src/components/tenant/ui/IconButton.tsx`,
+`src/components/shared/AddPropertyModal.tsx`, and the 13 pages listed
+in `MOBILE_UX_AUDIT_REPORT.md` containing the 25 modal instances.
+
+## Reviewed, already correct (see report for detail)
+Input zoom prevention, tap-highlight/300ms-delay removal, single-scroll-
+area architecture, sticky header/bottom-nav safe-area handling, and
+focus-visible states were all already in place from earlier passes —
+not re-done, just verified.
+
+## Flagged, not fixed this pass
+Dark-mode contrast gaps in 7 of the 25 fixed modals (pre-existing,
+hardcoded `bg-white`) — needs visual verification, not a blind sweep.
+See `MOBILE_UX_AUDIT_REPORT.md`'s recommendations.
+
+---
 # Changelog — Broken Import Fix & Full Production Audit (Post-RC)
 
 ## Scope

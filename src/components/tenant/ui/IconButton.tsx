@@ -14,9 +14,11 @@ const iconButtonStyles = cva(
         primary: 'bg-tenant-primary text-tenant-primary-fg shadow-tenant-glow hover:bg-tenant-primary-hover',
       },
       size: {
-        sm: 'h-8 w-8 [&_svg]:h-4 [&_svg]:w-4',
-        md: 'h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]',
-        lg: 'h-12 w-12 [&_svg]:h-5 [&_svg]:w-5',
+        // See owner/ui/IconButton.tsx for the reasoning — visible size
+        // unchanged, invisible tap target expanded to 48px minimum.
+        sm: 'h-8 w-8 [&_svg]:h-4 [&_svg]:w-4 after:absolute after:-inset-2 after:content-[""]',
+        md: 'h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px] after:absolute after:-inset-1 after:content-[""]',
+        lg: 'h-12 w-12 [&_svg]:h-5 [&_svg]:w-5', // already 48px, no expansion needed
       },
     },
     defaultVariants: { variant: 'ghost', size: 'md' },

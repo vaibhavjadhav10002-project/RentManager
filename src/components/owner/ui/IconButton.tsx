@@ -14,9 +14,14 @@ const iconButtonStyles = cva(
         primary: 'bg-owner-primary text-owner-primary-fg hover:bg-owner-primary-hover',
       },
       size: {
-        sm: 'h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5',
-        md: 'h-9 w-9 [&_svg]:h-4 [&_svg]:w-4',
-        lg: 'h-11 w-11 [&_svg]:h-[18px] [&_svg]:w-[18px]',
+        // Visible size is unchanged (preserves existing layout/spacing
+        // everywhere this is used) — the `after:` pseudo-element expands
+        // only the invisible tappable hit area to the 48px minimum touch
+        // target, the standard Material Design "expand hit area without
+        // growing the visual footprint" pattern.
+        sm: 'h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5 after:absolute after:-inset-2.5 after:content-[""]',
+        md: 'h-9 w-9 [&_svg]:h-4 [&_svg]:w-4 after:absolute after:-inset-1.5 after:content-[""]',
+        lg: 'h-11 w-11 [&_svg]:h-[18px] [&_svg]:w-[18px] after:absolute after:-inset-0.5 after:content-[""]',
       },
     },
     defaultVariants: { variant: 'ghost', size: 'md' },
