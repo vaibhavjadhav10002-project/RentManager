@@ -19,10 +19,15 @@ export async function bootstrapNative() {
     import('@capacitor/keyboard'),
   ])
 
-  // Match status bar to the app's existing dark/light state instead of
-  // guessing — the app already toggles a `.dark` class on <html>.
+  // Match status bar to the device's system theme directly. (Previously
+  // this read a `.dark` class off <html>, but the Owner/Tenant scoped
+  // ThemeProviders only ever set that class on their own wrapper div, not
+  // <html> — so the status bar never actually updated. Reading
+  // prefers-color-scheme directly is also correct on screens with no
+  // theme provider mounted at all, e.g. auth/login.)
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
   const applyStatusBarForTheme = async () => {
-    const dark = document.documentElement.classList.contains('dark')
+    const dark = media.matches
     try {
       await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })
       await StatusBar.setBackgroundColor({ color: dark ? '#0f172a' : '#2563EB' })
@@ -31,11 +36,8 @@ export async function bootstrapNative() {
     }
   }
   await applyStatusBarForTheme()
-  // Re-apply whenever the app's own theme toggle flips the `.dark` class.
-  new MutationObserver(applyStatusBarForTheme).observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['class'],
-  })
+  // Re-apply live if the OS theme changes while the app is open.
+  media.addEventListener('change', applyStatusBarForTheme)
 
   // Edge-to-edge on Android 13/14 — content draws under the status/nav bars,
   // safe-area CSS (added in globals.css) handles the padding.

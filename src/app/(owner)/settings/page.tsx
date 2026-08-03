@@ -6,7 +6,7 @@ import { useProperty } from '@/components/shared/PropertyContext'
 import { toast } from 'sonner'
 import { Plus, Trash2, LogOut, Bell } from 'lucide-react'
 import {
-  OwnerButton, OwnerIconButton, OwnerCard, OwnerInput, OwnerSectionHeader, OwnerThemeToggle,
+  OwnerButton, OwnerIconButton, OwnerCard, OwnerInput, OwnerSectionHeader,
 } from '@/components/owner/ui'
 import { getNotificationPermissionState, hasActiveSubscription, enablePushNotifications, disablePushNotifications } from '@/lib/push'
 
@@ -125,8 +125,7 @@ export default function SettingsPage() {
 
       {/* Appearance */}
       <OwnerCard>
-        <OwnerSectionHeader title="Appearance" description="Theme applies across the whole dashboard" />
-        <OwnerThemeToggle />
+        <OwnerSectionHeader title="Appearance" description="Automatically matches your device's system theme" />
       </OwnerCard>
 
       {/* Notifications */}

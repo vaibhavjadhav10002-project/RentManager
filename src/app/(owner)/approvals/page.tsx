@@ -11,6 +11,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import type { Room } from '@/types'
 import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
 import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
+import { OwnerEmptyState } from '@/components/owner/ui'
 
 export default function ApprovalsPage() {
   const { activeId, active, properties } = useProperty()
@@ -343,10 +344,7 @@ export default function ApprovalsPage() {
         <div className="flex items-center justify-center h-40 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
       ) : tab === 'payments' ? (
         payments.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No pending payment claims</div>
-          </div>
+          <OwnerEmptyState icon={Check} title="No pending payment claims" className="py-16" />
         ) : (
           <div className="space-y-3">
             {payments.map(p => (
@@ -379,11 +377,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'tenants' ? (
         pendingTenants.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No pending tenant requests</div>
-            <p className="text-xs mt-2">Share the join link/QR with new tenants to get started</p>
-          </div>
+          <OwnerEmptyState icon={Check} title="No pending tenant requests" subtitle="Share the join link/QR with new tenants to get started" className="py-16" />
         ) : (
           <div className="space-y-3">
             {pendingTenants.map(t => (
@@ -437,10 +431,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'reviews' ? (
         submittedProfiles.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No profiles waiting for review</div>
-          </div>
+          <OwnerEmptyState icon={Check} title="No profiles waiting for review" className="py-16" />
         ) : (
           <div className="space-y-3">
             {submittedProfiles.map(t => (
@@ -470,10 +461,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'updates' ? (
         profileUpdateRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No profile update requests pending</div>
-          </div>
+          <OwnerEmptyState icon={Check} title="No profile update requests pending" className="py-16" />
         ) : (
           <div className="space-y-3">
             {profileUpdateRequests.map(req => {
@@ -520,10 +508,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'leave' ? (
         leaveRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No leave requests</div>
-          </div>
+          <OwnerEmptyState icon={Check} title="No leave requests" className="py-16" />
         ) : (
           <div className="space-y-3">
             {leaveRequests.map(l => (
@@ -561,10 +546,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'extensions' ? (
         rentExtensions.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No rent extension requests</div>
-          </div>
+          <OwnerEmptyState icon={Check} title="No rent extension requests" className="py-16" />
         ) : (
           <div className="space-y-3">
             {rentExtensions.map(x => (
@@ -602,10 +584,7 @@ export default function ApprovalsPage() {
         )
       ) : (
         moveOutRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
-            <div className="font-semibold">No move-out requests</div>
-          </div>
+          <OwnerEmptyState icon={Check} title="No move-out requests" className="py-16" />
         ) : (
           <div className="space-y-3">
             {moveOutRequests.map(m => (

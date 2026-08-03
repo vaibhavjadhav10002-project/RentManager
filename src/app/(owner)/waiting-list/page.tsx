@@ -5,6 +5,7 @@ import { getWaitingList, addWaitingListEntry, updateWaitingListStatus, deleteWai
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Users2, Trash2, Loader2, Phone, Archive } from 'lucide-react'
+import { OwnerEmptyState } from '@/components/owner/ui'
 import type { WaitingListEntry, WaitingListStatus, Room, Tenant } from '@/types'
 
 const STATUS_COLOR: Record<WaitingListStatus, string> = {
@@ -157,10 +158,7 @@ export default function WaitingListPage() {
       {loading ? (
         <div className="flex items-center justify-center h-48 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
-          <Users2 className="w-8 h-8" />
-          <div className="text-sm">Nobody on the waiting list yet</div>
-        </div>
+        <OwnerEmptyState icon={Users2} title="Nobody on the waiting list yet" className="py-16" />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
           {filtered.map(e => (

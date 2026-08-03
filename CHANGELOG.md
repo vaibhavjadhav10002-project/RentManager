@@ -1,4 +1,575 @@
-# Changelog — Experience Engine Phase 7 (Final — Rollout Docs + Website-Readiness Notes, No Code Changes)
+# Changelog — Premium UI/UX Upgrade, Phase 8 (Final QA Pass)
+
+## Scope
+Eighth and final phase of the roadmap's original plan: full regression
+sweep across every file touched in Phases 1–7, an accessibility pass,
+and closing out any last concrete/safe findings before handing back.
+
+## Found and fixed
+- **Branding inconsistency**: the tenant portal's own sidebar drawer
+  header said "RentFlow" while literally everywhere else in the app
+  (`layout.tsx`'s page title, `manifest.json`, the Owner Sidebar) says
+  "Rentivo" — a pre-existing inconsistency, not introduced by this
+  upgrade, but squarely inside the brief's explicit "Keep Rentivo
+  branding" instruction. Fixed the one occurrence; confirmed via a
+  full-repo grep that "RentFlow" doesn't appear anywhere else.
+
+## Full regression sweep (all 25 files touched across Phases 1–7)
+- Brace/paren balance: **0 mismatches** across all 25 files.
+- Invalid fractional Tailwind classes (the `w-4.5` class of bug caught
+  in Phase 3): **0 instances** anywhere in the touched set.
+- Unused imports: **0 findings** across every touched `.ts`/`.tsx` file.
+
+## Accessibility pass
+- Every new interactive element from Phases 2, 3, and 7 (bottom nav
+  tabs, the two "More" sheets, their backdrops, icon-only buttons)
+  carries the appropriate `aria-label`/`aria-current`/`aria-expanded`/
+  `role="dialog"`/`aria-hidden` — checked against the file's own
+  existing conventions (e.g. the existing "Close" (×) buttons already
+  used `aria-label="Close"`; new icon-only buttons follow the same
+  pattern).
+- Decorative empty-state icons intentionally use a muted
+  `text-gray-300`/`dark:text-slate-600` — acceptable since they sit
+  next to a real text heading that carries the actual accessible name
+  and proper contrast; icons alone don't need to meet text-contrast
+  ratios when purely decorative.
+
+## Observed, not changed (flagging for a decision, not deciding unilaterally)
+- **Mobile hamburger menu is now redundant with the "More" sheet** on
+  both Owner and Tenant. Before Phase 2, the mobile hamburger (☰) was
+  the only way to reach secondary destinations, so it made sense. Now
+  that both portals have a dedicated "More" tab in the bottom nav
+  covering the same ground, a mobile user has two different entry
+  points into overlapping content (hamburger → full sidebar drawer,
+  bottom nav → More sheet). Nothing is broken — both surfaces work
+  correctly and don't visually conflict — but removing the mobile
+  hamburger trigger (desktop's `lg:` sidebar is unaffected either way,
+  since it doesn't use the toggle) would be a genuine navigation
+  simplification in the spirit of "premium native Android experience."
+  Not removed here: the brief was specific about the 5-tab + More
+  structure and didn't ask for the hamburger's removal, and cutting an
+  existing entry point — even a redundant one — felt like exactly the
+  kind of call that should go back to the person rather than be made
+  silently.
+- **Pull-to-refresh** (carried over from Phase 7): still an open
+  decision — see Phase 7's entry above.
+
+## Sandbox limitation (repeated one final time, unchanged across all 8 phases)
+No network access in this environment, so `npm install` / `next build`
+/ `tsc` could never be run directly across any phase. Every phase's
+verification was manual line-by-line review, brace/paren balance
+checks, unused-import heuristics, and targeted greps — thorough, but
+not a substitute for an actual compile. **Please run a real build
+(`next build`) and a real Android build (`npx cap sync android` +
+Android Studio build) before shipping anything from this upgrade.**
+
+---
+
+
+
+## Scope
+Seventh phase of the Premium UI/UX Upgrade (UI/UX only — no business
+logic, API, database, auth, permission, calculation, or routing
+changes). Covers the roadmap's "cross-cutting states & motion" phase:
+touch feedback, error states, and pull-to-refresh, audited across the
+whole app rather than screen-by-screen.
+
+## Changed
+- **Tenant Portal — 8 primary CTAs** (`Pay Rent Now`, the bill-level
+  `Pay Now`, and the 6 modal `Submit`/`Submit Request` buttons across
+  Report Payment, Raise Complaint, Leave Request, Profile Update
+  Request, Rent Extension, and Move-Out Request) had only `hover:`
+  states, which never fire on a touch screen — so tapping them gave
+  zero visual feedback beyond the eventual result. Added matching
+  `active:bg-*-800 active:scale-[0.98]` to each, consistent with the
+  tap-feedback the bottom nav already had from Phase 2.
+
+## Audited, confirmed already correct
+- **Owner side touch feedback**: the shared `OwnerButton` component
+  (used across most owner screens) already has `active:scale-[0.98]`
+  built into its base class string — every owner screen using it
+  already gets this for free. The tenant portal doesn't share a Button
+  component (it's the same "not yet on the design-system kit" gap
+  noted since Phase 1), which is why its buttons needed fixing by hand
+  and Owner's largely didn't.
+- **Error states**: the app has a real, consistent architecture already
+  — a `toast.error(...)` (Sonner) on user-initiated actions that fail
+  (confirmed present across all 22 owner pages, most tenant portal
+  actions), and a deliberate silent-fail-to-empty-state pattern for
+  non-critical background reads (e.g. dashboard stat overlays). This is
+  a **functional/control-flow pattern**, not a styling choice — changing
+  *when* an error surfaces vs. fails silently would be a business-logic
+  change, outside this upgrade's mandate, so nothing here was altered.
+
+## Investigated, deliberately not implemented
+- **Pull-to-refresh**: found `overscroll-behavior-y: none` set globally
+  in `globals.css`, with a comment stating it's there specifically to
+  kill Android's native "pull to refresh the whole WebView" bounce.
+  That's an existing, deliberate architectural decision from before
+  this upgrade. Building a custom pull-to-refresh gesture would mean
+  either overriding that decision or carefully scoping around it on a
+  per-container basis — a genuine feature-level design/interaction
+  decision with real tradeoffs (does it conflict with anything the
+  original developer was avoiding?), not a safe "restyle" to make
+  unilaterally under a "don't change functionality" mandate. Surfacing
+  this rather than either silently skipping it or silently overriding
+  a previous deliberate choice.
+
+## Verified
+- Brace/paren balance re-checked after all edits.
+- Confirmed via grep that all 8 target buttons now carry both a
+  `hover:` and a matching `active:` state, and that no other primary
+  CTA class strings were altered.
+- **Sandbox limitation** (same as Phases 1–6): no network access, so
+  `next build`/`tsc` could not be run directly; verification is manual
+  review + static analysis. Please run a real build before deploying.
+
+## Recommendation for the person
+If pull-to-refresh is wanted, it should be its own explicit decision —
+happy to build it as a dedicated next step once you confirm whether
+overriding the existing `overscroll-behavior-y: none` (globally or on
+specific scroll containers) is acceptable, since that's a real
+interaction-behavior tradeoff, not a pure visual one.
+
+---
+
+
+
+## Scope
+Sixth phase of the Premium UI/UX Upgrade (UI/UX only — no business
+logic, API, database, auth, permission, calculation, or routing
+changes). Extends Phase 5's audit from the 4 primary owner screens to
+the remaining screens reachable from the "More" sheet.
+
+## Audit method
+Counted `owner-*` token-class usage vs. raw `bg-white` usage across all
+18 non-primary owner pages to find which ones predate the token
+migration (same method Phase 5 used to flag Approvals). Result: **10
+pages** — Reports, Tenant Cards, Visitors, Parcels, Waiting List, Room
+Change, Backup, Restore, Archive, Messages — still use plain Tailwind
+throughout, all from the same pre-token-migration "Phase 5 (Reports &
+Operations)" batch referenced in Sidebar.tsx's own code comments.
+
+Of those 10, checked each for the specific Approvals-style problem
+(bare/duplicated empty-state markup instead of the shared
+`OwnerEmptyState` component) rather than attempting a full token
+migration of all 10 pages in one pass — same "target the concrete
+duplication, don't redesign what isn't broken" approach as every prior
+phase.
+
+## Changed
+Replaced bare hand-rolled empty-state blocks with `OwnerEmptyState` in:
+- **Tenant Cards** — "No active tenants to show cards for"
+- **Visitors** — "No one is currently checked in" / "No visitor records yet" (filter-dependent)
+- **Parcels** — "No parcels waiting for collection" / "No parcel records yet" (filter-dependent)
+- **Waiting List** — "Nobody on the waiting list yet"
+- **Room Change** — "No room changes recorded yet" (its History sub-section)
+- **Archive** — "Nothing archived[ in {category}]" (dynamic label preserved via a template literal in the `title` prop, since the original mixed plain JSX text with an inline expression)
+
+Each of these previously duplicated the same icon-in-a-bare-card markup
+Approvals had — same underlying issue, same fix.
+
+## Checked, left unchanged (by design, not oversight)
+- **Owner Messages**: has two small empty states ("No active tenants" /
+  "No messages yet — say hello!") inside a narrow two-pane chat UI
+  (contact list sidebar + thread panel). `OwnerEmptyState`'s 48px
+  icon-circle treatment is sized for full-width card sections and would
+  look oversized in that narrow context — left as compact inline text,
+  which is the right call there, not an inconsistency to fix.
+- **Restore**: its "nothing to restore" case is an inline amber warning
+  paragraph about a specific backup-file mismatch, not a "no items in a
+  list" empty state — different UX purpose, not a duplicate of the
+  pattern being fixed.
+- **Reports, Backup, Settings**: audited, no bare/duplicated empty-state
+  markup found.
+
+## Verified
+- Full-repo sweep (`grep -rl` across every owner page) for the old bare
+  empty-state markup pattern — zero remaining instances anywhere.
+- Brace/paren balance verified independently on all 6 changed files.
+- Unused-import check on all 6 changed files — clean, including the
+  newly added `OwnerEmptyState` import in each.
+- **Sandbox limitation** (same as Phases 1–5): no network access, so
+  `next build`/`tsc` could not be run directly; verification is manual
+  review + static analysis. Please run a real build before deploying.
+
+## Deferred (not done this phase, on purpose)
+The 10 pages identified above are still plain Tailwind for everything
+beyond the empty states fixed here (cards, buttons, filters, list rows)
+— they render correctly today via the app-wide dark-mode CSS override
+system, but a full `owner-*` token migration of all 10 is a
+substantially larger undertaking than this phase's scope. Same
+deferral as Approvals in Phase 5 — noted as a candidate for a future,
+dedicated phase if full visual consistency with the 4 primary owner
+screens is wanted beyond what already works correctly.
+
+---
+
+
+
+## Scope
+Fifth phase of the Premium UI/UX Upgrade (UI/UX only — no business
+logic, API, database, auth, permission, calculation, or routing
+changes). Audited the 4 primary owner bottom-nav screens (Dashboard,
+Payments, Tenants, Approvals) for the same class of issue fixed on the
+tenant side in Phases 3–4: bare/duplicated empty states instead of a
+shared component.
+
+## Audit findings
+- **Dashboard**: already excellent — has its own layout-shaped loading
+  skeleton (`animate-pulse`, predates this upgrade) and every one of its
+  5 empty-list sections already uses the shared `OwnerEmptyState`
+  component. Nothing to change.
+- **Payments**: already uses `OwnerEmptyState` for its one empty-list
+  case ("No pending rent!" / "No payments found"). Nothing to change.
+- **Tenants**: already uses `OwnerEmptyState` for both its empty-list
+  cases. Nothing to change.
+- **Approvals**: the outlier. Predates the `owner-*` token system
+  migration (confirmed via a near-zero `owner-*` class count vs. 55–80
+  on the other 3 screens) and had **7 separate hand-copied** empty-state
+  blocks — identical markup (icon + bold text in a bare white card),
+  each with the actual message hardcoded 7 times over, instead of using
+  the same `OwnerEmptyState` component every other owner screen already
+  shares.
+
+## Changed
+- **`(owner)/approvals/page.tsx`**: replaced all 7 duplicated empty-state
+  blocks (Payments, Tenant Requests, Profile Reviews, Profile Updates,
+  Leave Requests, Rent Extensions, Move-Out Requests tabs) with
+  `OwnerEmptyState icon={Check} title="..."`, matching the exact pattern
+  the Dashboard/Payments/Tenants pages already use. One of the seven
+  (Tenant Requests) also carried a subtitle ("Share the join link/QR
+  with new tenants to get started") — preserved via `OwnerEmptyState`'s
+  existing `subtitle` prop rather than dropped.
+
+## Verified
+- Confirmed all 7 old blocks are gone (`grep -c` for the old markup
+  returns 0) and all 7 new usages are present, each still nested inside
+  its original `x.length === 0 ? (...) : (...)` conditional — none of
+  the 7 surrounding ternaries were altered beyond the swapped markup.
+- Brace/paren balance re-verified after all 7 edits.
+- Unused-import check on the whole file — all imports (including the
+  newly added `OwnerEmptyState`) are used.
+- **Sandbox limitation** (same as Phases 1–4): no network access, so
+  `next build`/`tsc` could not be run directly; verification is manual
+  review + static analysis. Please run a real build before deploying.
+
+## Deferred (not done this phase, on purpose)
+The rest of the Approvals page (list rows, cards, buttons) is still on
+plain Tailwind (`bg-white`, `border-gray-100`, etc.) rather than
+`owner-*` tokens — it still renders correctly (the app-wide dark-mode
+CSS override system from an earlier sprint covers raw Tailwind classes
+too), but a full token migration of the page is a larger, separate
+undertaking than this phase's "fix the concrete duplication" scope.
+Flagging it as a candidate for a future phase if visual consistency
+with the other 3 owner screens matters beyond what already works.
+
+---
+
+
+
+## Scope
+Fourth phase of the Premium UI/UX Upgrade (UI/UX only — no business
+logic, API, database, auth, permission, calculation, or routing
+changes). Completes the Empty-States pass Phase 3 started, extending
+the same icon+message treatment to every remaining tenant tab. (The
+Loading-state skeleton from Phase 3 is a single screen shown once
+before any tab renders, so it didn't need repeating per-tab.)
+
+## Changed
+- **Tenancy tab**: Leave Requests empty state (was plain gray text).
+- **Maintenance tab**: complaints/requests empty state, now with a
+  one-line explanation ("Report a maintenance issue and it'll show up
+  here.") in addition to the heading — this list can be genuinely
+  confusing empty on first use, unlike a payments list where "no
+  payments yet" is self-explanatory.
+- **Requests tab**: My Requests empty state.
+- **Messages tab**: chat empty state, split the previous single run-on
+  sentence ("No messages yet — say hello to your owner!") into a
+  heading + subline for visual consistency with the others.
+- **Notices tab**: notice board empty state.
+
+All five follow the exact same pattern established in Phase 3: icon in
+a soft circle (`bg-gray-50 dark:bg-slate-800`), semibold heading, and
+an optional one-line explanation — no new component, just repeating
+Phase 3's already-approved markup shape.
+
+## Checked, found nothing to change
+- **Documents tab**: renders a fixed set of document types (ID Proof,
+  Address Proof, Agreement, etc.) with a per-item uploaded/not-uploaded
+  state rather than a whole-list empty state — no bare-text empty state
+  exists there to fix.
+- **Support tab**: static FAQ content, no dynamic list, nothing to fix.
+
+## Verified
+- Viewed each of the 5 edited ternary blocks in full after editing to
+  confirm the `? ( ... ) : ( ... )` / `? ( ... ) : x.map(...)` structure
+  is intact and nothing was accidentally duplicated or left dangling.
+- Brace/paren balance re-verified with two independent methods (Node
+  regex count + Python string count) after all 5 edits.
+- Full sweep for invalid fractional Tailwind classes (the `w-4.5` class
+  of bug from Phase 3) across the whole file — none found this phase.
+- Unused-import check on the tenant portal's full `lucide-react` import
+  list (29 icons) — all still referenced, nothing orphaned.
+- **Sandbox limitation** (same as Phases 1–3): no network access, so
+  `next build`/`tsc` could not be run directly; verification is manual
+  review + static analysis. Please run a real build before deploying.
+
+## Deferred (not done this phase, on purpose)
+Spot-checked the Requests tab's filter chips and card structure while
+in the file — already has working filter pills, card wrapper, and
+row dividers, and looked consistent with the rest of the app, so no
+changes were made there. A full pass over every remaining tab's
+buttons/spacing/typography beyond loading/empty states was not
+attempted this phase to stay within scope; can be picked up as
+targeted follow-up if specific screens still feel off after a real
+device/build check.
+
+---
+
+
+
+## Scope
+Third phase of the Premium UI/UX Upgrade (UI/UX only — no business logic,
+API, database, auth, permission, calculation, or routing changes).
+Focused on Loading States and Empty States for the tenant portal's Home
+(dashboard) tab and payment-related screens, per the roadmap's "restyle
+highest-traffic tenant screens first" plan.
+
+## Assessment before changing anything
+Reviewed the Home tab (hero card, quick actions, stat cards) and Payments
+screens in full before editing. They were already close to the "premium"
+bar described in the brief — gradient hero card, icon-badged stat cards,
+rounded-2xl cards, hover/active tap feedback were all already in place
+from earlier phases. So Phase 3 targeted the two areas that were
+genuinely bare rather than re-doing work that didn't need it:
+
+## Changed
+- **Initial page load**: replaced the bare centered spinner (`Loader2` on
+  an empty gray screen) with a skeleton screen shaped like the actual
+  Home tab layout — header placeholder, 6-tile quick-actions row, hero
+  card, stat-card grid, and list rows, all using Tailwind's built-in
+  `animate-pulse` (no new dependency, no new keyframe). Dark-mode safe
+  via the existing global `.dark` override system.
+- **Empty states**: gave three bare "No payments/requests yet" text
+  lines an icon + heading + one-line explanation treatment (icon in a
+  soft circle, consistent with the rest of the app's card language):
+  the dashboard's Payment History card, the Tenancy tab's Move-Out
+  Requests list, and the Payment History tab's full table. Left the
+  compact "Recent Payment" mini-stat's one-line empty text as-is — it's
+  a small inline stat, not a list, so the same treatment would be
+  oversized there.
+
+## Fixed (bugs caught during this phase's own self-review)
+- One of my own edits introduced `w-4.5 h-4.5`, which isn't a real
+  Tailwind class (the default spacing scale has no `4.5` step) — it
+  would have silently rendered at `0` size. Caught via a full sweep of
+  every file touched this phase for invalid fractional utility classes
+  before finalizing; corrected to `w-4 h-4`, and confirmed no other
+  instances anywhere else touched in Phases 1–3.
+
+## Verified
+- Brace/paren balance and unused-import checks clean on the touched file.
+- Full sweep for other invalid fractional Tailwind sizes (`w-`/`h-`/
+  spacing utilities at `.5` steps not in the default scale) across every
+  file touched in Phases 1–3 — only the one instance above, now fixed.
+- Confirmed the app's existing global dark-mode CSS override system
+  (`globals.css`, from an earlier "Production Stability Sprint") already
+  covers raw Tailwind classes like `bg-white`/`text-gray-900` under
+  `.dark` — so most of the file does **not** need per-line `dark:`
+  variants to render correctly in dark mode; verified this before
+  assuming a gap existed, to avoid a large, unnecessary rewrite.
+- **Sandbox limitation** (same as Phases 1–2): no network access, so
+  `next build`/`tsc` could not be run directly; verification is manual
+  review + static analysis. Please run a real build before deploying.
+
+## Note on scope
+The Move-Out Requests empty-state fix technically lands inside the
+Tenancy tab rather than strictly "Home" or "Payments" — line numbers
+shifted after the skeleton-loading edit earlier in the same file, and by
+the time this was written the boundary had moved. Flagging it rather
+than quietly leaving it out of this note: it's a safe, same-pattern
+change, just not exactly where originally scoped.
+
+## Deferred (not done in this phase, on purpose)
+A full pixel-level redesign of the already-polished Home/Payments cards
+(hero card, stat cards, quick actions) was intentionally not attempted —
+they already met the premium bar from earlier phases, and doing a
+from-scratch rewrite would have added risk for no visible improvement.
+Remaining tenant tabs (Requests, Documents, Messages, Support, Notices,
+Tenancy) still need this same Loading/Empty-state pass — planned for
+Phase 4 per the roadmap.
+
+---
+
+
+
+## Scope
+Second phase of the Premium UI/UX Upgrade (UI/UX only — no business logic,
+API, database, auth, permission, calculation, or routing changes).
+Restructures Owner and Tenant bottom navigation to the required 5-item
+sets and gives both a premium native-Android nav treatment.
+
+## Changed
+
+### Owner Dashboard
+- `OwnerShell.tsx` bottom nav is now **Dashboard, Payments, Tenants,
+  Approvals, More** (was: Dashboard, Payments, "Add Tenant", Approvals,
+  Profile). Route hrefs for the first 4 are unchanged (`/dashboard`,
+  `/payments`, `/tenants`, `/approvals`) — only the "Add Tenant" label was
+  wrong before (it always pointed at `/tenants`) and is now correctly
+  labeled "Tenants".
+- **New**: `OwnerMoreSheet.tsx` — a mobile-only bottom sheet (not a page,
+  not a route) that "More" opens. Lists every owner page not pinned to
+  the bottom nav (Properties, Rooms, Messages, Inbox, Complaints,
+  Notices, Documents, Expenses, Reports, Tenant Cards, Visitors, Parcels,
+  Waiting List, Room Change, Backup, Restore, Archive, Settings, and
+  Notifications — see below), plus the same sign-out action the desktop
+  Sidebar already has.
+- **New**: `ownerNav.ts` — extracted the desktop `Sidebar.tsx`'s nav
+  array into a shared, single-source-of-truth config (`OWNER_NAV`), now
+  imported by both `Sidebar.tsx` (desktop, full list) and
+  `OwnerMoreSheet.tsx` (mobile, full list minus the 4 pinned bottom-nav
+  items). Prevents desktop/mobile nav from ever drifting apart, per "no
+  duplicate code."
+- Fixed one pre-existing bug surfaced while wiring this up: the
+  `/notifications` page has existed since an earlier phase but was never
+  linked from any nav — it's now reachable from the Owner "More" sheet.
+  No new page, no new logic; just a missing link added.
+- `OwnerBottomNav.tsx`: added a thin top active-tab indicator bar
+  (matches native Android tab-bar convention) and bumped each tab's
+  minimum touch target to 52px (exceeds Android's 48dp guideline).
+
+### Tenant Portal
+- Bottom nav is now **Home, Payments, Requests, Notices, More** (was:
+  Dashboard, Payments, Requests, Chat, Profile — with the other 6
+  sections + profile actions only reachable via the desktop sidebar or a
+  header dropdown, neither shown on mobile below `lg:`).
+- **New**: an in-page "More" bottom sheet (same file, `portal/page.tsx`
+  — not a new route, not a new tab in the `Tab` union) that lists the
+  remaining 6 sections (My Tenancy, Payment History, Maintenance,
+  Documents, Messages, Support) via a new `moreNavItems` array — simply
+  `navItems` filtered to exclude the 4 now-pinned keys, so it's driven by
+  the exact same data the desktop sidebar already uses. Also carries the
+  same Change Password / Logout actions the header's profile dropdown
+  already had.
+- The Notices bottom-nav tab now carries the same unread-count badge the
+  desktop sidebar already computed; the new "More" tab carries an
+  aggregate badge (unread messages + open maintenance requests) so
+  moving Chat and Maintenance off the primary bar doesn't hide that
+  there's something to look at.
+- Same top active-tab indicator + 52px touch targets added as the Owner
+  side, for visual consistency across both portals.
+- Applied the identical indicator/touch-target treatment to the
+  currently-unused `tenant/ui/BottomNav.tsx` kit component too, so it's
+  consistent whenever a later phase wires it into the live portal.
+
+## Verified
+- Every href in the new `OWNER_NAV`/`OWNER_MORE_NAV` config cross-checked
+  1:1 against the real `(owner)/*` route folders on disk — zero invented
+  links, zero missing pages.
+- Every tab key used in the tenant `moreNavItems` array cross-checked
+  against the existing `Tab` union and confirmed each has an existing
+  render branch — no new tabs were introduced, just a new way to reach
+  existing ones.
+- Manual line-by-line review + brace/paren-balance + unused-import checks
+  on every changed/new file.
+- Caught and fixed one bug during self-review: extracting `Sidebar.tsx`'s
+  nav array into `ownerNav.ts` accidentally dropped the `Building2` icon
+  import still used for the sidebar's own logo — restored before this
+  phase was considered done.
+- Bottom nav row (5 items) and "More" sheet grid (4 columns) sized with
+  `flex-1 min-w-0` / `truncate` and checked against a 320–360px viewport
+  budget — no horizontal scroll, no clipped labels at any of the 5 tab
+  labels or the "More" tab.
+- **Sandbox limitation** (same as Phase 1): no network access here, so
+  `npm install` / `next build` / `tsc` could not be run directly. All
+  verification above is manual review + static analysis; a real build
+  should still be run before deploying.
+
+## Known state / carried forward
+- Tenant "More" sheet still styled with this page's own ad-hoc Tailwind
+  (not the `tenant/ui/*` token kit) — consistent with the rest of
+  `portal/page.tsx` until the tenant screen-restyling phases adopt the
+  kit throughout.
+
+---
+
+
+
+## Scope
+First phase of the Premium UI/UX Upgrade (UI/UX only — no business logic,
+API, database, auth, permissions, calculation, or routing changes).
+Removes the manual Light/Dark/System theme toggle across the entire app
+and makes theme resolution follow the device's OS setting exclusively.
+
+## Changed
+- **Owner Dashboard** (`OwnerThemeProvider`, `Topbar.tsx`, Settings page):
+  removed the 3-way Light/Dark/System dropdown in the Topbar and the
+  toggle in Settings → Appearance. `OwnerThemeProvider` no longer accepts
+  or stores a preference — it resolves `resolvedTheme` directly from
+  `prefers-color-scheme` and updates live if the OS theme changes while
+  the app is open. Still scoped to the `.owner-shell` wrapper (not
+  `<html>`), still mirrors the resolved theme onto that wrapper's
+  `.dark` class for pages using global `dark:` Tailwind variants.
+- **Tenant Portal** (`portal/page.tsx`): replaced the header's manual
+  Sun/Moon toggle button and local-only `darkMode` boolean with a
+  `matchMedia('(prefers-color-scheme: dark)')` effect that initializes
+  and live-syncs the same `darkMode` state that already drives the
+  page's `dark:` classes. No markup/layout change beyond removing the
+  button.
+- **Tenant UI kit** (`TenantThemeProvider`, not currently wired into the
+  live portal — see Known State below): same system-only rewrite as the
+  Owner provider, so it's ready when the portal migrates onto this
+  design system in a later phase.
+- **Native shell** (`src/lib/native/bootstrap.ts`): fixed a pre-existing
+  bug where the Android/iOS status bar color never actually updated —
+  it was watching for a `.dark` class on `<html>`, which nothing in the
+  app has ever set (the scoped providers only ever set it on their own
+  wrapper div). Now reads `prefers-color-scheme` directly and listens
+  for live OS-theme changes, so the native status bar correctly matches
+  system theme on Android and iOS.
+
+## Removed
+- `src/components/owner/ui/ThemeToggle.tsx` (dead code after toggle removal).
+- `src/components/tenant/ui/ThemeToggle.tsx` (dead code after toggle removal).
+- `owner-theme-preference` / `tenant-theme-preference` `localStorage` keys
+  are no longer written or read anywhere in the app.
+
+## Verified
+- Full-repo search confirms zero remaining manual theme toggle UI,
+  `setPreference` calls, or theme `localStorage` keys.
+- Manual line-by-line review + automated brace-balance and unused-import
+  checks on every changed file — no dead imports, no orphaned variables.
+- Experience Engine (`ExperienceProvider.tsx`) independently confirmed
+  unaffected: it only ever reads/writes `data-experience` and `--exp-*`
+  on `<html>`, never touches `data-theme` or `.dark`, and has no
+  dependency on either ThemeProvider.
+- No routing, API, Supabase query, auth, permission, or calculation code
+  touched — confirmed by file-level diff review (theming/UI files only).
+- **Sandbox limitation**: this environment has no network access, so
+  `npm install` / `next build` / `tsc` could not be run directly here.
+  All checks above were done via manual review and static text analysis;
+  a real build should still be run before deploying.
+
+## Known state / carried forward to later phases
+- The polished `tenant/ui/*` component kit (Card, Button, BottomNav,
+  etc.) is still **not wired into** the live `(tenant)/portal/page.tsx`,
+  which remains a single large file using ad-hoc Tailwind + `dark:`
+  classes. Adopting the kit there is planned for the tenant screen
+  phases, not Phase 1.
+- The Admin panel (`(admin)/admin`) has `dark:` variant classes but no
+  theme provider mounted anywhere in its tree — this predates this
+  upgrade and is unrelated to it; Admin was not part of the reference
+  screens for this upgrade, so it was left untouched.
+- PWA `manifest.json` / `<meta name="theme-color">` remain a static
+  brand blue (`#2563EB`) — this is standard PWA practice (most apps keep
+  one static value) and unrelated to the in-app toggle removal, so it
+  was left as-is.
+
+---
+
+
 
 ## Scope
 Final phase of the original roadmap. Documentation only — no engine,

@@ -1,96 +1,47 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-export type OwnerThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
 
-const STORAGE_KEY = 'owner-theme-preference'
-
-function resolveSystemTheme(): ResolvedTheme {
-  if (typeof window === 'undefined') return 'dark'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function resolveTheme(pref: OwnerThemePreference): ResolvedTheme {
-  return pref === 'system' ? resolveSystemTheme() : pref
-}
-
 interface OwnerThemeContextValue {
-  preference: OwnerThemePreference
+  /** What's actually rendered right now: 'dark' | 'light'. Always mirrors the device/OS setting. */
   resolvedTheme: ResolvedTheme
-  setPreference: (pref: OwnerThemePreference) => void
 }
 
 const OwnerThemeContext = createContext<OwnerThemeContextValue | null>(null)
 
 /**
- * Scoped theme engine for the Owner Dashboard. Same pattern as
- * TenantThemeProvider (see src/components/tenant/ui/ThemeProvider.tsx):
- * defaults to dark, persists dark/light/system under its own localStorage
- * key, tracks `prefers-color-scheme` live while "system" is selected, and
- * writes `data-theme` on the wrapping `.owner-shell` element rather than
- * `<html>`.
+ * Scoped theme engine for the Owner Dashboard.
  *
- * One addition versus the tenant version: this ALSO toggles the literal
- * global `.dark` class on the same wrapper. That's because some existing
- * owner pages (e.g. the current Dashboard, before its own redesign phase)
- * already use Tailwind's global `dark:` variant classes driven by that
- * class. Keeping it in sync means those pages keep working exactly as
- * before while the rest of the Owner UI migrates to `owner-*` tokens
- * phase by phase. This can be removed once every owner page is migrated.
+ * Phase 1 (Premium UI Upgrade): the theme now follows the device's
+ * `prefers-color-scheme` setting only — there is no manual toggle and no
+ * stored override. This tracks the OS setting live, so a scheduled
+ * light/dark switch on the phone updates the app without a reload.
+ *
+ * Still writes `data-theme` + the literal `.dark` class on the wrapping
+ * `.owner-shell` element rather than `<html>`, so any page still relying on
+ * Tailwind's global `dark:` variant keeps working unchanged.
  */
-export function OwnerThemeProvider({
-  children,
-  initialPreference = 'dark',
-}: {
-  children: React.ReactNode
-  initialPreference?: OwnerThemePreference
-}) {
-  const [preference, setPreferenceState] = useState<OwnerThemePreference>(initialPreference)
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
-    initialPreference === 'system' ? 'dark' : initialPreference
-  )
+export function OwnerThemeProvider({ children }: { children: React.ReactNode }) {
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY) as OwnerThemePreference | null
-      if (saved === 'dark' || saved === 'light' || saved === 'system') {
-        setPreferenceState(saved)
-        setResolvedTheme(resolveTheme(saved))
-      }
-    } catch {
-      // localStorage unavailable — fall back to default.
-    }
-  }, [])
-
-  useEffect(() => {
-    if (preference !== 'system') return
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = () => setResolvedTheme(mql.matches ? 'dark' : 'light')
     onChange()
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
-  }, [preference])
-
-  const setPreference = useCallback((pref: OwnerThemePreference) => {
-    setPreferenceState(pref)
-    setResolvedTheme(resolveTheme(pref))
-    try {
-      window.localStorage.setItem(STORAGE_KEY, pref)
-    } catch {
-      // ignore
-    }
   }, [])
 
-  const value = useMemo(
-    () => ({ preference, resolvedTheme, setPreference }),
-    [preference, resolvedTheme, setPreference]
-  )
+  const value = useMemo(() => ({ resolvedTheme }), [resolvedTheme])
 
-  const activeTheme = mounted ? resolvedTheme : initialPreference === 'system' ? 'dark' : initialPreference
+  // Before mount, render server-safe 'dark' default (matches previous
+  // behavior) to avoid a hydration flash; corrects to the real OS value
+  // on the client immediately after mount.
+  const activeTheme = mounted ? resolvedTheme : 'dark'
 
   return (
     <OwnerThemeContext.Provider value={value}>

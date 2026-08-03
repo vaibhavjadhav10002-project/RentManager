@@ -10,7 +10,8 @@
  *
  * Theme resolution is attribute-based: <div class="owner-shell" data-theme="dark|light">
  * `data-theme` is written by <OwnerThemeProvider> (client-side, before
- * paint) based on the owner's saved preference (dark / light / system).
+ * paint) based on the device's `prefers-color-scheme` setting only — no
+ * manual toggle, no saved override (Premium UI Upgrade Phase 1).
  *
  * NOTE: OwnerThemeProvider *also* toggles the literal global `.dark` class
  * on the same wrapper, purely so existing `dark:` utility classes already

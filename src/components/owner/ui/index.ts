@@ -1,5 +1,4 @@
-export { OwnerThemeProvider, useOwnerTheme, type OwnerThemePreference } from './ThemeProvider'
-export { OwnerThemeToggle } from './ThemeToggle'
+export { OwnerThemeProvider, useOwnerTheme } from './ThemeProvider'
 export { OwnerButton, type OwnerButtonProps } from './Button'
 export { OwnerCard, OwnerCardHeader, OwnerCardTitle, OwnerCardDescription, type OwnerCardProps } from './Card'
 export { OwnerBadge, ownerStatusTone, type OwnerBadgeProps } from './Badge'

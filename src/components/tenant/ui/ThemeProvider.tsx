@@ -1,102 +1,48 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-export type TenantThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
 
-const STORAGE_KEY = 'tenant-theme-preference'
-
-function resolveSystemTheme(): ResolvedTheme {
-  if (typeof window === 'undefined') return 'dark'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function resolveTheme(pref: TenantThemePreference): ResolvedTheme {
-  return pref === 'system' ? resolveSystemTheme() : pref
-}
-
 interface TenantThemeContextValue {
-  /** What the user picked: 'dark' | 'light' | 'system' */
-  preference: TenantThemePreference
-  /** What's actually rendered right now: 'dark' | 'light' */
+  /** What's actually rendered right now: 'dark' | 'light'. Always mirrors the device/OS setting. */
   resolvedTheme: ResolvedTheme
-  setPreference: (pref: TenantThemePreference) => void
 }
 
 const TenantThemeContext = createContext<TenantThemeContextValue | null>(null)
 
 /**
- * Scoped theme engine for the Tenant Mobile UI.
+ * Scoped theme engine for the Tenant Mobile UI (tenant/ui design-system
+ * components — not yet wired into the live `(tenant)/portal` page, which
+ * currently manages its own local dark-mode state; see
+ * PREMIUM_UI_UPGRADE_PHASE_LOG.md for the plan to unify these).
  *
- * - Defaults to **dark** (per the design brief) on first visit.
- * - Persists the user's choice (dark / light / system) to localStorage
- *   under a tenant-only key, so it never collides with any Owner/Admin
- *   theme preference that might be added later.
- * - Writes the resolved theme as `data-theme` on the wrapping
- *   `.tenant-portal` element — never on `<html>` — so Tailwind's global
- *   `darkMode: 'class'` toggle (which owner/admin components may rely on)
- *   is completely unaffected.
- * - Tracks `prefers-color-scheme` live while "system" is selected.
+ * Phase 1 (Premium UI Upgrade): the theme now follows the device's
+ * `prefers-color-scheme` setting only — there is no manual toggle and no
+ * stored override. Writes the resolved theme as `data-theme` on the
+ * wrapping `.tenant-portal` element — never on `<html>` — so Tailwind's
+ * global `darkMode: 'class'` toggle (which owner/admin components may rely
+ * on) is completely unaffected.
  */
-export function TenantThemeProvider({
-  children,
-  initialPreference = 'dark',
-}: {
-  children: React.ReactNode
-  initialPreference?: TenantThemePreference
-}) {
-  const [preference, setPreferenceState] = useState<TenantThemePreference>(initialPreference)
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
-    initialPreference === 'system' ? 'dark' : initialPreference
-  )
+export function TenantThemeProvider({ children }: { children: React.ReactNode }) {
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark')
   const [mounted, setMounted] = useState(false)
 
-  // Read saved preference on mount (client only — keeps SSR markup stable).
   useEffect(() => {
     setMounted(true)
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY) as TenantThemePreference | null
-      if (saved === 'dark' || saved === 'light' || saved === 'system') {
-        setPreferenceState(saved)
-        setResolvedTheme(resolveTheme(saved))
-      }
-    } catch {
-      // localStorage unavailable (private mode, etc.) — fall back to default.
-    }
-  }, [])
-
-  // Keep resolvedTheme in sync with OS setting while "system" is active.
-  useEffect(() => {
-    if (preference !== 'system') return
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = () => setResolvedTheme(mql.matches ? 'dark' : 'light')
     onChange()
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
-  }, [preference])
-
-  const setPreference = useCallback((pref: TenantThemePreference) => {
-    setPreferenceState(pref)
-    setResolvedTheme(resolveTheme(pref))
-    try {
-      window.localStorage.setItem(STORAGE_KEY, pref)
-    } catch {
-      // ignore
-    }
   }, [])
 
-  const value = useMemo(
-    () => ({ preference, resolvedTheme, setPreference }),
-    [preference, resolvedTheme, setPreference]
-  )
+  const value = useMemo(() => ({ resolvedTheme }), [resolvedTheme])
+  const activeTheme = mounted ? resolvedTheme : 'dark'
 
   return (
     <TenantThemeContext.Provider value={value}>
-      {/* suppressHydrationWarning: resolvedTheme can legitimately differ
-          between the server render (always "dark") and the client's first
-          paint (saved preference / OS setting), same tradeoff as next-themes. */}
-      <div className="tenant-portal min-h-screen" data-theme={mounted ? resolvedTheme : initialPreference === 'system' ? undefined : initialPreference} suppressHydrationWarning>
+      <div className="tenant-portal min-h-screen" data-theme={activeTheme} suppressHydrationWarning>
         {children}
       </div>
     </TenantThemeContext.Provider>

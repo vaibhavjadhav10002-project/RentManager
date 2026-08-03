@@ -6,6 +6,7 @@ import { queueOfflineAction } from '@/lib/offlineQueue'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
 import { Plus, Package, PackageCheck, Trash2, Loader2, Clock, Archive } from 'lucide-react'
+import { OwnerEmptyState } from '@/components/owner/ui'
 import type { Parcel, Tenant } from '@/types'
 
 export default function ParcelsPage() {
@@ -148,10 +149,7 @@ export default function ParcelsPage() {
       {loading ? (
         <div className="flex items-center justify-center h-48 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
-          <Package className="w-8 h-8" />
-          <div className="text-sm">{filter === 'pending' ? 'No parcels waiting for collection' : 'No parcel records yet'}</div>
-        </div>
+        <OwnerEmptyState icon={Package} title={filter === 'pending' ? 'No parcels waiting for collection' : 'No parcel records yet'} className="py-16" />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
           {filtered.map(p => (
