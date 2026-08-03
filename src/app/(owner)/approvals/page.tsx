@@ -648,7 +648,7 @@ export default function ApprovalsPage() {
               {/* Previous / New / Source comparison */}
               <div>
                 <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Submitted Details</div>
-                <div className="border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
+                <div className="border border-gray-100 rounded-xl overflow-x-auto">
                   <table className="w-full text-sm min-w-[480px]">
                     <thead>
                       <tr className="bg-gray-50 text-left text-xs text-gray-500">
