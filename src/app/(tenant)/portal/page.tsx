@@ -1563,7 +1563,7 @@ export default function TenantPortal() {
                       <Wrench className="w-5 h-5 text-gray-300 dark:text-slate-600" />
                     </div>
                     <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No requests raised yet</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 text-center max-w-[220px]">Report a maintenance issue and it'll show up here.</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500 text-center max-w-[220px]">Report a maintenance issue and it&apos;ll show up here.</div>
                   </div>
                 ) : complaints.map(c => (
                   <div key={c.id} className="flex items-start justify-between gap-3 px-5 py-4">
