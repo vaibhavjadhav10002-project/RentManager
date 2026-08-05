@@ -39,13 +39,6 @@
     --input: 217 33% 17%;
   }
 
-  html, body {
-    overflow-x: hidden; /* belt-and-suspenders: nothing should ever be able to create
-      page-level horizontal scroll/rubber-banding — a classic "this feels like a
-      website" tell on Android. Doesn't affect intentional horizontal-scroll
-      containers (e.g. a wide table's own overflow-x-auto wrapper), since that's a
-      different element scrolling independently, not the page itself. */
-  }
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground antialiased;
@@ -252,14 +245,6 @@
    that already accounts for it. */
 .native-app .native-safe-top {
   padding-top: calc(0.75rem + var(--native-top-inset));
-}
-
-/* TopAppBar.tsx (used by the tenant OnboardingWizard) references this
-   class on its outer header, which has no fixed height of its own — the
-   inner content row keeps its fixed h-14/h-16, so this padding only ever
-   adds space above the bar, never squishes it. */
-.native-app .tenant-safe-top {
-  padding-top: var(--native-top-inset);
 }
 
 .native-app .native-safe-bottom {

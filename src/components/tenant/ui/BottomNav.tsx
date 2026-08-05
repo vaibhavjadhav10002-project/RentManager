@@ -18,9 +18,8 @@ export interface BottomNavProps {
 
 /**
  * Fixed bottom tab bar, native-Android style: 4-5 items max, icon + label,
- * active item picked out with a tinted pill behind the icon plus a thin
- * top indicator bar (reads more "app", less "website tabs"). Matches
- * OwnerBottomNav's treatment exactly for cross-portal consistency.
+ * active item picked out with a tinted pill behind the icon rather than a
+ * top indicator line (reads more "app", less "website tabs").
  */
 export function BottomNav({ items, activeKey, onChange, className }: BottomNavProps) {
   return (
@@ -37,16 +36,9 @@ export function BottomNav({ items, activeKey, onChange, className }: BottomNavPr
             <button
               key={key}
               onClick={() => onChange(key)}
-              className="relative flex flex-col items-center justify-center gap-1 flex-1 min-h-[52px] py-2.5 min-w-0"
+              className="relative flex flex-col items-center justify-center gap-1 flex-1 py-2.5 min-w-0"
               aria-current={active ? 'page' : undefined}
             >
-              <span
-                className={cn(
-                  'absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-tenant-primary transition-all duration-300 ease-out',
-                  active ? 'w-6 opacity-100' : 'w-0 opacity-0'
-                )}
-                aria-hidden="true"
-              />
               <span
                 className={cn(
                   'relative flex items-center justify-center h-8 w-11 rounded-tenant-full transition-colors',

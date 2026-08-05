@@ -109,7 +109,7 @@ reserved for:
 | `BottomNav` | Fixed tab bar, active pill behind the icon, per-item unread badges. |
 | `FAB` | One per screen, floats above the bottom nav automatically. |
 | `Divider`, `SectionHeader` | Layout utilities. |
-| ~~`ThemeToggle`~~ | Removed in Premium UI Upgrade Phase 1. Theme now always follows the device's system setting (`TenantThemeProvider`); no manual override exists. |
+| `ThemeToggle` | Three-way light/dark/system segmented control — fully wired to the engine, ready to drop into Profile & Settings (T7). |
 | `TenantThemeProvider`, `useTenantTheme()` | The theme engine itself. |
 
 Import from the barrel: `import { Button, Card, Badge, ... } from '@/components/tenant/ui'`.

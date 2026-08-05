@@ -1,31 +1,39 @@
 'use client'
 
-import { Moon, Sun } from 'lucide-react'
+import { Moon, Sun, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useOwnerTheme } from './ThemeProvider'
+import { useOwnerTheme, type OwnerThemePreference } from './ThemeProvider'
 
-/**
- * Read-only theme indicator for the Owner Dashboard.
- *
- * Theme now follows the device's OS setting only (see ThemeProvider) —
- * there is no manual toggle. This component just reflects the currently
- * active theme so it can still be dropped into headers/toolbars without
- * implying it's clickable.
- */
-export function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme } = useOwnerTheme()
-  const isDark = resolvedTheme === 'dark'
+const options: { key: OwnerThemePreference; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: 'light', label: 'Light', icon: Sun },
+  { key: 'dark', label: 'Dark', icon: Moon },
+  { key: 'system', label: 'System', icon: Monitor },
+]
+
+/** Three-way segmented control for the Owner theme engine. Not wired into
+ * the Topbar yet — that happens when the Topbar itself is redesigned — but
+ * fully functional against OwnerThemeProvider as soon as it's dropped in. */
+export function OwnerThemeToggle({ className }: { className?: string }) {
+  const { preference, setPreference } = useOwnerTheme()
 
   return (
-    <div
-      className={cn(
-        'inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400',
-        className
-      )}
-      title={isDark ? 'Dark mode (follows device setting)' : 'Light mode (follows device setting)'}
-      aria-label={isDark ? 'Dark mode' : 'Light mode'}
-    >
-      {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+    <div className={cn('flex items-center gap-1 p-1 bg-owner-bg-subtle rounded-owner-lg border border-owner-border', className)}>
+      {options.map(({ key, label, icon: Icon }) => {
+        const active = preference === key
+        return (
+          <button
+            key={key}
+            onClick={() => setPreference(key)}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 h-8 rounded-owner-md text-xs font-semibold transition-colors',
+              active ? 'bg-owner-primary text-owner-primary-fg shadow-owner-xs' : 'text-owner-muted hover:text-owner-fg'
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        )
+      })}
     </div>
   )
 }

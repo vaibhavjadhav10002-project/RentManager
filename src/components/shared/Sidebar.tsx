@@ -4,12 +4,48 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Building2, LogOut, X } from 'lucide-react'
+import {
+  LayoutDashboard, BedDouble, Users, IndianRupee, ShieldCheck,
+  MessageSquareWarning, TrendingDown, BarChart3, Settings, LogOut,
+  Building2, X, MessageCircle, Megaphone, FileText,
+  QrCode, UserCheck, Package, Users2, Repeat, DownloadCloud, UploadCloud, Archive,
+  Inbox,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProperty } from './PropertyContext'
 import { getUnreadMessageCountsForProperty } from '@/lib/supabase/queries'
 import { OwnerAvatar, OwnerIconButton, OwnerBadge } from '@/components/owner/ui'
-import { OWNER_NAV as NAV } from './ownerNav'
+
+// Added `properties` (O3), `notices` (O1.3), and `documents` (O10) —
+// pages that either newly exist (properties, documents) or already
+// existed but weren't linked from the sidebar (notices).
+// Phase 5 (Reports & Operations) items merged in below `reports` — these
+// pages predate Phase 7's redesign and weren't in scope for any O-phase,
+// so they keep their original icons/labels pending a future UI-polish pass.
+const NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/properties', label: 'Properties', icon: Building2 },
+  { href: '/rooms', label: 'Rooms', icon: BedDouble },
+  { href: '/tenants', label: 'Tenants', icon: Users },
+  { href: '/payments', label: 'Payments', icon: IndianRupee },
+  { href: '/approvals', label: 'Approvals', icon: ShieldCheck, badge: 'new' },
+  { href: '/messages', label: 'Messages', icon: MessageCircle },
+  { href: '/inbox', label: 'Inbox', icon: Inbox },
+  { href: '/complaints', label: 'Complaints', icon: MessageSquareWarning },
+  { href: '/notices', label: 'Notices', icon: Megaphone },
+  { href: '/documents', label: 'Documents', icon: FileText },
+  { href: '/expenses', label: 'Expenses', icon: TrendingDown },
+  { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/tenant-cards', label: 'Tenant Cards', icon: QrCode },
+  { href: '/visitors', label: 'Visitors', icon: UserCheck },
+  { href: '/parcels', label: 'Parcels', icon: Package },
+  { href: '/waiting-list', label: 'Waiting List', icon: Users2 },
+  { href: '/room-change', label: 'Room Change', icon: Repeat },
+  { href: '/backup', label: 'Backup', icon: DownloadCloud },
+  { href: '/restore', label: 'Restore', icon: UploadCloud },
+  { href: '/archive', label: 'Archive', icon: Archive },
+  { href: '/settings', label: 'Settings', icon: Settings },
+]
 
 interface Props { open: boolean; onClose: () => void; userName: string }
 

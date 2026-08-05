@@ -4,7 +4,6 @@ import { useProperty } from '@/components/shared/PropertyContext'
 import { getTenants, getRooms, getRoomChanges, changeTenantRoom } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 import { ArrowRight, Repeat, Loader2, History } from 'lucide-react'
-import { OwnerEmptyState } from '@/components/owner/ui'
 import type { Tenant, Room, RoomChange } from '@/types'
 
 export default function RoomChangePage() {
@@ -155,7 +154,7 @@ export default function RoomChangePage() {
           <History className="w-4 h-4" /> Change History
         </div>
         {history.length === 0 ? (
-          <OwnerEmptyState icon={History} title="No room changes recorded yet" className="py-10" />
+          <div className="text-center py-10 text-sm text-gray-400">No room changes recorded yet</div>
         ) : (
           <div className="divide-y divide-gray-50">
             {history.map(h => (

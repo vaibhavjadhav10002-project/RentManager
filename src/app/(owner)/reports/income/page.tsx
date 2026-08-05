@@ -166,8 +166,25 @@ export default function IncomeReportPage() {
             <div className="text-sm">No income matches this filter</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            {/* Mobile: stacked card list, no horizontal scroll */}
+            <div className="sm:hidden divide-y divide-gray-50">
+              {filtered.map(p => (
+                <div key={p.id} className="px-5 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-800 truncate">{p.tenant?.name ?? '—'}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)} · Room {p.tenant?.room?.room_number ?? '—'}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_BADGE[p.type]}`}>{TYPE_LABEL[p.type]}</span>
+                      <span className="text-xs text-gray-500 capitalize">{p.method?.replace('_', ' ') ?? '—'}</span>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-900 shrink-0">{formatINR(p.amount_received)}</div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop/tablet: full table */}
+            <table className="w-full text-sm hidden sm:table">
               <thead>
                 <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-3 font-semibold">Date</th>
@@ -193,7 +210,7 @@ export default function IncomeReportPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </>
         )}
       </div>
     </div>

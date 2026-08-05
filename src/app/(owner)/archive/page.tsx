@@ -7,7 +7,6 @@ import {
 } from '@/lib/supabase/queries'
 import { toast } from 'sonner'
 import { Archive, RotateCcw, Loader2, UserCheck, Package, Users2 } from 'lucide-react'
-import { OwnerEmptyState } from '@/components/owner/ui'
 import type { Visitor, Parcel, WaitingListEntry } from '@/types'
 
 type Kind = 'visitor' | 'parcel' | 'waiting'
@@ -108,7 +107,10 @@ export default function ArchivePage() {
       </div>
 
       {filtered.length === 0 ? (
-        <OwnerEmptyState icon={Archive} title={`Nothing archived${filter !== 'all' ? ` in ${KIND_META[filter as Kind].label}` : ''}`} className="py-16" />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+          <Archive className="w-8 h-8" />
+          <div className="text-sm">Nothing archived{filter !== 'all' ? ` in ${KIND_META[filter as Kind].label}` : ''}</div>
+        </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
           {filtered.map(item => {

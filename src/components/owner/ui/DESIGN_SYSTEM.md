@@ -45,7 +45,7 @@ density** rather than mobile-native card sizing:
 | `OwnerTable` (+Head/Body/Row/HeadCell/Cell/EmptyRow) | `OwnerTableHeadCell` supports optional sort affordance (`sortable`, `sortDirection`, `onSort`) — wire up when a page needs it, no requirement to use it everywhere. |
 | `OwnerAvatar` | Photo or initials fallback. |
 | `OwnerDivider`, `OwnerSectionHeader`, `OwnerEmptyState` | Layout utilities. |
-| ~~`OwnerThemeToggle`~~ | Removed in Premium UI Upgrade Phase 1. Theme now always follows the device's system setting (`OwnerThemeProvider`); no manual override exists. |
+| `OwnerThemeToggle` | 3-way light/dark/system control, functional now, not wired into the Topbar until O1.3. |
 
 Import from the barrel: `import { OwnerButton, OwnerCard, ... } from '@/components/owner/ui'`.
 

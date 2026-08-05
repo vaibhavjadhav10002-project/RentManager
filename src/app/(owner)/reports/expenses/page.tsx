@@ -169,8 +169,22 @@ export default function ExpenseReportPage() {
             <div className="text-sm">No expenses match this filter</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            {/* Mobile: stacked card list, no horizontal scroll */}
+            <div className="sm:hidden divide-y divide-gray-50">
+              {filtered.map(e => (
+                <div key={e.id} className="px-5 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${CAT_COLOR[e.category] ?? 'bg-gray-100 text-gray-600'}`}>{e.category}</span>
+                    <div className="text-xs text-gray-400 mt-1">{formatDate(e.expense_date)}{activeId === 'all' && ` · ${e.property_name}`}</div>
+                    {e.notes && <div className="text-xs text-gray-500 mt-1 truncate">{e.notes}</div>}
+                  </div>
+                  <div className="text-sm font-semibold text-gray-900 shrink-0">{formatINR(e.amount)}</div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop/tablet: full table */}
+            <table className="w-full text-sm hidden sm:table">
               <thead>
                 <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-3 font-semibold">Date</th>
@@ -192,7 +206,7 @@ export default function ExpenseReportPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </>
         )}
       </div>
     </div>

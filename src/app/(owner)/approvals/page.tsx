@@ -6,12 +6,11 @@ import { createClient } from '@/lib/supabase/client'
 import { formatINR, formatDate, whatsappLink } from '@/lib/utils'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
-import { Check, X, QrCode, Copy, Loader2, Link2 } from 'lucide-react'
+import { Check, X, QrCode, Copy, Loader2, Link2, ChevronRight } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { Room } from '@/types'
 import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
 import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
-import { OwnerEmptyState } from '@/components/owner/ui'
 
 export default function ApprovalsPage() {
   const { activeId, active, properties } = useProperty()
@@ -46,6 +45,15 @@ export default function ApprovalsPage() {
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [appUrl, setAppUrl] = useState('')
   useEffect(() => { setAppUrl(window.location.origin) }, [])
+
+  // List → Detail pattern (premium redesign): tapping a Payment Claim,
+  // Leave Request, Rent Extension, or Move-Out row opens this bottom
+  // sheet instead of showing Approve/Reject inline on the row. Reviews,
+  // New Tenant Requests, and Profile Updates already had their own
+  // dedicated detail modals (reviewModal / approveModal /
+  // updateRejectModal) — those keep their existing state and handlers
+  // exactly as-is, just restyled as bottom sheets below.
+  const [detailSheet, setDetailSheet] = useState<{ kind: 'payment' | 'leave' | 'extension' | 'moveout' | 'tenant' | 'update'; item: any } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -312,22 +320,23 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Approvals</h1>
-          <p className="text-sm text-gray-500">Review payment claims and new tenant requests</p>
+          <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Approvals</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Review payment claims and new tenant requests</p>
         </div>
-        <button onClick={() => { if (!active) { toast.error('Select a specific property first (not "All Properties")'); return } setQrModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition">
+        <button onClick={() => { if (!active) { toast.error('Select a specific property first (not "All Properties")'); return } setQrModal(true) }}
+          className="flex items-center gap-2 px-4 h-11 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 active:scale-[0.98] text-white rounded-2xl text-sm font-semibold transition">
           <QrCode className="w-4 h-4" /> Tenant Join Link / QR
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+      <div className="flex flex-wrap gap-1.5 p-1 bg-gray-100 rounded-2xl w-fit">
         {[['payments', 'Payment Claims'], ['tenants', 'New Tenant Requests'], ['reviews', 'Profile Reviews'], ['updates', 'Profile Updates'], ['leave', 'Leave Requests'], ['extensions', 'Rent Extensions'], ['moveout', 'Move-Out Requests']].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v as any)}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition ${tab === v ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
+            className={`flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-semibold transition-all shrink-0 whitespace-nowrap active:scale-[0.97] ${tab === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
             {l}
             {v === 'payments' && payments.length > 0 && <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{payments.length}</span>}
             {v === 'tenants' && pendingTenants.length > 0 && <span className="bg-purple-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{pendingTenants.length}</span>}
@@ -344,299 +353,439 @@ export default function ApprovalsPage() {
         <div className="flex items-center justify-center h-40 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
       ) : tab === 'payments' ? (
         payments.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No pending payment claims" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No pending payment claims</div>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {payments.map(p => (
-              <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                    {(p.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-900">{p.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
-                    <div className="text-xs text-gray-500 mt-1">{p.for_month} · <span className="capitalize">{p.method?.replace('_', ' ')}</span></div>
-                    {p.tenant_note && <div className="text-xs text-gray-400 italic mt-1">&quot;{p.tenant_note}&quot;</div>}
-                    <div className="text-xs text-gray-400 mt-1">Submitted {new Date(p.created_at).toLocaleString('en-IN')}</div>
-                  </div>
+              <button key={p.id} onClick={() => setDetailSheet({ kind: 'payment', item: p })}
+                className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {(p.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-xl font-extrabold text-gray-900">{formatINR(p.amount_received)}</div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleApprovePayment(p.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
-                      <Check className="w-3.5 h-3.5" /> Approve
-                    </button>
-                    <button onClick={() => handleRejectPayment(p.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
-                      <X className="w-3.5 h-3.5" /> Reject
-                    </button>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{p.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
+                  <div className="text-xs text-gray-500 mt-0.5">{p.for_month} · <span className="capitalize">{p.method?.replace('_', ' ')}</span></div>
                 </div>
-              </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-base font-extrabold text-gray-900">{formatINR(p.amount_received)}</div>
+                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                </div>
+              </button>
             ))}
           </div>
         )
       ) : tab === 'tenants' ? (
         pendingTenants.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No pending tenant requests" subtitle="Share the join link/QR with new tenants to get started" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No pending tenant requests</div>
+            <p className="text-xs mt-2">Share the join link/QR with new tenants to get started</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {pendingTenants.map(t => (
-              <div key={t.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {(t.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900">{t.name}</div>
-                      <div className="text-xs text-gray-500 mt-1">{t.phone} · <span className="font-semibold text-purple-600">{t.property?.name}</span></div>
-                      <div className="text-xs text-gray-400 mt-1">Joining {t.joining_date}</div>
-                      <div className="flex gap-4 mt-3 flex-wrap">
-                        <div>
-                          <div className="text-[10px] text-gray-400 uppercase font-bold">Rent</div>
-                          <div className="text-sm font-bold text-gray-900">{formatINR(t.monthly_rent)}</div>
-                          {t.rent_paid_at_joining < t.monthly_rent && (
-                            <div className="text-xs text-yellow-600 font-semibold">₹{(t.monthly_rent - t.rent_paid_at_joining).toLocaleString('en-IN')} pending</div>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-gray-400 uppercase font-bold">Deposit Paid</div>
-                          <div className="text-sm font-bold text-gray-900">{formatINR(t.deposit_paid)} <span className="text-gray-400 font-normal">/ {formatINR(t.deposit_amount)}</span></div>
-                          {t.deposit_paid < t.deposit_amount && (
-                            <div className="text-xs text-yellow-600 font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</div>
-                          )}
-                        </div>
-                        {t.rent_paid_at_joining > 0 && (
-                          <div>
-                            <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Paid at Joining</div>
-                            <div className="text-sm font-bold text-green-700">{formatINR(t.rent_paid_at_joining)}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => openApproveModal(t)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition">
-                      <Check className="w-3.5 h-3.5" /> Approve
-                    </button>
-                    <button onClick={() => handleRejectTenant(t.id, t.name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition">
-                      <X className="w-3.5 h-3.5" /> Reject
-                    </button>
-                  </div>
+              <button key={t.id} onClick={() => setDetailSheet({ kind: 'tenant', item: t })}
+                className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {(t.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{t.name}</div>
+                  <div className="text-xs text-gray-500 mt-0.5 truncate"><span className="font-semibold text-purple-600">{t.property?.name}</span> · Joining {t.joining_date}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-base font-extrabold text-gray-900">{formatINR(t.monthly_rent)}</div>
+                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                </div>
+              </button>
             ))}
           </div>
         )
       ) : tab === 'reviews' ? (
         submittedProfiles.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No profiles waiting for review" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No profiles waiting for review</div>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {submittedProfiles.map(t => (
-              <div key={t.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {((t.pending_profile?.name ?? t.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900">{t.pending_profile?.name ?? t.name}</div>
-                      <div className="text-xs text-gray-500 mt-1">{t.phone}</div>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1.5 inline-block ${t.onboarding_status === 'resubmitted' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'}`}>
-                        {t.onboarding_status === 'resubmitted' ? 'Resubmitted' : 'Submitted'}
-                      </span>
-                      <span className="text-xs font-semibold text-gray-400 ml-2">{calculateProfileCompletion(t)}% complete</span>
-                    </div>
-                  </div>
-                  <button onClick={() => openReviewModal(t)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition flex-shrink-0">
-                    Review
-                  </button>
+              <button key={t.id} onClick={() => openReviewModal(t)}
+                className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {((t.pending_profile?.name ?? t.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{t.pending_profile?.name ?? t.name}</div>
+                  <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.onboarding_status === 'resubmitted' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'}`}>
+                      {t.onboarding_status === 'resubmitted' ? 'Resubmitted' : 'Submitted'}
+                    </span>
+                    <span className="text-gray-400 font-semibold">{calculateProfileCompletion(t)}% complete</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+              </button>
             ))}
           </div>
         )
       ) : tab === 'updates' ? (
         profileUpdateRequests.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No profile update requests pending" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No profile update requests pending</div>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {profileUpdateRequests.map(req => {
-              const fieldLabels: Record<string, string> = {
-                name: 'Full Name', email: 'Email', aadhaar_number: 'Aadhaar Number',
-                permanent_address: 'Permanent Address', emergency_contact_name: 'Emergency Contact Name', emergency_contact: 'Emergency Contact Number',
-              }
+              const changedCount = Object.keys(req.requested_changes ?? {}).length
               return (
-                <div key={req.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-                    <div>
-                      <div className="font-bold text-gray-900">{req.tenant?.name ?? 'Tenant'}</div>
-                      <div className="text-xs text-gray-500 mt-1">{req.tenant?.phone} · Room {req.tenant?.room?.room_number ?? '—'}</div>
-                      <div className="text-xs text-gray-400 mt-1">Requested {formatDate(req.created_at)}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setUpdateRejectModal(req); setUpdateOwnerNote('') }} disabled={decidingUpdateId === req.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <X className="w-3.5 h-3.5" /> Reject
-                      </button>
-                      <button onClick={() => handleApproveUpdate(req)} disabled={decidingUpdateId === req.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        {decidingUpdateId === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approve
-                      </button>
-                    </div>
+                <button key={req.id} onClick={() => setDetailSheet({ kind: 'update', item: req })}
+                  className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                    {(req.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </div>
-                  {req.reason && <div className="text-xs text-gray-500 italic bg-gray-50 rounded-lg px-3 py-2 mb-3">&quot;{req.reason}&quot;</div>}
-                  <div className="border border-gray-100 rounded-xl overflow-hidden">
-                    <div className="grid grid-cols-3 bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wide px-3 py-2">
-                      <span>Field</span><span>Current</span><span>Requested</span>
-                    </div>
-                    {Object.entries(req.requested_changes ?? {}).map(([key, newVal]) => (
-                      <div key={key} className="grid grid-cols-3 text-xs px-3 py-2 border-t border-gray-50">
-                        <span className="text-gray-500 font-semibold">{fieldLabels[key] ?? key}</span>
-                        <span className="text-gray-400">{(req.tenant as any)?.[key] || '—'}</span>
-                        <span className="text-gray-900 font-semibold">{String(newVal) || '—'}</span>
-                      </div>
-                    ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-900 truncate">{req.tenant?.name ?? 'Tenant'}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Room {req.tenant?.room?.room_number ?? '—'} · {changedCount} field{changedCount === 1 ? '' : 's'} changed</div>
                   </div>
-                </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                </button>
               )
             })}
           </div>
         )
       ) : tab === 'leave' ? (
         leaveRequests.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No leave requests" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No leave requests</div>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {leaveRequests.map(l => (
-              <div key={l.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {(l.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900">{l.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {l.tenant?.room?.room_number ?? '—'}</span></div>
-                      <div className="text-xs text-gray-500 mt-1">{formatDate(l.start_date)} – {formatDate(l.end_date)}</div>
-                      {l.reason && <div className="text-xs text-gray-400 italic mt-1">&quot;{l.reason}&quot;</div>}
-                      <div className="text-xs text-gray-400 mt-1">Requested {formatDate(l.created_at)}</div>
-                    </div>
-                  </div>
-                  {l.status === 'pending' ? (
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => handleDecideLeave(l, 'approved')} disabled={decidingLeaveId === l.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <Check className="w-3.5 h-3.5" /> Approve
-                      </button>
-                      <button onClick={() => handleDecideLeave(l, 'rejected')} disabled={decidingLeaveId === l.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <X className="w-3.5 h-3.5" /> Reject
-                      </button>
-                    </div>
-                  ) : (
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${l.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{l.status}</span>
-                  )}
+              <button key={l.id} onClick={() => l.status === 'pending' && setDetailSheet({ kind: 'leave', item: l })}
+                className={`w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition ${l.status === 'pending' ? 'active:scale-[0.99] active:bg-gray-50' : ''}`}>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {(l.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{l.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {l.tenant?.room?.room_number ?? '—'}</span></div>
+                  <div className="text-xs text-gray-500 mt-0.5">{formatDate(l.start_date)} – {formatDate(l.end_date)}</div>
+                </div>
+                {l.status === 'pending' ? (
+                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                ) : (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${l.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{l.status}</span>
+                )}
+              </button>
             ))}
           </div>
         )
       ) : tab === 'extensions' ? (
         rentExtensions.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No rent extension requests" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No rent extension requests</div>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {rentExtensions.map(x => (
-              <div key={x.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {(x.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900">{x.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {x.tenant?.room?.room_number ?? '—'}</span></div>
-                      <div className="text-xs text-gray-500 mt-1">{x.for_month} rent → pay by {formatDate(x.requested_until)}</div>
-                      {x.reason && <div className="text-xs text-gray-400 italic mt-1">&quot;{x.reason}&quot;</div>}
-                      <div className="text-xs text-gray-400 mt-1">Requested {formatDate(x.created_at)}</div>
-                    </div>
-                  </div>
-                  {x.status === 'pending' ? (
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => handleDecideExtension(x, 'approved')} disabled={decidingExtensionId === x.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <Check className="w-3.5 h-3.5" /> Approve
-                      </button>
-                      <button onClick={() => handleDecideExtension(x, 'rejected')} disabled={decidingExtensionId === x.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <X className="w-3.5 h-3.5" /> Reject
-                      </button>
-                    </div>
-                  ) : (
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${x.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{x.status}</span>
-                  )}
+              <button key={x.id} onClick={() => x.status === 'pending' && setDetailSheet({ kind: 'extension', item: x })}
+                className={`w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition ${x.status === 'pending' ? 'active:scale-[0.99] active:bg-gray-50' : ''}`}>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {(x.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{x.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {x.tenant?.room?.room_number ?? '—'}</span></div>
+                  <div className="text-xs text-gray-500 mt-0.5">{x.for_month} rent → pay by {formatDate(x.requested_until)}</div>
+                </div>
+                {x.status === 'pending' ? (
+                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                ) : (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${x.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{x.status}</span>
+                )}
+              </button>
             ))}
           </div>
         )
       ) : (
         moveOutRequests.length === 0 ? (
-          <OwnerEmptyState icon={Check} title="No move-out requests" className="py-16" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+            <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
+            <div className="font-semibold">No move-out requests</div>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {moveOutRequests.map(m => (
-              <div key={m.id} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-                      {(m.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900">{m.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {m.tenant?.room?.room_number ?? '—'}</span></div>
-                      <div className="text-xs text-gray-500 mt-1">Move out on {formatDate(m.requested_date)}</div>
-                      {m.reason && <div className="text-xs text-gray-400 italic mt-1">&quot;{m.reason}&quot;</div>}
-                      <div className="text-xs text-gray-400 mt-1">Requested {formatDate(m.created_at)}</div>
-                    </div>
-                  </div>
-                  {m.status === 'pending' ? (
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => handleDecideMoveOut(m, 'approved')} disabled={decidingMoveOutId === m.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <Check className="w-3.5 h-3.5" /> Approve
-                      </button>
-                      <button onClick={() => handleDecideMoveOut(m, 'rejected')} disabled={decidingMoveOutId === m.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold transition disabled:opacity-50">
-                        <X className="w-3.5 h-3.5" /> Reject
-                      </button>
-                    </div>
-                  ) : (
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${m.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{m.status}</span>
-                  )}
+              <button key={m.id} onClick={() => m.status === 'pending' && setDetailSheet({ kind: 'moveout', item: m })}
+                className={`w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition ${m.status === 'pending' ? 'active:scale-[0.99] active:bg-gray-50' : ''}`}>
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {(m.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{m.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {m.tenant?.room?.room_number ?? '—'}</span></div>
+                  <div className="text-xs text-gray-500 mt-0.5">Move out on {formatDate(m.requested_date)}</div>
+                </div>
+                {m.status === 'pending' ? (
+                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                ) : (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${m.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{m.status}</span>
+                )}
+              </button>
             ))}
           </div>
         )
       )}
 
+      {/* Detail sheet (List → Detail → Actions-at-bottom pattern) for
+          Payment Claims, Leave, Rent Extension, and Move-Out requests.
+          Reuses the exact same handlers the old inline row buttons
+          called — this is a presentation change only. */}
+      {detailSheet && (() => {
+        const { kind, item: it } = detailSheet
+        const meta: Record<string, { title: string; gradient: string; deciding: string | null; onApprove: () => void; onReject: () => void }> = {
+          payment: {
+            title: 'Payment Claim', gradient: 'from-blue-600 to-purple-600', deciding: null,
+            onApprove: async () => { await handleApprovePayment(it.id); setDetailSheet(null) },
+            onReject: async () => { await handleRejectPayment(it.id); setDetailSheet(null) },
+          },
+          leave: {
+            title: 'Leave Request', gradient: 'from-indigo-600 to-blue-600', deciding: decidingLeaveId,
+            onApprove: async () => { await handleDecideLeave(it, 'approved'); setDetailSheet(null) },
+            onReject: async () => { await handleDecideLeave(it, 'rejected'); setDetailSheet(null) },
+          },
+          extension: {
+            title: 'Rent Extension Request', gradient: 'from-blue-600 to-indigo-600', deciding: decidingExtensionId,
+            onApprove: async () => { await handleDecideExtension(it, 'approved'); setDetailSheet(null) },
+            onReject: async () => { await handleDecideExtension(it, 'rejected'); setDetailSheet(null) },
+          },
+          moveout: {
+            title: 'Move-Out Request', gradient: 'from-orange-500 to-red-500', deciding: decidingMoveOutId,
+            onApprove: async () => { await handleDecideMoveOut(it, 'approved'); setDetailSheet(null) },
+            onReject: async () => { await handleDecideMoveOut(it, 'rejected'); setDetailSheet(null) },
+          },
+          tenant: {
+            title: 'New Tenant Request', gradient: 'from-purple-600 to-blue-600', deciding: null,
+            // Approving a new tenant needs room/bed assignment first — that
+            // existing flow (openApproveModal + its own confirm step) is
+            // unchanged; the detail sheet just hands off to it instead of
+            // approving immediately like the other 4 kinds.
+            onApprove: () => { setDetailSheet(null); openApproveModal(it) },
+            onReject: async () => { await handleRejectTenant(it.id, it.name); setDetailSheet(null) },
+          },
+          update: {
+            title: 'Profile Update Request', gradient: 'from-teal-500 to-blue-500', deciding: decidingUpdateId,
+            onApprove: async () => { await handleApproveUpdate(it); setDetailSheet(null) },
+            // Rejecting an update needs an owner note first — hands off to
+            // the existing updateRejectModal flow unchanged.
+            onReject: () => { setDetailSheet(null); setUpdateRejectModal(it); setUpdateOwnerNote('') },
+          },
+        }
+        const m = meta[kind]
+        const isDeciding = m.deciding === it.id
+        return (
+          <>
+            <div onClick={() => setDetailSheet(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+            <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+              <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                <div className="h-1 w-9 rounded-full bg-gray-300" />
+              </div>
+              <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+                <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${m.gradient} text-white font-bold text-xs flex items-center justify-center shrink-0`}>
+                  {((kind === 'tenant' ? it.name : it.tenant?.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">{m.title}</div>
+                  <div className="font-bold text-gray-900 truncate">
+                    {kind === 'tenant' ? it.name : it.tenant?.name}
+                    <span className="text-gray-400 font-normal text-xs"> · {kind === 'tenant' ? (it.property?.name ?? 'Room unassigned') : `Room ${it.tenant?.room?.room_number ?? '—'}`}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                {kind === 'payment' && (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl p-4 text-center">
+                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Amount</div>
+                      <div className="text-3xl font-extrabold text-gray-900 mt-1">{formatINR(it.amount_received)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">For Month</div>
+                        <div className="text-sm font-bold text-gray-900 mt-0.5">{it.for_month}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">Method</div>
+                        <div className="text-sm font-bold text-gray-900 mt-0.5 capitalize">{it.method?.replace('_', ' ')}</div>
+                      </div>
+                    </div>
+                    {it.tenant_note && (
+                      <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Note from Tenant</div>
+                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.tenant_note}&quot;</div>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-400">Submitted {new Date(it.created_at).toLocaleString('en-IN')}</div>
+                  </>
+                )}
+                {kind === 'leave' && (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Leave Period</div>
+                      <div className="text-lg font-extrabold text-gray-900 mt-1">{formatDate(it.start_date)} – {formatDate(it.end_date)}</div>
+                    </div>
+                    {it.reason && (
+                      <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
+                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                  </>
+                )}
+                {kind === 'extension' && (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Extension Requested</div>
+                      <div className="text-lg font-extrabold text-gray-900 mt-1">{it.for_month} rent → pay by {formatDate(it.requested_until)}</div>
+                    </div>
+                    {it.reason && (
+                      <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
+                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                  </>
+                )}
+                {kind === 'moveout' && (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Move-Out Date</div>
+                      <div className="text-lg font-extrabold text-gray-900 mt-1">{formatDate(it.requested_date)}</div>
+                    </div>
+                    {it.reason && (
+                      <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
+                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                  </>
+                )}
+                {kind === 'tenant' && (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl p-4 text-center">
+                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Monthly Rent</div>
+                      <div className="text-3xl font-extrabold text-gray-900 mt-1">{formatINR(it.monthly_rent)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">Phone</div>
+                        <div className="text-sm font-bold text-gray-900 mt-0.5">{it.phone}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">Joining Date</div>
+                        <div className="text-sm font-bold text-gray-900 mt-0.5">{it.joining_date}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">Deposit Paid</div>
+                        <div className="text-sm font-bold text-gray-900 mt-0.5">{formatINR(it.deposit_paid)} <span className="text-gray-400 font-normal">/ {formatINR(it.deposit_amount)}</span></div>
+                        {it.deposit_paid < it.deposit_amount && (
+                          <div className="text-xs text-yellow-600 font-semibold mt-0.5">₹{(it.deposit_amount - it.deposit_paid).toLocaleString('en-IN')} pending</div>
+                        )}
+                      </div>
+                      {it.rent_paid_at_joining > 0 ? (
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Paid at Joining</div>
+                          <div className="text-sm font-bold text-green-700 mt-0.5">{formatINR(it.rent_paid_at_joining)}</div>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Pending</div>
+                          <div className="text-sm font-bold text-yellow-600 mt-0.5">{formatINR(it.monthly_rent - (it.rent_paid_at_joining || 0))}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400 bg-blue-50 text-blue-700 rounded-xl px-3 py-2.5">Approving will ask you to assign a room and bed before finalizing.</div>
+                  </>
+                )}
+                {kind === 'update' && (() => {
+                  const fieldLabels: Record<string, string> = {
+                    name: 'Full Name', email: 'Email', aadhaar_number: 'Aadhaar Number',
+                    permanent_address: 'Permanent Address', emergency_contact_name: 'Emergency Contact Name', emergency_contact: 'Emergency Contact Number',
+                  }
+                  return (
+                    <>
+                      {it.reason && (
+                        <div>
+                          <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
+                          <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Requested Changes</div>
+                        <div className="border border-gray-100 rounded-xl overflow-hidden">
+                          <div className="grid grid-cols-3 bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wide px-3 py-2">
+                            <span>Field</span><span>Current</span><span>Requested</span>
+                          </div>
+                          {Object.entries(it.requested_changes ?? {}).map(([key, newVal]) => (
+                            <div key={key} className="grid grid-cols-3 text-xs px-3 py-2 border-t border-gray-50">
+                              <span className="text-gray-500 font-semibold">{fieldLabels[key] ?? key}</span>
+                              <span className="text-gray-400">{(it.tenant as any)?.[key] || '—'}</span>
+                              <span className="text-gray-900 font-semibold">{String(newVal) || '—'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                    </>
+                  )
+                })()}
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-100 flex gap-2.5 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                <button onClick={m.onReject} disabled={isDeciding}
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 active:bg-red-200 active:scale-[0.98] text-red-700 rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                  <X className="w-4 h-4" /> Reject
+                </button>
+                <button onClick={m.onApprove} disabled={isDeciding}
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 active:bg-green-800 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                  {isDeciding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Approve
+                </button>
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
       {/* Profile Review Modal (Phase 8.4) */}
       {reviewModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-2xl shadow-2xl my-8 pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 rounded-t-2xl">
-              <div>
-                <h2 className="text-base font-bold">Review Profile</h2>
-                <p className="text-xs text-gray-400">{reviewModal.phone}</p>
+        <>
+          <div onClick={() => setReviewModal(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-gray-300" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                {((reviewModal.pending_profile?.name ?? reviewModal.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </div>
-              <button onClick={() => setReviewModal(null)} className="text-gray-400 text-xl font-bold">×</button>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Profile Review</div>
+                <div className="font-bold text-gray-900 truncate">{reviewModal.pending_profile?.name ?? reviewModal.name} <span className="text-gray-400 font-normal text-xs">· {reviewModal.phone}</span></div>
+              </div>
+              <button onClick={() => setReviewModal(null)} aria-label="Close" className="text-gray-400 text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">×</button>
             </div>
 
-            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {/* Profile Status System (Phase 8.5) — full history + completion */}
-              <div className="bg-gray-50 rounded-xl p-4">
+              <div className="bg-gray-50 rounded-2xl p-4">
                 <StatusTimeline
                   currentStatus={reviewModal.onboarding_status}
                   history={reviewHistory}
@@ -648,8 +797,8 @@ export default function ApprovalsPage() {
               {/* Previous / New / Source comparison */}
               <div>
                 <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Submitted Details</div>
-                <div className="border border-gray-100 rounded-xl overflow-x-auto">
-                  <table className="w-full text-sm min-w-[480px]">
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 text-left text-xs text-gray-500">
                         <th className="px-3 py-2 font-semibold">Field</th>
@@ -722,67 +871,83 @@ export default function ApprovalsPage() {
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 flex flex-wrap gap-2 sticky bottom-0 bg-white rounded-b-2xl">
+            <div className="px-5 py-4 border-t border-gray-100 shrink-0 space-y-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               {showCorrectionInput ? (
-                <>
-                  <button onClick={handleSendBackForCorrection} disabled={reviewSaving}
-                    className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
-                    Send Back For Correction
-                  </button>
-                  <button onClick={() => setShowCorrectionInput(false)} className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+                <div className="flex gap-2.5">
+                  <button onClick={() => setShowCorrectionInput(false)}
+                    className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 active:scale-[0.98] text-gray-700 rounded-2xl text-sm font-bold transition">
                     Cancel
                   </button>
-                </>
+                  <button onClick={handleSendBackForCorrection} disabled={reviewSaving}
+                    className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                    {reviewSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Send Back
+                  </button>
+                </div>
               ) : (
                 <>
                   <button onClick={handleApproveReview} disabled={reviewSaving}
-                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
-                    {reviewSaving ? 'Saving…' : 'Approve & Activate'}
+                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 active:bg-green-800 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                    {reviewSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Approve & Activate
                   </button>
-                  <button onClick={() => setShowCorrectionInput(true)} disabled={reviewSaving}
-                    className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl text-sm font-semibold transition disabled:opacity-50">
-                    Send Back
-                  </button>
-                  <button onClick={handleRejectReview} disabled={reviewSaving}
-                    className="px-4 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-sm font-semibold transition disabled:opacity-50">
-                    Reject
-                  </button>
+                  <div className="flex gap-2.5">
+                    <button onClick={() => setShowCorrectionInput(true)} disabled={reviewSaving}
+                      className="flex-1 h-11 flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 active:scale-[0.98] text-amber-700 rounded-2xl text-xs font-bold transition disabled:opacity-50">
+                      Send Back For Correction
+                    </button>
+                    <button onClick={handleRejectReview} disabled={reviewSaving}
+                      className="flex-1 h-11 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 active:bg-red-200 active:scale-[0.98] text-red-700 rounded-2xl text-xs font-bold transition disabled:opacity-50">
+                      <X className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
                 </>
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Profile Update Reject Modal (Phase 8.7) */}
       {updateRejectModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-              <h2 className="text-base font-bold">Reject Profile Update</h2>
-              <button onClick={() => setUpdateRejectModal(null)} className="text-gray-400 text-xl font-bold">×</button>
+        <>
+          <div onClick={() => setUpdateRejectModal(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-gray-300" />
             </div>
-            <div className="p-6 space-y-4">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                {(updateRejectModal.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Reject Update</div>
+                <div className="font-bold text-gray-900 truncate">{updateRejectModal.tenant?.name ?? 'Tenant'}</div>
+              </div>
+              <button onClick={() => setUpdateRejectModal(null)} aria-label="Close" className="text-gray-400 text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               <p className="text-xs text-gray-500">Let {updateRejectModal.tenant?.name ?? 'the tenant'} know why (optional).</p>
               <textarea rows={3} value={updateOwnerNote} onChange={e => setUpdateOwnerNote(e.target.value)}
                 placeholder="e.g. Please upload a clearer Aadhaar copy" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-2">
-              <button onClick={() => setUpdateRejectModal(null)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">Cancel</button>
+            <div className="px-5 py-4 border-t border-gray-100 shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => setUpdateRejectModal(null)}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 active:scale-[0.98] text-gray-700 rounded-2xl text-sm font-bold transition">
+                Cancel
+              </button>
               <button onClick={handleRejectUpdate} disabled={decidingUpdateId === updateRejectModal.id}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
                 {decidingUpdateId === updateRejectModal.id && <Loader2 className="w-4 h-4 animate-spin" />} Reject Request
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* QR / Join Link Modal */}
       {qrModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base font-bold">Tenant Join Link</h2>
               <button onClick={() => setQrModal(false)} className="text-gray-400 text-xl font-bold">×</button>
             </div>
@@ -811,14 +976,24 @@ export default function ApprovalsPage() {
 
       {/* Approve Tenant Modal — room assignment + confirm (password is auto Pass@123) */}
       {approveModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-              <h2 className="text-base font-bold">Approve {approveModal.name}</h2>
-              <button onClick={() => setApproveModal(null)} className="text-gray-400 text-xl font-bold">×</button>
+        <>
+          <div onClick={() => setApproveModal(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-gray-300" />
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-xs text-gray-500">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                {(approveModal.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Approve & Send Login</div>
+                <div className="font-bold text-gray-900 truncate">{approveModal.name}</div>
+              </div>
+              <button onClick={() => setApproveModal(null)} aria-label="Close" className="text-gray-400 text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <p className="text-xs text-gray-500 bg-blue-50 text-blue-700 rounded-xl px-3 py-2.5">
                 Login will be created automatically (username: <strong>{approveModal.phone}</strong>, password: <strong>Pass@123</strong>) and shared via WhatsApp.
               </p>
               <div>
@@ -837,15 +1012,18 @@ export default function ApprovalsPage() {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button onClick={confirmApproveTenant} disabled={approvingId === approveModal.id}
-                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {approvingId === approveModal.id && <Loader2 className="w-4 h-4 animate-spin" />} Approve & Send Login
+            <div className="px-5 py-4 border-t border-gray-100 shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => setApproveModal(null)}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 active:scale-[0.98] text-gray-700 rounded-2xl text-sm font-bold transition">
+                Cancel
               </button>
-              <button onClick={() => setApproveModal(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition hover:bg-gray-200">Cancel</button>
+              <button onClick={confirmApproveTenant} disabled={approvingId === approveModal.id}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 active:bg-green-800 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                {approvingId === approveModal.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Approve & Send Login
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
     </div>

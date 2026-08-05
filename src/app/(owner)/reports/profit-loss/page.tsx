@@ -129,7 +129,7 @@ export default function ProfitLossReportPage() {
       </div>
 
       {/* Range selector */}
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 flex-wrap">
         {RANGE_OPTIONS.map(r => (
           <button key={r.value} onClick={() => setRangeMonths(r.value)}
             className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${
@@ -190,8 +190,26 @@ export default function ProfitLossReportPage() {
             <div className="text-sm">No data for this period</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            {/* Mobile: stacked card list, no horizontal scroll */}
+            <div className="sm:hidden divide-y divide-gray-50">
+              {visible.map(r => (
+                <div key={r.key} className="px-5 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-gray-800">{r.month}</div>
+                    <div className={`text-sm font-semibold ${r.profit >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                      {formatINR(r.profit)} <span className={`text-xs font-normal ${r.margin >= 0 ? 'text-gray-500' : 'text-red-500'}`}>({r.margin}%)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1 text-xs">
+                    <span className="text-green-600">Income {formatINR(r.income)}</span>
+                    <span className="text-red-600">Expenses {formatINR(r.expenses)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop/tablet: full table */}
+            <table className="w-full text-sm hidden sm:table">
               <thead>
                 <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-3 font-semibold">Month</th>
@@ -213,7 +231,7 @@ export default function ProfitLossReportPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </>
         )}
       </div>
     </div>

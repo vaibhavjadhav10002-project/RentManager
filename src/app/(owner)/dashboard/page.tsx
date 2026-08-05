@@ -353,68 +353,6 @@ export default function DashboardPage() {
         </OwnerCard>
       )}
 
-      {/* Stat Cards — mobile gets real hierarchy (hero number, then
-          actionable, then informational), desktop keeps the original
-          flat 7-column grid exactly as before. */}
-      {stats && (
-        <>
-          <div className="lg:hidden space-y-4">
-            {/* Hero: the single number an owner checks most often, given
-                real visual weight instead of competing equally with 8
-                other cards. */}
-            <div className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-owner-purple p-5 text-white shadow-owner-lg">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white/75 uppercase tracking-wide">Monthly Revenue</div>
-                  <div className="owner-numeric text-[28px] leading-tight font-extrabold mt-1 truncate">{formatINR(stats.monthlyRevenue)}</div>
-                  {stats.revenueTrendPct !== null && (
-                    <div className="text-xs font-semibold mt-1.5 text-white/90">
-                      {stats.revenueTrendPct >= 0 ? '↑' : '↓'} {Math.abs(stats.revenueTrendPct)}% vs last month
-                    </div>
-                  )}
-                </div>
-                <div className="w-11 h-11 rounded-owner-xl bg-white/15 flex items-center justify-center shrink-0">
-                  <IndianRupee className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2.5 px-0.5">Needs Attention</div>
-              <div className="grid grid-cols-2 gap-3">
-                <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
-                <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} tone="teal" />
-                <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
-                <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2.5 px-0.5">Property Overview</div>
-              <div className="grid grid-cols-2 gap-3">
-                <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
-                <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
-                <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
-                <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} tone="info" />
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden lg:grid lg:grid-cols-4 xl:grid-cols-7 gap-4">
-            <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
-            <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
-            <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
-            <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
-            <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
-              trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
-            <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
-            <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
-            <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
-            <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
-          </div>
-        </>
-      )}
-
       {/* Quick Actions */}
       <OwnerCard>
         <div className="font-bold text-sm text-owner-fg mb-4">Quick Actions</div>
@@ -427,9 +365,9 @@ export default function DashboardPage() {
             { href: '/approvals', label: 'Approvals', icon: ShieldCheck, tone: 'info' as const },
             { href: '/reports', label: 'View Reports', icon: BarChart3, tone: 'teal' as const },
           ].map(({ href, label, icon: Icon, tone }) => (
-            <Link key={href} href={href} className="flex flex-col items-center gap-2 py-1 group active:scale-95 transition-transform">
+            <Link key={href} href={href} className="flex flex-col items-center gap-2 py-1 group">
               <span className={cn(
-                'relative w-11 h-11 rounded-owner-xl flex items-center justify-center transition-transform group-hover:scale-105 after:absolute after:-inset-1 after:content-[""]',
+                'w-11 h-11 rounded-owner-xl flex items-center justify-center transition-transform group-hover:scale-105',
                 TONE_BG[tone]
               )}>
                 <Icon className={cn('w-5 h-5', TONE_FG[tone])} />
@@ -439,6 +377,86 @@ export default function DashboardPage() {
           ))}
         </div>
       </OwnerCard>
+
+      {/* Pending Rent (date-sorted) */}
+      <OwnerCard>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-bold text-sm text-owner-fg">Pending Rent</div>
+            <div className="text-xs text-owner-muted-subtle">Sorted by due date — oldest first</div>
+          </div>
+          <OwnerBadge tone="primary">{pendingTenants.length} tenants</OwnerBadge>
+        </div>
+        {pendingTenants.length === 0 ? (
+          <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
+        ) : (
+          <div className="space-y-2">
+            {pendingTenants.map(t => (
+              <div key={t.id} className={cn(
+                'flex items-center gap-3 p-3 rounded-owner-lg',
+                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
+              )}>
+                <OwnerAvatar name={t.name} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
+                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
+                    {t.overdueDays}d overdue
+                  </span>
+                </div>
+                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="p-2 bg-owner-success/15 rounded-owner-lg hover:bg-owner-success/25 transition-colors shrink-0" title="WhatsApp Reminder">
+                  <svg className="w-4 h-4 text-owner-success" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+                  </svg>
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </OwnerCard>
+
+      {/* Recent Activities */}
+      <OwnerCard>
+        <h2 className="text-sm font-bold text-owner-fg mb-1">Recent Activities</h2>
+        <p className="text-xs text-owner-muted-subtle mb-3">Latest tenant, payment, expense, complaint and request events — across all your properties</p>
+        {activities.length === 0 ? (
+          <OwnerEmptyState icon={Clock} title="No recent activity" className="py-8" />
+        ) : (
+          <div className="divide-y divide-owner-border">
+            {activities.map(a => (
+              <div key={a.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <div className={cn('w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0', TONE_BG[a.tone])}>
+                  <a.icon className={cn('w-4 h-4', TONE_FG[a.tone])} />
+                </div>
+                <div className="flex-1 min-w-0 text-sm text-owner-fg truncate">{a.text}</div>
+                <div className="text-xs text-owner-muted-subtle shrink-0">{formatDate(a.time)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </OwnerCard>
+
+      {/* Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+          <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
+          <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
+          <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
+          <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
+          <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
+            trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
+          <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
+          <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
+          <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
+          <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -588,70 +606,6 @@ export default function DashboardPage() {
           </div>
         </OwnerCard>
       </div>
-
-      {/* Pending Rent (date-sorted) */}
-      <OwnerCard>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="font-bold text-sm text-owner-fg">Pending Rent</div>
-            <div className="text-xs text-owner-muted-subtle">Sorted by due date — oldest first</div>
-          </div>
-          <OwnerBadge tone="primary">{pendingTenants.length} tenants</OwnerBadge>
-        </div>
-        {pendingTenants.length === 0 ? (
-          <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
-        ) : (
-          <div className="space-y-2">
-            {pendingTenants.map(t => (
-              <div key={t.id} className={cn(
-                'flex items-center gap-3 p-3 rounded-owner-lg',
-                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
-              )}>
-                <OwnerAvatar name={t.name} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
-                  <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
-                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
-                    {t.overdueDays}d overdue
-                  </span>
-                </div>
-                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
-                  target="_blank" rel="noreferrer"
-                  className="p-2 bg-owner-success/15 rounded-owner-lg hover:bg-owner-success/25 transition-colors shrink-0" title="WhatsApp Reminder">
-                  <svg className="w-4 h-4 text-owner-success" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
-                  </svg>
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </OwnerCard>
-
-      {/* Recent Activities */}
-      <OwnerCard>
-        <h2 className="text-sm font-bold text-owner-fg mb-1">Recent Activities</h2>
-        <p className="text-xs text-owner-muted-subtle mb-3">Latest tenant, payment, expense, complaint and request events — across all your properties</p>
-        {activities.length === 0 ? (
-          <OwnerEmptyState icon={Clock} title="No recent activity" className="py-8" />
-        ) : (
-          <div className="divide-y divide-owner-border">
-            {activities.map(a => (
-              <div key={a.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                <div className={cn('w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0', TONE_BG[a.tone])}>
-                  <a.icon className={cn('w-4 h-4', TONE_FG[a.tone])} />
-                </div>
-                <div className="flex-1 min-w-0 text-sm text-owner-fg truncate">{a.text}</div>
-                <div className="text-xs text-owner-muted-subtle shrink-0">{formatDate(a.time)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </OwnerCard>
 
       {/* Renew Agreement Modal */}
       {renewModal && (

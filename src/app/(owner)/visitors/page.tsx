@@ -5,7 +5,6 @@ import { getVisitors, checkInVisitor, checkOutVisitor, deleteVisitor, archiveVis
 import { queueOfflineAction } from '@/lib/offlineQueue'
 import { toast } from 'sonner'
 import { Plus, LogOut, Trash2, Loader2, UserCheck, Clock, Archive } from 'lucide-react'
-import { OwnerEmptyState } from '@/components/owner/ui'
 import type { Visitor, Tenant } from '@/types'
 
 export default function VisitorsPage() {
@@ -124,7 +123,7 @@ export default function VisitorsPage() {
         </button>
       </div>
 
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFilter('in')}
           className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === 'in' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
           Currently In ({currentlyInCount})
@@ -138,7 +137,10 @@ export default function VisitorsPage() {
       {loading ? (
         <div className="flex items-center justify-center h-48 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
       ) : filtered.length === 0 ? (
-        <OwnerEmptyState icon={UserCheck} title={filter === 'in' ? 'No one is currently checked in' : 'No visitor records yet'} className="py-16" />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+          <UserCheck className="w-8 h-8" />
+          <div className="text-sm">{filter === 'in' ? 'No one is currently checked in' : 'No visitor records yet'}</div>
+        </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
           {filtered.map(v => (
@@ -181,9 +183,9 @@ export default function VisitorsPage() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="visitor-modal-title">
-          <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="visitor-modal-title">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 id="visitor-modal-title" className="text-base font-bold">Log Visitor</h2>
               <button onClick={() => { setModal(false); resetForm() }} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
             </div>

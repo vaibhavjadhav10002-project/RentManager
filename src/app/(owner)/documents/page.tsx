@@ -114,36 +114,66 @@ export default function DocumentsPage() {
           <OwnerEmptyState icon={FileText} title="No agreements on file yet" subtitle="Agreements are created automatically when a tenant is added." />
         </OwnerCard>
       ) : (
-        <OwnerTable>
-          <OwnerTableHead>
-            <tr>
-              {['Tenant', 'Room', 'Agreement #', 'Period', 'Status', 'Government ID', 'Download'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
-            </tr>
-          </OwnerTableHead>
-          <OwnerTableBody>
+        <>
+          {/* Mobile: stacked card list, no horizontal scroll */}
+          <div className="sm:hidden space-y-2">
             {rows.map(({ agreement, tenant }) => (
-              <OwnerTableRow key={agreement.id}>
-                <OwnerTableCell className="font-semibold">{tenant.name}</OwnerTableCell>
-                <OwnerTableCell className="text-owner-muted">{tenant.room?.room_number ?? '—'}</OwnerTableCell>
-                <OwnerTableCell className="font-mono text-xs">{agreement.agreement_number}</OwnerTableCell>
-                <OwnerTableCell className="text-xs text-owner-muted">{formatDate(agreement.start_date)} – {formatDate(agreement.end_date)}</OwnerTableCell>
-                <OwnerTableCell><OwnerBadge tone={STATUS_TONE[agreement.status] ?? 'neutral'} className="capitalize">{agreement.status}</OwnerBadge></OwnerTableCell>
-                <OwnerTableCell>
+              <div key={agreement.id} className="bg-owner-surface border border-owner-border rounded-owner-lg p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-owner-fg">{tenant.name}</div>
+                    <div className="text-xs text-owner-muted">Room {tenant.room?.room_number ?? '—'} · {agreement.agreement_number}</div>
+                    <div className="text-xs text-owner-muted mt-0.5">{formatDate(agreement.start_date)} – {formatDate(agreement.end_date)}</div>
+                  </div>
+                  <OwnerBadge tone={STATUS_TONE[agreement.status] ?? 'neutral'} className="capitalize shrink-0">{agreement.status}</OwnerBadge>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-owner-border">
                   {agreement.government_id ? (
                     <a href={agreement.government_id} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-owner-primary hover:underline">
-                      <Eye className="w-3.5 h-3.5" /> View
+                      <Eye className="w-3.5 h-3.5" /> View Government ID
                     </a>
-                  ) : <span className="text-xs text-owner-muted-subtle">Not uploaded</span>}
-                </OwnerTableCell>
-                <OwnerTableCell>
+                  ) : <span className="text-xs text-owner-muted-subtle">ID not uploaded</span>}
                   <OwnerIconButton aria-label={`Download agreement for ${tenant.name}`} variant="ghost" size="sm" onClick={() => downloadFull(agreement, tenant)}>
                     <Download />
                   </OwnerIconButton>
-                </OwnerTableCell>
-              </OwnerTableRow>
+                </div>
+              </div>
             ))}
-          </OwnerTableBody>
-        </OwnerTable>
+          </div>
+          {/* Desktop/tablet: full table */}
+          <div className="hidden sm:block">
+            <OwnerTable>
+              <OwnerTableHead>
+                <tr>
+                  {['Tenant', 'Room', 'Agreement #', 'Period', 'Status', 'Government ID', 'Download'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
+                </tr>
+              </OwnerTableHead>
+              <OwnerTableBody>
+                {rows.map(({ agreement, tenant }) => (
+                  <OwnerTableRow key={agreement.id}>
+                    <OwnerTableCell className="font-semibold">{tenant.name}</OwnerTableCell>
+                    <OwnerTableCell className="text-owner-muted">{tenant.room?.room_number ?? '—'}</OwnerTableCell>
+                    <OwnerTableCell className="font-mono text-xs">{agreement.agreement_number}</OwnerTableCell>
+                    <OwnerTableCell className="text-xs text-owner-muted">{formatDate(agreement.start_date)} – {formatDate(agreement.end_date)}</OwnerTableCell>
+                    <OwnerTableCell><OwnerBadge tone={STATUS_TONE[agreement.status] ?? 'neutral'} className="capitalize">{agreement.status}</OwnerBadge></OwnerTableCell>
+                    <OwnerTableCell>
+                      {agreement.government_id ? (
+                        <a href={agreement.government_id} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-owner-primary hover:underline">
+                          <Eye className="w-3.5 h-3.5" /> View
+                        </a>
+                      ) : <span className="text-xs text-owner-muted-subtle">Not uploaded</span>}
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <OwnerIconButton aria-label={`Download agreement for ${tenant.name}`} variant="ghost" size="sm" onClick={() => downloadFull(agreement, tenant)}>
+                        <Download />
+                      </OwnerIconButton>
+                    </OwnerTableCell>
+                  </OwnerTableRow>
+                ))}
+              </OwnerTableBody>
+            </OwnerTable>
+          </div>
+        </>
       )}
 
       {!loading && unagreementedTenants.length > 0 && (

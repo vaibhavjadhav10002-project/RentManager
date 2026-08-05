@@ -4,7 +4,7 @@ import { useProperty } from '@/components/shared/PropertyContext'
 import { getRooms, addRoom, updateRoom, deleteRoom } from '@/lib/supabase/queries'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Trash2, Pencil, BedDouble, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, BedDouble, X, ChevronRight } from 'lucide-react'
 import type { Room } from '@/types'
 import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerEmptyState,
@@ -28,6 +28,7 @@ export default function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
+  const [roomDetail, setRoomDetail] = useState<Room | null>(null)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -127,62 +128,97 @@ export default function RoomsPage() {
           action={<OwnerButton onClick={() => setModal(true)} icon={<Plus className="w-4 h-4" />}>Add Room</OwnerButton>}
         />
       ) : (
-        <OwnerTable>
-          <OwnerTableHead>
-            <tr>
-              <OwnerTableHeadCell>Room No.</OwnerTableHeadCell>
-              <OwnerTableHeadCell>Room Type</OwnerTableHeadCell>
-              <OwnerTableHeadCell>Beds</OwnerTableHeadCell>
-              <OwnerTableHeadCell>Status</OwnerTableHeadCell>
-              <OwnerTableHeadCell>Rent (Monthly)</OwnerTableHeadCell>
-              <OwnerTableHeadCell>Actions</OwnerTableHeadCell>
-            </tr>
-          </OwnerTableHead>
-          <OwnerTableBody>
+        <>
+          {/* Mobile: stacked card list, no horizontal scroll */}
+          <div className="sm:hidden space-y-2">
             {rooms.map(room => {
               const status = room.total_beds === 0 ? 'vacant' : 'partial'
               return (
-                <OwnerTableRow key={room.id}>
-                  <OwnerTableCell className="font-semibold">{room.room_number}</OwnerTableCell>
-                  <OwnerTableCell className="text-owner-muted">{room.sharing_type} · Floor {room.floor}</OwnerTableCell>
-                  <OwnerTableCell>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: room.total_beds }).map((_, i) => (
-                        <BedDouble key={i} className="w-3.5 h-3.5 text-owner-primary" />
-                      ))}
-                    </div>
-                  </OwnerTableCell>
-                  <OwnerTableCell>
-                    <OwnerBadge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</OwnerBadge>
-                  </OwnerTableCell>
-                  <OwnerTableCell className="font-semibold owner-numeric">{formatINR(room.monthly_rent)}</OwnerTableCell>
-                  <OwnerTableCell>
-                    <div className="flex items-center gap-1">
-                      <OwnerIconButton aria-label={`Edit room ${room.room_number}`} variant="ghost" size="sm" onClick={() => openEdit(room)}>
-                        <Pencil />
-                      </OwnerIconButton>
-                      <OwnerIconButton aria-label={`Delete room ${room.room_number}`} variant="ghost" size="sm" onClick={() => handleDelete(room.id)} className="hover:text-owner-danger">
-                        <Trash2 />
-                      </OwnerIconButton>
-                    </div>
-                  </OwnerTableCell>
-                </OwnerTableRow>
+                <button key={room.id} onClick={() => setRoomDetail(room)}
+                  className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <BedDouble className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-owner-fg truncate">{room.room_number}</div>
+                    <div className="text-xs text-owner-muted-subtle truncate">{room.sharing_type} · Floor {room.floor} · {formatINR(room.monthly_rent)}/mo</div>
+                  </div>
+                  <OwnerBadge tone={STATUS_TONE[status]} className="shrink-0">{STATUS_LABEL[status]}</OwnerBadge>
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
+                </button>
               )
             })}
-          </OwnerTableBody>
-        </OwnerTable>
+          </div>
+          {/* Desktop/tablet: full table */}
+          <div className="hidden sm:block">
+            <OwnerTable>
+              <OwnerTableHead>
+                <tr>
+                  <OwnerTableHeadCell>Room No.</OwnerTableHeadCell>
+                  <OwnerTableHeadCell>Room Type</OwnerTableHeadCell>
+                  <OwnerTableHeadCell>Beds</OwnerTableHeadCell>
+                  <OwnerTableHeadCell>Status</OwnerTableHeadCell>
+                  <OwnerTableHeadCell>Rent (Monthly)</OwnerTableHeadCell>
+                  <OwnerTableHeadCell>Actions</OwnerTableHeadCell>
+                </tr>
+              </OwnerTableHead>
+              <OwnerTableBody>
+                {rooms.map(room => {
+                  const status = room.total_beds === 0 ? 'vacant' : 'partial'
+                  return (
+                    <OwnerTableRow key={room.id}>
+                      <OwnerTableCell className="font-semibold">{room.room_number}</OwnerTableCell>
+                      <OwnerTableCell className="text-owner-muted">{room.sharing_type} · Floor {room.floor}</OwnerTableCell>
+                      <OwnerTableCell>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: room.total_beds }).map((_, i) => (
+                            <BedDouble key={i} className="w-3.5 h-3.5 text-owner-primary" />
+                          ))}
+                        </div>
+                      </OwnerTableCell>
+                      <OwnerTableCell>
+                        <OwnerBadge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</OwnerBadge>
+                      </OwnerTableCell>
+                      <OwnerTableCell className="font-semibold owner-numeric">{formatINR(room.monthly_rent)}</OwnerTableCell>
+                      <OwnerTableCell>
+                        <div className="flex items-center gap-1">
+                          <OwnerIconButton aria-label={`Edit room ${room.room_number}`} variant="ghost" size="sm" onClick={() => openEdit(room)}>
+                            <Pencil />
+                          </OwnerIconButton>
+                          <OwnerIconButton aria-label={`Delete room ${room.room_number}`} variant="ghost" size="sm" onClick={() => handleDelete(room.id)} className="hover:text-owner-danger">
+                            <Trash2 />
+                          </OwnerIconButton>
+                        </div>
+                      </OwnerTableCell>
+                    </OwnerTableRow>
+                  )
+                })}
+              </OwnerTableBody>
+            </OwnerTable>
+          </div>
+        </>
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-owner-surface-elevated rounded-t-owner-2xl sm:rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border pb-safe sm:pb-0 animate-owner-sheet-up sm:animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">{editingId ? 'Edit Room' : 'Add Room'}</h2>
+        <>
+          <div onClick={closeModal} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0">
+                <BedDouble className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">{editingId ? 'Edit' : 'New Room'}</div>
+                <div className="font-bold text-owner-fg">{editingId ? 'Edit Room' : 'Add Room'}</div>
+              </div>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={closeModal}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 grid grid-cols-2 gap-4">
               {activeId === 'all' && !editingId && (
                 <div className="col-span-2">
                   <OwnerSelect
@@ -230,15 +266,92 @@ export default function RoomsPage() {
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
-              <OwnerButton onClick={handleSave} loading={saving} fullWidth>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={closeModal}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
+                Cancel
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
                 {editingId ? 'Save Changes' : 'Add Room'}
-              </OwnerButton>
-              <OwnerButton onClick={closeModal} variant="secondary" fullWidth>Cancel</OwnerButton>
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
+
+      {/* Room Detail sheet — List → Detail pattern. Beds shown as a simple
+          count (matches list view); actual per-tenant occupancy isn't
+          shown here since that needs a new tenants↔rooms query — same
+          scope boundary already documented at the top of this file. */}
+      {roomDetail && (() => {
+        const room = roomDetail
+        const status = room.total_beds === 0 ? 'vacant' : 'partial'
+        return (
+          <>
+            <div onClick={() => setRoomDetail(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+            <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+              <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+              </div>
+              <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0">
+                  <BedDouble className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Room Details</div>
+                  <div className="font-bold text-owner-fg truncate">Room {room.room_number}</div>
+                </div>
+                <OwnerBadge tone={STATUS_TONE[status]} className="shrink-0">{STATUS_LABEL[status]}</OwnerBadge>
+                <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setRoomDetail(null)}>
+                  <X />
+                </OwnerIconButton>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                <div className="bg-owner-surface-hover rounded-2xl p-4 text-center">
+                  <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Monthly Rent</div>
+                  <div className="text-3xl font-extrabold text-owner-fg mt-1 owner-numeric">{formatINR(room.monthly_rent)}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Sharing Type</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{room.sharing_type}</div>
+                  </div>
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Floor</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{room.floor}</div>
+                  </div>
+                  <div className="bg-owner-surface-hover rounded-xl p-3 col-span-2">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold mb-1.5">Beds ({room.total_beds})</div>
+                    <div className="flex items-center gap-1.5">
+                      {Array.from({ length: room.total_beds }).map((_, i) => (
+                        <BedDouble key={i} className="w-5 h-5 text-owner-primary" />
+                      ))}
+                      {room.total_beds === 0 && <span className="text-sm text-owner-muted-subtle">No beds configured</span>}
+                    </div>
+                  </div>
+                  {room.notes && (
+                    <div className="bg-owner-surface-hover rounded-xl p-3 col-span-2">
+                      <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Notes</div>
+                      <div className="text-sm text-owner-fg mt-0.5">{room.notes}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                <button onClick={() => { setRoomDetail(null); handleDelete(room.id) }}
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-danger-subtle hover:opacity-80 active:scale-[0.98] text-owner-danger rounded-2xl text-sm font-bold transition">
+                  <Trash2 className="w-4 h-4" /> Delete
+                </button>
+                <button onClick={() => { setRoomDetail(null); openEdit(room) }}
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                  <Pencil className="w-4 h-4" /> Edit Room
+                </button>
+              </div>
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }

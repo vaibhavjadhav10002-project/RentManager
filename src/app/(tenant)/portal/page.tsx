@@ -22,7 +22,7 @@ import {
   AlertCircle, LayoutDashboard, ShieldCheck, User as UserIcon, Bell,
   ChevronRight, Headset, ChevronDown, MoreVertical, Send, HelpCircle,
   Wallet, Wrench, Users2, CalendarClock, Eye, Megaphone, X,
-  ChevronLeft, Paperclip, MoreHorizontal,
+  ChevronLeft, Paperclip, Sun, Moon,
 } from 'lucide-react'
 import { PieChart, Pie, Cell } from 'recharts'
 import { useRouter } from 'next/navigation'
@@ -44,9 +44,6 @@ export default function TenantPortal() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [moreSheetOpen, setMoreSheetOpen] = useState(false)
-  // Theme now follows the device's OS setting only (no manual toggle) — see
-  // the matchMedia effect right after data loads, which keeps this in sync live.
   const [darkMode, setDarkMode] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -89,17 +86,6 @@ export default function TenantPortal() {
   const [savingMoveOut, setSavingMoveOut] = useState(false)
   const [moveOutChecklist, setMoveOutChecklist] = useState<any>(null)
   const [requestTypeFilter, setRequestTypeFilter] = useState<'all' | 'leave' | 'extension' | 'moveout' | 'maintenance' | 'profile'>('all')
-
-  // Follow the device/browser's system theme automatically — no manual
-  // toggle. Sets the initial value and stays in sync if the OS theme
-  // changes while the app is open (e.g. scheduled dark mode).
-  useEffect(() => {
-    const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    setDarkMode(mql.matches)
-    const onChange = (e: MediaQueryListEvent) => setDarkMode(e.matches)
-    mql.addEventListener('change', onChange)
-    return () => mql.removeEventListener('change', onChange)
-  }, [])
 
   useEffect(() => {
     async function load() {
@@ -566,37 +552,8 @@ export default function TenantPortal() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 px-4 pt-6 pb-24 lg:px-8 lg:pt-8">
-      <div className="max-w-6xl mx-auto space-y-5 animate-pulse" aria-busy="true" aria-label="Loading your portal">
-        {/* Header */}
-        <div className="space-y-2">
-          <div className="h-5 w-40 rounded-lg bg-gray-200 dark:bg-slate-800" />
-          <div className="h-3.5 w-56 rounded-lg bg-gray-100 dark:bg-slate-800/70" />
-        </div>
-        {/* Quick actions */}
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-4 h-[92px]" />
-          ))}
-        </div>
-        {/* Hero card */}
-        <div className="rounded-2xl bg-gray-200 dark:bg-slate-800 h-28" />
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-4 h-24" />
-          ))}
-        </div>
-        {/* List rows */}
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 divide-y divide-gray-50 dark:divide-slate-800 overflow-hidden">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-14 px-4 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 shrink-0" />
-              <div className="flex-1 h-3 rounded bg-gray-100 dark:bg-slate-800" />
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
     </div>
   )
 
@@ -659,13 +616,6 @@ export default function TenantPortal() {
     { key: 'support', label: 'Support', icon: HelpCircle },
   ]
 
-  // Phase 2 (Premium UI Upgrade): the mobile bottom nav only pins Home,
-  // Payments, Requests and Notices — everything else in navItems above
-  // is reachable from the "More" sheet instead, reusing this same array
-  // (no separate/duplicate nav config for mobile vs desktop sidebar).
-  const morePinnedKeys: Tab[] = ['dashboard', 'rent', 'requests', 'notices']
-  const moreNavItems = navItems.filter(n => !morePinnedKeys.includes(n.key))
-
   return (
     <div className={darkMode ? 'dark' : ''}>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
@@ -695,7 +645,7 @@ export default function TenantPortal() {
         <div className="px-5 h-16 flex items-center gap-2.5 border-b border-gray-100">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-sm">PG</div>
           <div>
-            <div className="text-sm font-extrabold text-gray-900">Rentivo</div>
+            <div className="text-sm font-extrabold text-gray-900">RentFlow</div>
             <div className="text-[11px] text-gray-400">Tenant Portal</div>
           </div>
         </div>
@@ -748,6 +698,10 @@ export default function TenantPortal() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setDarkMode(d => !d)} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="p-2 rounded-xl bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-gray-500 dark:text-slate-400">
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             <div className="relative">
               <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition text-gray-500">
                 <Bell className="w-4 h-4" />
@@ -812,7 +766,7 @@ export default function TenantPortal() {
           </div>
         </header>
 
-        <main id="main-content" className="flex-1 p-4 pb-24 lg:p-8 lg:pb-8 max-w-6xl w-full mx-auto">
+        <main id="main-content" className="flex-1 p-4 lg:p-8 max-w-6xl w-full mx-auto">
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
@@ -834,7 +788,7 @@ export default function TenantPortal() {
                     { label: 'My Requests', icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-50', onClick: () => setTab('requests') },
                   ].map(a => (
                     <button key={a.label} onClick={a.onClick}
-                      className="flex flex-col items-center gap-2 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 active:shadow-sm transition">
+                      className="flex flex-col items-center gap-2 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.bg}`}>
                         <a.icon className={`w-5 h-5 ${a.color}`} />
                       </div>
@@ -891,42 +845,8 @@ export default function TenantPortal() {
                 )
               })()}
 
-              {/* Stat cards — mobile gets a hero "next due" card (the
-                  single thing a tenant checks most) plus a simpler
-                  secondary grid; desktop keeps the original 4-card grid
-                  exactly as before. */}
-              <div className="lg:hidden space-y-3">
-                <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 p-5 text-white shadow-lg">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-white/75 uppercase tracking-wide">
-                        {thisMonthPaid ? "You're all caught up" : 'Next Rent Due'}
-                      </div>
-                      <div className="text-[26px] leading-tight font-extrabold mt-1 truncate">{formatINR(totalRentPending)}</div>
-                      <div className={`text-xs font-semibold mt-1.5 ${daysLeft <= 3 && !thisMonthPaid ? 'text-red-100' : 'text-white/85'}`}>
-                        {formatDate(nextDueDate.toISOString())} · {thisMonthPaid ? 'Paid' : daysLeft > 0 ? `${daysLeft} days left` : 'Overdue'}
-                      </div>
-                    </div>
-                    <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-                      <CalendarClock className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 flex items-center justify-center mb-2"><Wallet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /></div>
-                    <div className="text-lg font-extrabold text-gray-900 dark:text-white truncate">{formatINR(tenant.monthly_rent)}</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Monthly Rent</div>
-                  </div>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
-                    <div className="w-9 h-9 rounded-xl bg-green-50 dark:bg-green-500/15 flex items-center justify-center mb-2"><Download className="w-4 h-4 text-green-600 dark:text-green-400" /></div>
-                    <div className="text-lg font-extrabold text-green-600 dark:text-green-400 truncate">{formatINR(donutPaid)}</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 truncate">{referenceMonth?.label ?? thisMonth}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="hidden lg:grid lg:grid-cols-4 gap-4">
+              {/* Stat cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-xs font-semibold text-gray-500">Total Rent</div>
@@ -993,7 +913,7 @@ export default function TenantPortal() {
                         {tenant.property?.upi_id && (
                           <UpiPayButtons compact upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={b.amount} note={`${b.bill_type} - ${tenant.name}`} />
                         )}
-                        <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-[0.97] text-white rounded-xl text-xs font-bold transition">Pay Now</button>
+                        <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
                       </div>
                     </div>
                   ))}
@@ -1058,7 +978,7 @@ export default function TenantPortal() {
                     )}
                   </div>
                   {totalRentPending > 0 && tenant.status === 'active' && (
-                    <button onClick={() => openPay('rent')} className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white rounded-xl text-sm font-bold transition">
+                    <button onClick={() => openPay('rent')} className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
                       Pay Rent Now
                     </button>
                   )}
@@ -1116,23 +1036,38 @@ export default function TenantPortal() {
                   <button onClick={() => setTab('history')} className="text-xs font-semibold text-indigo-600 hover:underline">View All</button>
                 </div>
                 {payments.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-10 px-4">
-                    <div className="w-11 h-11 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                      <Wallet className="w-5 h-5 text-gray-300 dark:text-slate-600" />
-                    </div>
-                    <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No payments yet</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 text-center max-w-[220px]">Your payment history will show up here once you make your first payment.</div>
-                  </div>
+                  <div className="text-center py-10 text-sm text-gray-400">No payments yet</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <>
+                    {/* Mobile: stacked card list, no horizontal scroll */}
+                    <div className="sm:hidden divide-y divide-gray-50">
+                      {payments.slice(0, 5).map(p => (
+                        <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">{p.for_month ?? '—'}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)}</div>
+                            <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {p.approval_status.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
+                            {p.approval_status === 'approved' && (
+                              <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Desktop/tablet: full table */}
+                    <table className="w-full text-sm hidden sm:table">
                       <thead>
                         <tr className="text-left text-xs text-gray-400 border-b border-gray-50">
                           <th className="px-5 py-2.5 font-semibold">Date</th>
                           <th className="px-5 py-2.5 font-semibold">Month</th>
                           <th className="px-5 py-2.5 font-semibold">Amount</th>
                           <th className="px-5 py-2.5 font-semibold">Status</th>
-                          <th className="px-5 py-2.5 font-semibold hidden sm:table-cell">Transaction ID</th>
+                          <th className="px-5 py-2.5 font-semibold">Transaction ID</th>
                           <th className="px-5 py-2.5 font-semibold text-right">Receipt</th>
                         </tr>
                       </thead>
@@ -1147,7 +1082,7 @@ export default function TenantPortal() {
                                 {p.approval_status.replace('_', ' ')}
                               </span>
                             </td>
-                            <td className="px-5 py-3 text-xs text-gray-400 font-mono hidden sm:table-cell">#{p.id.slice(0, 8).toUpperCase()}</td>
+                            <td className="px-5 py-3 text-xs text-gray-400 font-mono">#{p.id.slice(0, 8).toUpperCase()}</td>
                             <td className="px-5 py-3 text-right">
                               {p.approval_status === 'approved' ? (
                                 <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
@@ -1157,7 +1092,7 @@ export default function TenantPortal() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1287,12 +1222,7 @@ export default function TenantPortal() {
                   )}
                 </div>
                 {leaveRequests.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-8 px-4">
-                    <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                      <Users2 className="w-4 h-4 text-gray-300 dark:text-slate-600" />
-                    </div>
-                    <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No leave requests yet</div>
-                  </div>
+                  <div className="text-sm text-gray-400 text-center py-6">No leave requests yet</div>
                 ) : (
                   <div className="space-y-3">
                     {leaveRequests.map(l => (
@@ -1336,12 +1266,7 @@ export default function TenantPortal() {
                   </div>
                 )}
                 {moveOutRequests.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-8 px-4">
-                    <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                      <CalendarClock className="w-4 h-4 text-gray-300 dark:text-slate-600" />
-                    </div>
-                    <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No move-out requests yet</div>
-                  </div>
+                  <div className="text-sm text-gray-400 text-center py-6">No move-out requests yet</div>
                 ) : (
                   <div className="space-y-3">
                     {moveOutRequests.map(m => (
@@ -1481,16 +1406,46 @@ export default function TenantPortal() {
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {payments.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-12 px-4">
-                    <div className="w-11 h-11 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                      <Wallet className="w-5 h-5 text-gray-300 dark:text-slate-600" />
-                    </div>
-                    <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No payments yet</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 text-center max-w-[220px]">Your full payment history will appear here once you make your first payment.</div>
-                  </div>
+                  <div className="text-center py-12 text-gray-400 text-sm">No payments yet</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <>
+                    {/* Mobile: stacked card list, no horizontal scroll */}
+                    <div className="sm:hidden divide-y divide-gray-50">
+                      {payments.map(p => (
+                        <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 capitalize">{p.type} · {p.for_month ?? '—'}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)}</div>
+                            <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {p.approval_status.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 relative">
+                            <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
+                            <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg transition" aria-label="Row options">
+                              <MoreVertical className="w-4 h-4 text-gray-400" />
+                            </button>
+                            {rowMenuOpen === p.id && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setRowMenuOpen(null)} />
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                  {p.approval_status === 'approved' ? (
+                                    <button onClick={() => { downloadReceipt(p); setRowMenuOpen(null) }}
+                                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                      <Download className="w-3.5 h-3.5" /> Download Receipt
+                                    </button>
+                                  ) : (
+                                    <div className="px-4 py-2.5 text-xs text-gray-400">Awaiting owner approval</div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Desktop/tablet: full table */}
+                    <table className="w-full text-sm hidden sm:table">
                       <thead>
                         <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
                           <th className="px-5 py-3 font-semibold">Date</th>
@@ -1539,7 +1494,7 @@ export default function TenantPortal() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1558,13 +1513,7 @@ export default function TenantPortal() {
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
                 {complaints.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-12 px-4">
-                    <div className="w-11 h-11 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                      <Wrench className="w-5 h-5 text-gray-300 dark:text-slate-600" />
-                    </div>
-                    <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No requests raised yet</div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 text-center max-w-[220px]">Report a maintenance issue and it&apos;ll show up here.</div>
-                  </div>
+                  <div className="text-center py-12 text-gray-400 text-sm">No requests raised yet</div>
                 ) : complaints.map(c => (
                   <div key={c.id} className="flex items-start justify-between gap-3 px-5 py-4">
                     <div className="flex-1 min-w-0">
@@ -1591,7 +1540,7 @@ export default function TenantPortal() {
                 <p className="text-sm text-gray-500">Every leave, extension, move-out and maintenance request in one place.</p>
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="flex flex-wrap gap-2">
                 {[['all', 'All'], ['leave', 'Leave'], ['extension', 'Extension'], ['moveout', 'Move-Out'], ['maintenance', 'Maintenance'], ['profile', 'Profile Update']].map(([v, l]) => (
                   <button key={v} onClick={() => setRequestTypeFilter(v as any)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${requestTypeFilter === v ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
@@ -1602,12 +1551,7 @@ export default function TenantPortal() {
 
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
                 {allRequests.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-12 px-4">
-                    <div className="w-11 h-11 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-gray-300 dark:text-slate-600" />
-                    </div>
-                    <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No requests yet</div>
-                  </div>
+                  <div className="text-center py-12 text-gray-400 text-sm">No requests yet</div>
                 ) : allRequests.map(r => (
                   <div key={r.id} className="flex items-start justify-between gap-3 px-5 py-4">
                     <div className="flex-1 min-w-0">
@@ -1700,13 +1644,7 @@ export default function TenantPortal() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col h-[60vh]">
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
                   {messages.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 py-10 px-4">
-                      <div className="w-11 h-11 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                        <MessageCircle className="w-5 h-5 text-gray-300 dark:text-slate-600" />
-                      </div>
-                      <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No messages yet</div>
-                      <div className="text-xs text-gray-400 dark:text-slate-500">Say hello to your owner!</div>
-                    </div>
+                    <div className="text-center text-sm text-gray-400 py-10">No messages yet — say hello to your owner!</div>
                   ) : messages.map(m => (
                     <div key={m.id} className={`flex ${m.sender === 'tenant' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'tenant' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
@@ -1782,11 +1720,8 @@ export default function TenantPortal() {
                 <p className="text-sm text-gray-500">Announcements from your PG owner.</p>
               </div>
               {allNotices.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-12 shadow-sm flex flex-col items-center gap-2">
-                  <div className="w-11 h-11 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
-                    <Megaphone className="w-5 h-5 text-gray-300 dark:text-slate-600" />
-                  </div>
-                  <div className="text-sm font-semibold text-gray-500 dark:text-slate-400">No notices yet</div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-sm text-gray-400 shadow-sm">
+                  No notices yet
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1829,150 +1764,6 @@ export default function TenantPortal() {
           )}
 
         </main>
-
-        {/* Mobile bottom nav — desktop keeps the sidebar, this is hidden at lg:.
-            Phase 2 (Premium UI Upgrade): pinned to Home / Payments / Requests /
-            Notices / More. "More" opens a bottom sheet (see below) built from
-            this page's own existing `moreNavItems` + profile menu actions —
-            no new routes, tabs, or business logic introduced.
-            Same premium treatment as OwnerBottomNav (top active-indicator bar,
-            animated pill, icon pop, CSS-only ripple, elevation shadow, 48dp
-            touch targets) for consistency across the app. */}
-        <nav className="lg:hidden pb-safe fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-100 dark:border-slate-800 shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)]">
-          <div className="flex items-stretch justify-around px-1">
-            {[
-              { key: 'dashboard' as Tab, label: 'Home', icon: LayoutDashboard },
-              { key: 'rent' as Tab, label: 'Payments', icon: Wallet },
-              { key: 'requests' as Tab, label: 'Requests', icon: CheckCircle },
-              { key: 'notices' as Tab, label: 'Notices', icon: Megaphone, badge: allNotices.filter((n: any) => !n.isRead).length },
-            ].map(({ key, label, icon: Icon, badge }) => {
-              const active = tab === key && !moreSheetOpen
-              return (
-                <button
-                  key={key}
-                  onClick={() => { setMoreSheetOpen(false); setTab(key) }}
-                  className="relative flex flex-col items-center justify-center gap-1 flex-1 min-h-[52px] py-2.5 min-w-0 overflow-hidden before:absolute before:inset-0 before:rounded-lg before:bg-gray-900/5 dark:before:bg-white/5 before:scale-0 before:opacity-0 active:before:scale-100 active:before:opacity-100 before:transition before:duration-300"
-                  aria-current={active ? 'page' : undefined}
-                >
-                  <span className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-300 ease-out ${active ? 'w-6 opacity-100' : 'w-0 opacity-0'}`} aria-hidden="true" />
-                  <span className={`relative flex items-center justify-center h-8 w-11 rounded-full transition-all duration-300 ease-out ${active ? 'bg-indigo-50 dark:bg-indigo-500/15 scale-100' : 'scale-90'}`}>
-                    <Icon className={`transition-all duration-300 ease-out ${active ? 'h-5 w-5 text-indigo-600 dark:text-indigo-400' : 'h-[19px] w-[19px] text-gray-400 dark:text-slate-500'}`} />
-                    {badge ? (
-                      <span className="absolute -top-0.5 right-1.5 flex items-center justify-center rounded-full bg-red-500 text-white font-bold ring-2 ring-white dark:ring-slate-900 min-w-[15px] h-[15px] text-[9px] px-0.5">
-                        {badge > 9 ? '9+' : badge}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className={`text-[10.5px] font-semibold truncate max-w-full transition-colors duration-300 ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'}`}>
-                    {label}
-                  </span>
-                </button>
-              )
-            })}
-            {(() => {
-              const moreBadge = unreadMessages + openComplaints
-              const moreActive = moreSheetOpen || moreNavItems.some(n => n.key === tab)
-              return (
-                <button
-                  onClick={() => setMoreSheetOpen(o => !o)}
-                  className="relative flex flex-col items-center justify-center gap-1 flex-1 min-h-[52px] py-2.5 min-w-0 overflow-hidden before:absolute before:inset-0 before:rounded-lg before:bg-gray-900/5 dark:before:bg-white/5 before:scale-0 before:opacity-0 active:before:scale-100 active:before:opacity-100 before:transition before:duration-300"
-                  aria-current={moreActive ? 'page' : undefined}
-                  aria-expanded={moreSheetOpen}
-                >
-                  <span className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-300 ease-out ${moreActive ? 'w-6 opacity-100' : 'w-0 opacity-0'}`} aria-hidden="true" />
-                  <span className={`relative flex items-center justify-center h-8 w-11 rounded-full transition-all duration-300 ease-out ${moreActive ? 'bg-indigo-50 dark:bg-indigo-500/15 scale-100' : 'scale-90'}`}>
-                    <MoreHorizontal className={`transition-all duration-300 ease-out ${moreActive ? 'h-5 w-5 text-indigo-600 dark:text-indigo-400' : 'h-[19px] w-[19px] text-gray-400 dark:text-slate-500'}`} />
-                    {moreBadge > 0 ? (
-                      <span className="absolute -top-0.5 right-1.5 flex items-center justify-center rounded-full bg-red-500 text-white font-bold ring-2 ring-white dark:ring-slate-900 min-w-[15px] h-[15px] text-[9px] px-0.5">
-                        {moreBadge > 9 ? '9+' : moreBadge}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className={`text-[10.5px] font-semibold truncate max-w-full transition-colors duration-300 ${moreActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'}`}>
-                    More
-                  </span>
-                </button>
-              )
-            })()}
-          </div>
-        </nav>
-
-        {/* More sheet — mobile-only bottom sheet listing everything not
-            pinned to the 5-tab bottom nav (My Tenancy, Payment History,
-            Maintenance, Documents, Messages, Support), plus the same
-            profile actions the desktop header's profile dropdown already
-            has (Change Password, Logout). Reuses moreNavItems, setTab,
-            openMessagesTab, setPwModal and the sign-out call already used
-            elsewhere on this page — no new business logic. */}
-        <div
-          aria-hidden={!moreSheetOpen}
-          onClick={() => setMoreSheetOpen(false)}
-          className={`lg:hidden fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 ${moreSheetOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="More"
-          className={`lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-slate-900 rounded-t-3xl shadow-[0_-20px_48px_-16px_rgba(0,0,0,0.4)] max-h-[80vh] flex flex-col transition-transform duration-300 ease-out ${moreSheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
-        >
-          <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-            <div className="h-1 w-9 rounded-full bg-gray-300 dark:bg-slate-700" />
-          </div>
-          <div className="px-4 pb-1.5 pt-1 shrink-0">
-            <h2 className="text-sm font-extrabold text-gray-900 dark:text-white">More</h2>
-          </div>
-          <div className="flex-1 overflow-y-auto px-3 pb-1">
-            <div className="grid grid-cols-4 gap-y-4 py-2">
-              {moreNavItems.map(({ key, label, icon: Icon }) => {
-                const active = tab === key
-                const badge = key === 'messages' ? unreadMessages : key === 'maintenance' ? openComplaints : 0
-                return (
-                  <button
-                    key={key}
-                    onClick={() => { setMoreSheetOpen(false); key === 'messages' ? openMessagesTab() : setTab(key) }}
-                    className="flex flex-col items-center gap-1.5 px-1 py-1 rounded-xl active:bg-gray-100 dark:active:bg-slate-800 transition-colors"
-                  >
-                    <span className={`relative flex items-center justify-center h-11 w-11 rounded-2xl transition-colors ${active ? 'bg-indigo-50 dark:bg-indigo-500/15' : 'bg-gray-50 dark:bg-slate-800'}`}>
-                      <Icon className={`h-5 w-5 ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400'}`} />
-                      {badge > 0 && (
-                        <span className="absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-red-500 text-white font-bold ring-2 ring-white dark:ring-slate-900 min-w-[15px] h-[15px] text-[9px] px-0.5">
-                          {badge > 9 ? '9+' : badge}
-                        </span>
-                      )}
-                    </span>
-                    <span className={`text-[10.5px] font-semibold text-center leading-tight ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400'}`}>
-                      {label}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <div className="native-safe-bottom border-t border-gray-100 dark:border-slate-800 shrink-0">
-            <div className="flex items-center gap-2.5 px-4 py-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                {initials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-gray-900 dark:text-white truncate">{tenant.name}</div>
-                <div className="text-[10px] text-gray-400 dark:text-slate-500">Tenant</div>
-              </div>
-              <button
-                onClick={() => { setMoreSheetOpen(false); setPwModal(true) }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-600 dark:text-slate-300 text-xs font-semibold active:bg-gray-100 dark:active:bg-slate-800 transition-colors"
-              >
-                <Lock className="w-4 h-4" /> Password
-              </button>
-              <button
-                onClick={async () => { setMoreSheetOpen(false); const sb = createClient(); await sb.auth.signOut(); router.push('/login') }}
-                aria-label="Log out"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-red-500 text-xs font-semibold active:bg-red-50 dark:active:bg-red-500/10 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Notice Announcement Modal */}
@@ -2103,7 +1894,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-[0.98] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit for Approval
               </button>
             </div>
@@ -2141,7 +1932,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-[0.98] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2174,7 +1965,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingLeave && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2217,7 +2008,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100 shrink-0">
-              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingProfileUpdate && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2247,7 +2038,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingExtension && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2274,7 +2065,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingMoveOut && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>

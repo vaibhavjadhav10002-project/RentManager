@@ -5,7 +5,6 @@ import { getTenants } from '@/lib/supabase/queries'
 import { generateTenantIDCardPDF } from '@/lib/pdf'
 import { QrCode, Download, Loader2, User } from 'lucide-react'
 import { toast } from 'sonner'
-import { OwnerEmptyState } from '@/components/owner/ui'
 import type { Tenant } from '@/types'
 
 export default function TenantCardsPage() {
@@ -68,7 +67,10 @@ export default function TenantCardsPage() {
       </div>
 
       {tenants.length === 0 ? (
-        <OwnerEmptyState icon={QrCode} title="No active tenants to show cards for" className="py-16" />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+          <QrCode className="w-8 h-8" />
+          <div className="text-sm">No active tenants to show cards for</div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tenants.map(t => (
