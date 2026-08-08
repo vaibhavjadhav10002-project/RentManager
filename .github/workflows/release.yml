@@ -1,0 +1,324 @@
+name: Release Automation
+
+# ─────────────────────────────────────────────────────────────────────────
+# Release Automation only — no application business logic/UI/financial
+# logic is changed by this workflow. See RELEASE_AUTOMATION.md for the
+# full design writeup, required secrets, and manual fallback commands.
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {} # manual fallback trigger — see RELEASE_AUTOMATION.md
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel a release mid-flight
+
+permissions:
+  contents: write # required to create tags/releases
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────
+  # Runs on every push AND every PR. Only this job runs for PRs — nothing
+  # below deploys, signs, or releases anything for a pull request.
+  # ───────────────────────────────────────────────────────────────────────
+  validate:
+    name: Validate & compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version_code: ${{ steps.version.outputs.version_code }}
+      version_name: ${{ steps.version.outputs.version_name }}
+      tag: ${{ steps.version.outputs.tag }}
+      apk_file_name: ${{ steps.version.outputs.apk_file_name }}
+      apk_url: ${{ steps.version.outputs.apk_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies (npm ci — existing lockfile)
+        run: npm ci
+
+      - name: Existing lint check
+        run: npm run lint
+
+      - name: Existing build check (type-check + Next.js build)
+        # These NEXT_PUBLIC_* values are dummy placeholders used ONLY to let
+        # `next build` compile/type-check in this isolated validation job.
+        # They are never deployed and never touch real data — the actual
+        # production build/deploy (the `deploy` job below) pulls real env
+        # vars from the Vercel project itself via the Vercel CLI.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build-only
+        run: npm run build
+
+      - name: Compute release version (single source of truth)
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION_BASE=$(grep -E '^versionBase=' android/version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          if [ -z "$VERSION_BASE" ]; then
+            echo "::error::android/version.properties is missing or malformed (expected versionBase=X.Y)"
+            exit 1
+          fi
+          VERSION_CODE="${{ github.run_number }}"
+          VERSION_NAME="${VERSION_BASE}.${VERSION_CODE}"
+          TAG="v${VERSION_NAME}"
+          APK_FILE_NAME="rentivo-${TAG}.apk"
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${APK_FILE_NAME}"
+
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "apk_file_name=${APK_FILE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "apk_url=${APK_URL}" >> "$GITHUB_OUTPUT"
+
+          echo "Computed release version: ${VERSION_NAME} (versionCode ${VERSION_CODE}, tag ${TAG})"
+
+  # ───────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Vercel (production)
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required Vercel secrets are present
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "${{ secrets.VERCEL_TOKEN }}" ] && missing+=("VERCEL_TOKEN")
+          [ -z "${{ secrets.VERCEL_ORG_ID }}" ] && missing+=("VERCEL_ORG_ID")
+          [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ] && missing+=("VERCEL_PROJECT_ID")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required GitHub Secrets for Vercel deploy: ${missing[*]}"
+            echo "::error::See RELEASE_AUTOMATION.md — no deployment will be attempted with fake/default values."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project config (production env)
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build (Vercel-managed, real production env vars)
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy prebuilt output to production
+        id: deploy
+        run: |
+          set -euo pipefail
+          URL=$(vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}")
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "Deployed: ${URL}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # ───────────────────────────────────────────────────────────────────────
+  android-build:
+    name: Build & sign Android release APK
+    needs: [validate, deploy]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required Android signing + Capacitor secrets are present
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ] && missing+=("ANDROID_KEYSTORE_BASE64")
+          [ -z "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" ] && missing+=("ANDROID_KEYSTORE_PASSWORD")
+          [ -z "${{ secrets.ANDROID_KEY_ALIAS }}" ] && missing+=("ANDROID_KEY_ALIAS")
+          [ -z "${{ secrets.ANDROID_KEY_PASSWORD }}" ] && missing+=("ANDROID_KEY_PASSWORD")
+          [ -z "${{ secrets.CAPACITOR_SERVER_URL }}" ] && missing+=("CAPACITOR_SERVER_URL")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required GitHub Secrets for the Android release build: ${missing[*]}"
+            echo "::error::No keystore will be fabricated and no unsigned APK will be released."
+            echo "::error::See RELEASE_AUTOMATION.md 'Laptop Required Later' for how to generate/add these."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17' # matches AGP 8.2.1 / Gradle 8.2.1 requirements
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Decode release keystore (runner-local temp file only — never committed)
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Capacitor sync (Android)
+        run: npx cap sync android
+        env:
+          CAPACITOR_SERVER_URL: ${{ secrets.CAPACITOR_SERVER_URL }}
+
+      - name: Build signed release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -PandroidVersionCode="${{ needs.validate.outputs.version_code }}" \
+            -PandroidVersionName="${{ needs.validate.outputs.version_name }}"
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Verify APK exists and is actually signed
+        id: verify
+        run: |
+          set -euo pipefail
+          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::Expected APK not found at $APK_PATH"
+            exit 1
+          fi
+          BUILD_TOOLS_DIR=$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 1 -mindepth 1 | sort -V | tail -n1)
+          if ! "$BUILD_TOOLS_DIR/apksigner" verify "$APK_PATH"; then
+            echo "::error::APK at $APK_PATH is not properly signed. Refusing to release an unsigned/invalid APK."
+            exit 1
+          fi
+          echo "APK verified: signed and present at $APK_PATH"
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK to release-versioned filename
+        run: |
+          mkdir -p release-output
+          cp "${{ steps.verify.outputs.apk_path }}" "release-output/${{ needs.validate.outputs.apk_file_name }}"
+
+      - name: Delete decoded keystore from runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+
+      - name: Upload APK artifact (preserved even if a later job fails)
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: release-output/${{ needs.validate.outputs.apk_file_name }}
+          retention-days: 90
+
+  # ───────────────────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [validate, android-build]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so auto-generated release notes can list commits
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-release-apk
+          path: release-output
+
+      - name: Create GitHub Release with APK asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          name: Rentivo ${{ needs.validate.outputs.version_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: release-output/${{ needs.validate.outputs.apk_file_name }}
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Only runs after a release genuinely exists, so apkDownloadUrl in
+  # production app-version.json is NEVER pointed at an asset that doesn't
+  # exist yet (e.g. if android-build or release fails after `deploy`
+  # already ran, this job simply never runs and the live file is untouched).
+  # ───────────────────────────────────────────────────────────────────────
+  publish-version-metadata:
+    name: Publish app-version.json
+    needs: [validate, release]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-release-apk
+          path: release-output
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Regenerate public/app-version.json
+        run: |
+          node scripts/ci/update-app-version.mjs \
+            --version "${{ needs.validate.outputs.version_name }}" \
+            --version-code "${{ needs.validate.outputs.version_code }}" \
+            --apk-url "${{ needs.validate.outputs.apk_url }}" \
+            --apk-path "release-output/${{ needs.validate.outputs.apk_file_name }}"
+
+      - name: Verify required Vercel secrets are present
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "${{ secrets.VERCEL_TOKEN }}" ] && missing+=("VERCEL_TOKEN")
+          [ -z "${{ secrets.VERCEL_ORG_ID }}" ] && missing+=("VERCEL_ORG_ID")
+          [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ] && missing+=("VERCEL_PROJECT_ID")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required GitHub Secrets for Vercel deploy: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project config (production env)
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build with updated app-version.json
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy updated app-version.json to production
+        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

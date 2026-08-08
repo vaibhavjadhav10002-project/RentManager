@@ -1,5 +1,37 @@
 apply plugin: 'com.android.application'
 
+// ─────────────────────────────────────────────────────────────────────────
+// CI-DRIVEN VERSIONING (Release Automation)
+// ─────────────────────────────────────────────────────────────────────────
+// versionCode/versionName are normally hardcoded (1 / "1.0"). The release
+// workflow now passes them in as Gradle project properties
+// (-PandroidVersionCode=NNN -PandroidVersionName=X.Y.Z) computed from
+// android/version.properties + the CI run number.
+//
+// Falling back to the original hardcoded values when those properties are
+// absent means `./gradlew assembleDebug` / Android Studio builds on your
+// laptop behave EXACTLY as before this change — nothing about local
+// development changes.
+def ciVersionCode = project.hasProperty('androidVersionCode') ? project.androidVersionCode.toInteger() : 1
+def ciVersionName = project.hasProperty('androidVersionName') ? project.androidVersionName : "1.0"
+
+// ─────────────────────────────────────────────────────────────────────────
+// CI-DRIVEN RELEASE SIGNING (Release Automation)
+// ─────────────────────────────────────────────────────────────────────────
+// No keystore exists in this repo (by design — never commit one). The
+// workflow decodes ANDROID_KEYSTORE_BASE64 to a temp file on the runner and
+// exposes these four env vars only for that CI job.
+//
+// If they're not set (e.g. building locally, or CI running before secrets
+// are configured), the release buildType simply has no signingConfig
+// attached, matching current/original behavior (unsigned release build) —
+// this file never assumes secrets exist and never fails a local build.
+def ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+def ksPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def ksKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+def ksKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+def hasSigningEnv = ksPath && ksPassword && ksKeyAlias && ksKeyPassword
+
 android {
     namespace "com.rentivo.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +39,8 @@ android {
         applicationId "com.rentivo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode ciVersionCode
+        versionName ciVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +48,29 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasSigningEnv) {
+            release {
+                storeFile file(ksPath)
+                storePassword ksPassword
+                keyAlias ksKeyAlias
+                keyPassword ksKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasSigningEnv) {
+                signingConfig signingConfigs.release
+            }
+            // If hasSigningEnv is false, no signingConfig is attached and
+            // Gradle produces an unsigned release APK — same as before this
+            // change. The CI workflow treats an unsigned output as a hard
+            // failure for actual releases (see release.yml); this fallback
+            // exists purely so this file itself never breaks local/manual
+            // builds when secrets aren't present.
         }
     }
 }
