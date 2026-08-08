@@ -3,7 +3,7 @@ import {
   MessageSquareWarning, TrendingDown, BarChart3, Settings,
   Building2, MessageCircle, Megaphone, FileText,
   QrCode, UserCheck, Package, Users2, Repeat, DownloadCloud, UploadCloud, Archive,
-  Inbox, Bell,
+  Inbox,
 } from 'lucide-react'
 
 export interface OwnerNavItem {
@@ -15,10 +15,9 @@ export interface OwnerNavItem {
 
 /**
  * Single source of truth for every Owner Dashboard destination — used by
- * the desktop Sidebar (all items) and the mobile "More" sheet (all items
- * minus the four already pinned to the bottom nav: Dashboard, Payments,
- * Tenants, Approvals). Keeping one array means adding/renaming a page
- * only ever happens in one place, and desktop/mobile can never drift.
+ * the desktop Sidebar (full list) and the mobile floating bottom nav +
+ * "More" sheet (4 pinned items + everything else). Keeping one array
+ * means adding/renaming a page only ever happens in one place.
  */
 export const OWNER_NAV: OwnerNavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -31,7 +30,6 @@ export const OWNER_NAV: OwnerNavItem[] = [
   { href: '/inbox', label: 'Inbox', icon: Inbox },
   { href: '/complaints', label: 'Complaints', icon: MessageSquareWarning },
   { href: '/notices', label: 'Notices', icon: Megaphone },
-  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/expenses', label: 'Expenses', icon: TrendingDown },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
@@ -46,7 +44,7 @@ export const OWNER_NAV: OwnerNavItem[] = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
-/** Hrefs already pinned to the mobile bottom nav — excluded from the "More" sheet. */
-export const OWNER_BOTTOM_NAV_HREFS = ['/dashboard', '/payments', '/tenants', '/approvals']
+/** The 4 destinations pinned to the mobile floating bottom nav. */
+export const OWNER_BOTTOM_NAV_HREFS = ['/dashboard', '/tenants', '/payments', '/approvals']
 
 export const OWNER_MORE_NAV = OWNER_NAV.filter(item => !OWNER_BOTTOM_NAV_HREFS.includes(item.href))

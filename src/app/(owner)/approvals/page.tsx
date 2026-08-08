@@ -323,8 +323,8 @@ export default function ApprovalsPage() {
     <div className="space-y-5 pb-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Approvals</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Review payment claims and new tenant requests</p>
+          <h1 className="text-xl font-extrabold text-owner-fg tracking-tight">Approvals</h1>
+          <p className="text-sm text-owner-muted mt-0.5">Review payment claims and new tenant requests</p>
         </div>
         <button onClick={() => { if (!active) { toast.error('Select a specific property first (not "All Properties")'); return } setQrModal(true) }}
           className="flex items-center gap-2 px-4 h-11 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 active:scale-[0.98] text-white rounded-2xl text-sm font-semibold transition">
@@ -333,10 +333,10 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1.5 p-1 bg-gray-100 rounded-2xl w-fit">
+      <div className="flex flex-wrap gap-1.5 p-1 bg-owner-surface-hover rounded-2xl w-fit">
         {[['payments', 'Payment Claims'], ['tenants', 'New Tenant Requests'], ['reviews', 'Profile Reviews'], ['updates', 'Profile Updates'], ['leave', 'Leave Requests'], ['extensions', 'Rent Extensions'], ['moveout', 'Move-Out Requests']].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v as any)}
-            className={`flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-semibold transition-all shrink-0 whitespace-nowrap active:scale-[0.97] ${tab === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-semibold transition-all shrink-0 whitespace-nowrap active:scale-[0.97] ${tab === v ? 'bg-owner-surface shadow-sm text-owner-fg' : 'text-owner-muted hover:text-owner-fg'}`}>
             {l}
             {v === 'payments' && payments.length > 0 && <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{payments.length}</span>}
             {v === 'tenants' && pendingTenants.length > 0 && <span className="bg-purple-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{pendingTenants.length}</span>}
@@ -350,10 +350,10 @@ export default function ApprovalsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
+        <div className="flex items-center justify-center h-40 text-owner-muted-subtle"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
       ) : tab === 'payments' ? (
         payments.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No pending payment claims</div>
           </div>
@@ -361,17 +361,17 @@ export default function ApprovalsPage() {
           <div className="space-y-2.5">
             {payments.map(p => (
               <button key={p.id} onClick={() => setDetailSheet({ kind: 'payment', item: p })}
-                className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                className="w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {(p.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 truncate">{p.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
-                  <div className="text-xs text-gray-500 mt-0.5">{p.for_month} · <span className="capitalize">{p.method?.replace('_', ' ')}</span></div>
+                  <div className="font-bold text-owner-fg truncate">{p.tenant?.name} <span className="text-owner-muted-subtle font-normal text-xs">· Room {p.tenant?.room?.room_number}</span></div>
+                  <div className="text-xs text-owner-muted mt-0.5">{p.for_month} · <span className="capitalize">{p.method?.replace('_', ' ')}</span></div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-base font-extrabold text-gray-900">{formatINR(p.amount_received)}</div>
-                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                  <div className="text-base font-extrabold text-owner-fg">{formatINR(p.amount_received)}</div>
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle" />
                 </div>
               </button>
             ))}
@@ -379,7 +379,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'tenants' ? (
         pendingTenants.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No pending tenant requests</div>
             <p className="text-xs mt-2">Share the join link/QR with new tenants to get started</p>
@@ -388,17 +388,17 @@ export default function ApprovalsPage() {
           <div className="space-y-2.5">
             {pendingTenants.map(t => (
               <button key={t.id} onClick={() => setDetailSheet({ kind: 'tenant', item: t })}
-                className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                className="w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {(t.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 truncate">{t.name}</div>
-                  <div className="text-xs text-gray-500 mt-0.5 truncate"><span className="font-semibold text-purple-600">{t.property?.name}</span> · Joining {t.joining_date}</div>
+                  <div className="font-bold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted mt-0.5 truncate"><span className="font-semibold text-purple-600">{t.property?.name}</span> · Joining {t.joining_date}</div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-base font-extrabold text-gray-900">{formatINR(t.monthly_rent)}</div>
-                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                  <div className="text-base font-extrabold text-owner-fg">{formatINR(t.monthly_rent)}</div>
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle" />
                 </div>
               </button>
             ))}
@@ -406,7 +406,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'reviews' ? (
         submittedProfiles.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No profiles waiting for review</div>
           </div>
@@ -414,27 +414,27 @@ export default function ApprovalsPage() {
           <div className="space-y-2.5">
             {submittedProfiles.map(t => (
               <button key={t.id} onClick={() => openReviewModal(t)}
-                className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                className="w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {((t.pending_profile?.name ?? t.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 truncate">{t.pending_profile?.name ?? t.name}</div>
-                  <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                  <div className="font-bold text-owner-fg truncate">{t.pending_profile?.name ?? t.name}</div>
+                  <div className="text-xs text-owner-muted mt-0.5 flex items-center gap-1.5">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.onboarding_status === 'resubmitted' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'}`}>
                       {t.onboarding_status === 'resubmitted' ? 'Resubmitted' : 'Submitted'}
                     </span>
-                    <span className="text-gray-400 font-semibold">{calculateProfileCompletion(t)}% complete</span>
+                    <span className="text-owner-muted-subtle font-semibold">{calculateProfileCompletion(t)}% complete</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
               </button>
             ))}
           </div>
         )
       ) : tab === 'updates' ? (
         profileUpdateRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No profile update requests pending</div>
           </div>
@@ -444,15 +444,15 @@ export default function ApprovalsPage() {
               const changedCount = Object.keys(req.requested_changes ?? {}).length
               return (
                 <button key={req.id} onClick={() => setDetailSheet({ kind: 'update', item: req })}
-                  className="w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-gray-50">
+                  className="w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
                   <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
                     {(req.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-900 truncate">{req.tenant?.name ?? 'Tenant'}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Room {req.tenant?.room?.room_number ?? '—'} · {changedCount} field{changedCount === 1 ? '' : 's'} changed</div>
+                    <div className="font-bold text-owner-fg truncate">{req.tenant?.name ?? 'Tenant'}</div>
+                    <div className="text-xs text-owner-muted mt-0.5">Room {req.tenant?.room?.room_number ?? '—'} · {changedCount} field{changedCount === 1 ? '' : 's'} changed</div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
                 </button>
               )
             })}
@@ -460,7 +460,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'leave' ? (
         leaveRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No leave requests</div>
           </div>
@@ -468,16 +468,16 @@ export default function ApprovalsPage() {
           <div className="space-y-2.5">
             {leaveRequests.map(l => (
               <button key={l.id} onClick={() => l.status === 'pending' && setDetailSheet({ kind: 'leave', item: l })}
-                className={`w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition ${l.status === 'pending' ? 'active:scale-[0.99] active:bg-gray-50' : ''}`}>
+                className={`w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition ${l.status === 'pending' ? 'active:scale-[0.99] active:bg-owner-surface-hover' : ''}`}>
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {(l.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 truncate">{l.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {l.tenant?.room?.room_number ?? '—'}</span></div>
-                  <div className="text-xs text-gray-500 mt-0.5">{formatDate(l.start_date)} – {formatDate(l.end_date)}</div>
+                  <div className="font-bold text-owner-fg truncate">{l.tenant?.name} <span className="text-owner-muted-subtle font-normal text-xs">· Room {l.tenant?.room?.room_number ?? '—'}</span></div>
+                  <div className="text-xs text-owner-muted mt-0.5">{formatDate(l.start_date)} – {formatDate(l.end_date)}</div>
                 </div>
                 {l.status === 'pending' ? (
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
                 ) : (
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${l.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{l.status}</span>
                 )}
@@ -487,7 +487,7 @@ export default function ApprovalsPage() {
         )
       ) : tab === 'extensions' ? (
         rentExtensions.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No rent extension requests</div>
           </div>
@@ -495,16 +495,16 @@ export default function ApprovalsPage() {
           <div className="space-y-2.5">
             {rentExtensions.map(x => (
               <button key={x.id} onClick={() => x.status === 'pending' && setDetailSheet({ kind: 'extension', item: x })}
-                className={`w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition ${x.status === 'pending' ? 'active:scale-[0.99] active:bg-gray-50' : ''}`}>
+                className={`w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition ${x.status === 'pending' ? 'active:scale-[0.99] active:bg-owner-surface-hover' : ''}`}>
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {(x.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 truncate">{x.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {x.tenant?.room?.room_number ?? '—'}</span></div>
-                  <div className="text-xs text-gray-500 mt-0.5">{x.for_month} rent → pay by {formatDate(x.requested_until)}</div>
+                  <div className="font-bold text-owner-fg truncate">{x.tenant?.name} <span className="text-owner-muted-subtle font-normal text-xs">· Room {x.tenant?.room?.room_number ?? '—'}</span></div>
+                  <div className="text-xs text-owner-muted mt-0.5">{x.for_month} rent → pay by {formatDate(x.requested_until)}</div>
                 </div>
                 {x.status === 'pending' ? (
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
                 ) : (
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${x.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{x.status}</span>
                 )}
@@ -514,7 +514,7 @@ export default function ApprovalsPage() {
         )
       ) : (
         moveOutRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+          <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
             <Check className="w-10 h-10 mx-auto mb-3 text-green-400" />
             <div className="font-semibold">No move-out requests</div>
           </div>
@@ -522,16 +522,16 @@ export default function ApprovalsPage() {
           <div className="space-y-2.5">
             {moveOutRequests.map(m => (
               <button key={m.id} onClick={() => m.status === 'pending' && setDetailSheet({ kind: 'moveout', item: m })}
-                className={`w-full bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 text-left transition ${m.status === 'pending' ? 'active:scale-[0.99] active:bg-gray-50' : ''}`}>
+                className={`w-full bg-owner-surface rounded-2xl border border-owner-border p-4 shadow-sm flex items-center gap-3 text-left transition ${m.status === 'pending' ? 'active:scale-[0.99] active:bg-owner-surface-hover' : ''}`}>
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {(m.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 truncate">{m.tenant?.name} <span className="text-gray-400 font-normal text-xs">· Room {m.tenant?.room?.room_number ?? '—'}</span></div>
-                  <div className="text-xs text-gray-500 mt-0.5">Move out on {formatDate(m.requested_date)}</div>
+                  <div className="font-bold text-owner-fg truncate">{m.tenant?.name} <span className="text-owner-muted-subtle font-normal text-xs">· Room {m.tenant?.room?.room_number ?? '—'}</span></div>
+                  <div className="text-xs text-owner-muted mt-0.5">Move out on {formatDate(m.requested_date)}</div>
                 </div>
                 {m.status === 'pending' ? (
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
                 ) : (
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${m.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{m.status}</span>
                 )}
@@ -590,19 +590,19 @@ export default function ApprovalsPage() {
         return (
           <>
             <div onClick={() => setDetailSheet(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-            <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+            <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
               <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-                <div className="h-1 w-9 rounded-full bg-gray-300" />
+                <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
               </div>
-              <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+              <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
                 <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${m.gradient} text-white font-bold text-xs flex items-center justify-center shrink-0`}>
                   {((kind === 'tenant' ? it.name : it.tenant?.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">{m.title}</div>
-                  <div className="font-bold text-gray-900 truncate">
+                  <div className="text-[11px] font-bold text-owner-muted-subtle uppercase tracking-wide">{m.title}</div>
+                  <div className="font-bold text-owner-fg truncate">
                     {kind === 'tenant' ? it.name : it.tenant?.name}
-                    <span className="text-gray-400 font-normal text-xs"> · {kind === 'tenant' ? (it.property?.name ?? 'Room unassigned') : `Room ${it.tenant?.room?.room_number ?? '—'}`}</span>
+                    <span className="text-owner-muted-subtle font-normal text-xs"> · {kind === 'tenant' ? (it.property?.name ?? 'Room unassigned') : `Room ${it.tenant?.room?.room_number ?? '—'}`}</span>
                   </div>
                 </div>
               </div>
@@ -610,109 +610,109 @@ export default function ApprovalsPage() {
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                 {kind === 'payment' && (
                   <>
-                    <div className="bg-gray-50 rounded-2xl p-4 text-center">
-                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Amount</div>
-                      <div className="text-3xl font-extrabold text-gray-900 mt-1">{formatINR(it.amount_received)}</div>
+                    <div className="bg-owner-surface-hover rounded-2xl p-4 text-center">
+                      <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Amount</div>
+                      <div className="text-3xl font-extrabold text-owner-fg mt-1">{formatINR(it.amount_received)}</div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gray-50 rounded-xl p-3">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold">For Month</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5">{it.for_month}</div>
+                      <div className="bg-owner-surface-hover rounded-xl p-3">
+                        <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">For Month</div>
+                        <div className="text-sm font-bold text-owner-fg mt-0.5">{it.for_month}</div>
                       </div>
-                      <div className="bg-gray-50 rounded-xl p-3">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold">Method</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5 capitalize">{it.method?.replace('_', ' ')}</div>
+                      <div className="bg-owner-surface-hover rounded-xl p-3">
+                        <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Method</div>
+                        <div className="text-sm font-bold text-owner-fg mt-0.5 capitalize">{it.method?.replace('_', ' ')}</div>
                       </div>
                     </div>
                     {it.tenant_note && (
                       <div>
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Note from Tenant</div>
-                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.tenant_note}&quot;</div>
+                        <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-1.5">Note from Tenant</div>
+                        <div className="text-sm text-owner-muted italic bg-owner-surface-hover rounded-xl px-3 py-2.5">&quot;{it.tenant_note}&quot;</div>
                       </div>
                     )}
-                    <div className="text-xs text-gray-400">Submitted {new Date(it.created_at).toLocaleString('en-IN')}</div>
+                    <div className="text-xs text-owner-muted-subtle">Submitted {new Date(it.created_at).toLocaleString('en-IN')}</div>
                   </>
                 )}
                 {kind === 'leave' && (
                   <>
-                    <div className="bg-gray-50 rounded-2xl p-4">
-                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Leave Period</div>
-                      <div className="text-lg font-extrabold text-gray-900 mt-1">{formatDate(it.start_date)} – {formatDate(it.end_date)}</div>
+                    <div className="bg-owner-surface-hover rounded-2xl p-4">
+                      <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Leave Period</div>
+                      <div className="text-lg font-extrabold text-owner-fg mt-1">{formatDate(it.start_date)} – {formatDate(it.end_date)}</div>
                     </div>
                     {it.reason && (
                       <div>
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
-                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                        <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-1.5">Reason</div>
+                        <div className="text-sm text-owner-muted italic bg-owner-surface-hover rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
                       </div>
                     )}
-                    <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                    <div className="text-xs text-owner-muted-subtle">Requested {formatDate(it.created_at)}</div>
                   </>
                 )}
                 {kind === 'extension' && (
                   <>
-                    <div className="bg-gray-50 rounded-2xl p-4">
-                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Extension Requested</div>
-                      <div className="text-lg font-extrabold text-gray-900 mt-1">{it.for_month} rent → pay by {formatDate(it.requested_until)}</div>
+                    <div className="bg-owner-surface-hover rounded-2xl p-4">
+                      <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Extension Requested</div>
+                      <div className="text-lg font-extrabold text-owner-fg mt-1">{it.for_month} rent → pay by {formatDate(it.requested_until)}</div>
                     </div>
                     {it.reason && (
                       <div>
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
-                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                        <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-1.5">Reason</div>
+                        <div className="text-sm text-owner-muted italic bg-owner-surface-hover rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
                       </div>
                     )}
-                    <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                    <div className="text-xs text-owner-muted-subtle">Requested {formatDate(it.created_at)}</div>
                   </>
                 )}
                 {kind === 'moveout' && (
                   <>
-                    <div className="bg-gray-50 rounded-2xl p-4">
-                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Move-Out Date</div>
-                      <div className="text-lg font-extrabold text-gray-900 mt-1">{formatDate(it.requested_date)}</div>
+                    <div className="bg-owner-surface-hover rounded-2xl p-4">
+                      <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Move-Out Date</div>
+                      <div className="text-lg font-extrabold text-owner-fg mt-1">{formatDate(it.requested_date)}</div>
                     </div>
                     {it.reason && (
                       <div>
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
-                        <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                        <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-1.5">Reason</div>
+                        <div className="text-sm text-owner-muted italic bg-owner-surface-hover rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
                       </div>
                     )}
-                    <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                    <div className="text-xs text-owner-muted-subtle">Requested {formatDate(it.created_at)}</div>
                   </>
                 )}
                 {kind === 'tenant' && (
                   <>
-                    <div className="bg-gray-50 rounded-2xl p-4 text-center">
-                      <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Monthly Rent</div>
-                      <div className="text-3xl font-extrabold text-gray-900 mt-1">{formatINR(it.monthly_rent)}</div>
+                    <div className="bg-owner-surface-hover rounded-2xl p-4 text-center">
+                      <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Monthly Rent</div>
+                      <div className="text-3xl font-extrabold text-owner-fg mt-1">{formatINR(it.monthly_rent)}</div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gray-50 rounded-xl p-3">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold">Phone</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5">{it.phone}</div>
+                      <div className="bg-owner-surface-hover rounded-xl p-3">
+                        <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Phone</div>
+                        <div className="text-sm font-bold text-owner-fg mt-0.5">{it.phone}</div>
                       </div>
-                      <div className="bg-gray-50 rounded-xl p-3">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold">Joining Date</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5">{it.joining_date}</div>
+                      <div className="bg-owner-surface-hover rounded-xl p-3">
+                        <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Joining Date</div>
+                        <div className="text-sm font-bold text-owner-fg mt-0.5">{it.joining_date}</div>
                       </div>
-                      <div className="bg-gray-50 rounded-xl p-3">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold">Deposit Paid</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5">{formatINR(it.deposit_paid)} <span className="text-gray-400 font-normal">/ {formatINR(it.deposit_amount)}</span></div>
+                      <div className="bg-owner-surface-hover rounded-xl p-3">
+                        <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Deposit Paid</div>
+                        <div className="text-sm font-bold text-owner-fg mt-0.5">{formatINR(it.deposit_paid)} <span className="text-owner-muted-subtle font-normal">/ {formatINR(it.deposit_amount)}</span></div>
                         {it.deposit_paid < it.deposit_amount && (
                           <div className="text-xs text-yellow-600 font-semibold mt-0.5">₹{(it.deposit_amount - it.deposit_paid).toLocaleString('en-IN')} pending</div>
                         )}
                       </div>
                       {it.rent_paid_at_joining > 0 ? (
-                        <div className="bg-gray-50 rounded-xl p-3">
-                          <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Paid at Joining</div>
+                        <div className="bg-owner-surface-hover rounded-xl p-3">
+                          <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Rent Paid at Joining</div>
                           <div className="text-sm font-bold text-green-700 mt-0.5">{formatINR(it.rent_paid_at_joining)}</div>
                         </div>
                       ) : (
-                        <div className="bg-gray-50 rounded-xl p-3">
-                          <div className="text-[10px] text-gray-400 uppercase font-bold">Rent Pending</div>
+                        <div className="bg-owner-surface-hover rounded-xl p-3">
+                          <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Rent Pending</div>
                           <div className="text-sm font-bold text-yellow-600 mt-0.5">{formatINR(it.monthly_rent - (it.rent_paid_at_joining || 0))}</div>
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-gray-400 bg-blue-50 text-blue-700 rounded-xl px-3 py-2.5">Approving will ask you to assign a room and bed before finalizing.</div>
+                    <div className="text-xs text-owner-muted-subtle bg-blue-50 text-blue-700 rounded-xl px-3 py-2.5">Approving will ask you to assign a room and bed before finalizing.</div>
                   </>
                 )}
                 {kind === 'update' && (() => {
@@ -724,32 +724,32 @@ export default function ApprovalsPage() {
                     <>
                       {it.reason && (
                         <div>
-                          <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Reason</div>
-                          <div className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
+                          <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-1.5">Reason</div>
+                          <div className="text-sm text-owner-muted italic bg-owner-surface-hover rounded-xl px-3 py-2.5">&quot;{it.reason}&quot;</div>
                         </div>
                       )}
                       <div>
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Requested Changes</div>
-                        <div className="border border-gray-100 rounded-xl overflow-hidden">
-                          <div className="grid grid-cols-3 bg-gray-50 text-[11px] font-bold text-gray-400 uppercase tracking-wide px-3 py-2">
+                        <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-1.5">Requested Changes</div>
+                        <div className="border border-owner-border rounded-xl overflow-hidden">
+                          <div className="grid grid-cols-3 bg-owner-surface-hover text-[11px] font-bold text-owner-muted-subtle uppercase tracking-wide px-3 py-2">
                             <span>Field</span><span>Current</span><span>Requested</span>
                           </div>
                           {Object.entries(it.requested_changes ?? {}).map(([key, newVal]) => (
-                            <div key={key} className="grid grid-cols-3 text-xs px-3 py-2 border-t border-gray-50">
-                              <span className="text-gray-500 font-semibold">{fieldLabels[key] ?? key}</span>
-                              <span className="text-gray-400">{(it.tenant as any)?.[key] || '—'}</span>
-                              <span className="text-gray-900 font-semibold">{String(newVal) || '—'}</span>
+                            <div key={key} className="grid grid-cols-3 text-xs px-3 py-2 border-t border-owner-border">
+                              <span className="text-owner-muted font-semibold">{fieldLabels[key] ?? key}</span>
+                              <span className="text-owner-muted-subtle">{(it.tenant as any)?.[key] || '—'}</span>
+                              <span className="text-owner-fg font-semibold">{String(newVal) || '—'}</span>
                             </div>
                           ))}
                         </div>
                       </div>
-                      <div className="text-xs text-gray-400">Requested {formatDate(it.created_at)}</div>
+                      <div className="text-xs text-owner-muted-subtle">Requested {formatDate(it.created_at)}</div>
                     </>
                   )
                 })()}
               </div>
 
-              <div className="px-5 py-4 border-t border-gray-100 flex gap-2.5 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <div className="px-5 py-4 border-t border-owner-border flex gap-2.5 shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
                 <button onClick={m.onReject} disabled={isDeciding}
                   className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 active:bg-red-200 active:scale-[0.98] text-red-700 rounded-2xl text-sm font-bold transition disabled:opacity-50">
                   <X className="w-4 h-4" /> Reject
@@ -768,24 +768,24 @@ export default function ApprovalsPage() {
       {reviewModal && (
         <>
           <div onClick={() => setReviewModal(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
             <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-              <div className="h-1 w-9 rounded-full bg-gray-300" />
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
             </div>
-            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
                 {((reviewModal.pending_profile?.name ?? reviewModal.name) || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Profile Review</div>
-                <div className="font-bold text-gray-900 truncate">{reviewModal.pending_profile?.name ?? reviewModal.name} <span className="text-gray-400 font-normal text-xs">· {reviewModal.phone}</span></div>
+                <div className="text-[11px] font-bold text-owner-muted-subtle uppercase tracking-wide">Profile Review</div>
+                <div className="font-bold text-owner-fg truncate">{reviewModal.pending_profile?.name ?? reviewModal.name} <span className="text-owner-muted-subtle font-normal text-xs">· {reviewModal.phone}</span></div>
               </div>
-              <button onClick={() => setReviewModal(null)} aria-label="Close" className="text-gray-400 text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">×</button>
+              <button onClick={() => setReviewModal(null)} aria-label="Close" className="text-owner-muted-subtle text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-owner-surface-hover transition">×</button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {/* Profile Status System (Phase 8.5) — full history + completion */}
-              <div className="bg-gray-50 rounded-2xl p-4">
+              <div className="bg-owner-surface-hover rounded-2xl p-4">
                 <StatusTimeline
                   currentStatus={reviewModal.onboarding_status}
                   history={reviewHistory}
@@ -796,11 +796,11 @@ export default function ApprovalsPage() {
 
               {/* Previous / New / Source comparison */}
               <div>
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Submitted Details</div>
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2">Submitted Details</div>
+                <div className="border border-owner-border rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 text-left text-xs text-gray-500">
+                      <tr className="bg-owner-surface-hover text-left text-xs text-owner-muted">
                         <th className="px-3 py-2 font-semibold">Field</th>
                         <th className="px-3 py-2 font-semibold">Previous (Owner)</th>
                         <th className="px-3 py-2 font-semibold">Submitted (Tenant) — editable</th>
@@ -812,12 +812,12 @@ export default function ApprovalsPage() {
                         ['permanent_address', 'Permanent Address'], ['emergency_contact_name', 'Emergency Contact Name'],
                         ['emergency_contact', 'Emergency Contact Number'],
                       ].map(([key, label]) => (
-                        <tr key={key} className="border-t border-gray-50">
-                          <td className="px-3 py-2 font-semibold text-gray-700 align-top">{label}</td>
-                          <td className="px-3 py-2 text-gray-400 align-top">{reviewModal[key] || <span className="italic">Not set</span>}</td>
+                        <tr key={key} className="border-t border-owner-border">
+                          <td className="px-3 py-2 font-semibold text-owner-fg align-top">{label}</td>
+                          <td className="px-3 py-2 text-owner-muted-subtle align-top">{reviewModal[key] || <span className="italic">Not set</span>}</td>
                           <td className="px-3 py-2">
                             <input value={reviewForm[key] ?? ''} onChange={e => setReviewForm(f => ({ ...f, [key]: e.target.value }))}
-                              className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500" />
+                              className="w-full px-2 py-1 border border-owner-border rounded-lg text-sm focus:outline-none focus:border-blue-500" />
                           </td>
                         </tr>
                       ))}
@@ -828,11 +828,11 @@ export default function ApprovalsPage() {
 
               {/* Document previews */}
               <div>
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Documents (Source: Tenant)</div>
+                <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2">Documents (Source: Tenant)</div>
                 <div className="grid grid-cols-4 gap-2">
                   {[['Photo', reviewForm.photo_url], ['Aadhaar Front', reviewForm.aadhaar_front_url], ['Aadhaar Back', reviewForm.aadhaar_back_url], ['PAN', reviewForm.pan_url]].map(([label, url]) => (
                     <a key={label} href={url || undefined} target="_blank" rel="noreferrer"
-                      className={`aspect-square rounded-xl border border-gray-100 overflow-hidden flex items-center justify-center text-xs text-gray-400 ${url ? '' : 'bg-gray-50'}`}>
+                      className={`aspect-square rounded-xl border border-owner-border overflow-hidden flex items-center justify-center text-xs text-owner-muted-subtle ${url ? '' : 'bg-owner-surface-hover'}`}>
                       {url ? <img src={url} alt={label as string} className="w-full h-full object-cover" /> : label}
                     </a>
                   ))}
@@ -841,41 +841,41 @@ export default function ApprovalsPage() {
 
               {/* Owner-controlled assignment — finalized as part of approval */}
               <div>
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Assign Room & Rent (required to approve)</div>
+                <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2">Assign Room & Rent (required to approve)</div>
                 <div className="grid grid-cols-2 gap-3">
                   <select value={assignForm.room_id} onChange={e => setAssignForm(f => ({ ...f, room_id: e.target.value }))}
-                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                    className="px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500">
                     <option value="">Select room</option>
                     {reviewRooms.map(r => <option key={r.id} value={r.id}>{r.room_number} ({r.sharing_type})</option>)}
                   </select>
                   <input placeholder="Bed label (optional)" value={assignForm.bed_label} onChange={e => setAssignForm(f => ({ ...f, bed_label: e.target.value }))}
-                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    className="px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                   <input type="number" placeholder="Monthly rent (₹)" value={assignForm.monthly_rent} onChange={e => setAssignForm(f => ({ ...f, monthly_rent: e.target.value }))}
-                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    className="px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                   <input type="number" placeholder="Deposit amount (₹)" value={assignForm.deposit_amount} onChange={e => setAssignForm(f => ({ ...f, deposit_amount: e.target.value }))}
-                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    className="px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                   <input type="number" placeholder="Deposit paid so far (₹)" value={assignForm.deposit_paid} onChange={e => setAssignForm(f => ({ ...f, deposit_paid: e.target.value }))}
-                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    className="px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                   <input type="date" value={assignForm.joining_date} onChange={e => setAssignForm(f => ({ ...f, joining_date: e.target.value }))}
-                    className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    className="px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
 
               {showCorrectionInput && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">What needs to be corrected?</label>
+                  <label className="text-xs font-semibold text-owner-muted block mb-1">What needs to be corrected?</label>
                   <textarea rows={3} value={correctionNote} onChange={e => setCorrectionNote(e.target.value)}
                     placeholder="e.g. The Aadhaar back photo is blurry — please re-upload"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                    className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
                 </div>
               )}
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 shrink-0 space-y-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 space-y-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               {showCorrectionInput ? (
                 <div className="flex gap-2.5">
                   <button onClick={() => setShowCorrectionInput(false)}
-                    className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 active:scale-[0.98] text-gray-700 rounded-2xl text-sm font-bold transition">
+                    className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
                     Cancel
                   </button>
                   <button onClick={handleSendBackForCorrection} disabled={reviewSaving}
@@ -910,28 +910,28 @@ export default function ApprovalsPage() {
       {updateRejectModal && (
         <>
           <div onClick={() => setUpdateRejectModal(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
             <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-              <div className="h-1 w-9 rounded-full bg-gray-300" />
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
             </div>
-            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
                 {(updateRejectModal.tenant?.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Reject Update</div>
-                <div className="font-bold text-gray-900 truncate">{updateRejectModal.tenant?.name ?? 'Tenant'}</div>
+                <div className="text-[11px] font-bold text-owner-muted-subtle uppercase tracking-wide">Reject Update</div>
+                <div className="font-bold text-owner-fg truncate">{updateRejectModal.tenant?.name ?? 'Tenant'}</div>
               </div>
-              <button onClick={() => setUpdateRejectModal(null)} aria-label="Close" className="text-gray-400 text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">×</button>
+              <button onClick={() => setUpdateRejectModal(null)} aria-label="Close" className="text-owner-muted-subtle text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-owner-surface-hover transition">×</button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-              <p className="text-xs text-gray-500">Let {updateRejectModal.tenant?.name ?? 'the tenant'} know why (optional).</p>
+              <p className="text-xs text-owner-muted">Let {updateRejectModal.tenant?.name ?? 'the tenant'} know why (optional).</p>
               <textarea rows={3} value={updateOwnerNote} onChange={e => setUpdateOwnerNote(e.target.value)}
-                placeholder="e.g. Please upload a clearer Aadhaar copy" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                placeholder="e.g. Please upload a clearer Aadhaar copy" className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               <button onClick={() => setUpdateRejectModal(null)}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 active:scale-[0.98] text-gray-700 rounded-2xl text-sm font-bold transition">
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
                 Cancel
               </button>
               <button onClick={handleRejectUpdate} disabled={decidingUpdateId === updateRejectModal.id}
@@ -946,22 +946,22 @@ export default function ApprovalsPage() {
       {/* QR / Join Link Modal */}
       {qrModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-owner-surface rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 className="text-base font-bold">Tenant Join Link</h2>
-              <button onClick={() => setQrModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setQrModal(false)} className="text-owner-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-xs text-gray-500">Share this link or QR code with new tenants. They fill in their details, it lands in &quot;New Tenant Requests&quot; for your approval.</p>
-              <div className="flex justify-center p-4 bg-gray-50 rounded-xl">
+              <p className="text-xs text-owner-muted">Share this link or QR code with new tenants. They fill in their details, it lands in &quot;New Tenant Requests&quot; for your approval.</p>
+              <div className="flex justify-center p-4 bg-owner-surface-hover rounded-xl">
                 <QRCodeSVG value={joinLink} size={160} />
               </div>
-              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
-                <Link2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <span className="text-xs text-gray-600 flex-1 truncate font-mono">{joinLink}</span>
+              <div className="flex items-center gap-2 bg-owner-surface-hover rounded-xl px-3 py-2.5">
+                <Link2 className="w-3.5 h-3.5 text-owner-muted-subtle flex-shrink-0" />
+                <span className="text-xs text-owner-muted flex-1 truncate font-mono">{joinLink}</span>
                 <button onClick={() => { navigator.clipboard.writeText(joinLink); toast.success('Copied!') }}
-                  className="p-1.5 hover:bg-gray-200 rounded-lg transition">
-                  <Copy className="w-3.5 h-3.5 text-gray-500" />
+                  className="p-1.5 hover:bg-owner-surface-hover rounded-lg transition">
+                  <Copy className="w-3.5 h-3.5 text-owner-muted" />
                 </button>
               </div>
               <a href={`https://wa.me/?text=${encodeURIComponent(`Join ${active?.name ?? 'our PG'} — fill your details here: ${joinLink}`)}`}
@@ -978,43 +978,43 @@ export default function ApprovalsPage() {
       {approveModal && (
         <>
           <div onClick={() => setApproveModal(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
             <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-              <div className="h-1 w-9 rounded-full bg-gray-300" />
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
             </div>
-            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-gray-100 shrink-0">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
                 {(approveModal.name || '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Approve & Send Login</div>
-                <div className="font-bold text-gray-900 truncate">{approveModal.name}</div>
+                <div className="text-[11px] font-bold text-owner-muted-subtle uppercase tracking-wide">Approve & Send Login</div>
+                <div className="font-bold text-owner-fg truncate">{approveModal.name}</div>
               </div>
-              <button onClick={() => setApproveModal(null)} aria-label="Close" className="text-gray-400 text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition">×</button>
+              <button onClick={() => setApproveModal(null)} aria-label="Close" className="text-owner-muted-subtle text-xl font-bold shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-owner-surface-hover transition">×</button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              <p className="text-xs text-gray-500 bg-blue-50 text-blue-700 rounded-xl px-3 py-2.5">
+              <p className="text-xs text-owner-muted bg-blue-50 text-blue-700 rounded-xl px-3 py-2.5">
                 Login will be created automatically (username: <strong>{approveModal.phone}</strong>, password: <strong>Pass@123</strong>) and shared via WhatsApp.
               </p>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Assign Room (optional — can also do this later)</label>
+                <label className="text-xs font-semibold text-owner-muted block mb-1">Assign Room (optional — can also do this later)</label>
                 <select value={selectedRoomId} onChange={e => { setSelectedRoomId(e.target.value); setSelectedBedLabel('') }}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500">
                   <option value="">No room / assign later</option>
                   {rooms.map(r => <option key={r.id} value={r.id}>Room {r.room_number} ({r.sharing_type})</option>)}
                 </select>
               </div>
               {selectedRoomId && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Bed Label (optional)</label>
+                  <label className="text-xs font-semibold text-owner-muted block mb-1">Bed Label (optional)</label>
                   <input value={selectedBedLabel} onChange={e => setSelectedBedLabel(e.target.value)} placeholder="A / B / C"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               )}
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               <button onClick={() => setApproveModal(null)}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 active:scale-[0.98] text-gray-700 rounded-2xl text-sm font-bold transition">
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
                 Cancel
               </button>
               <button onClick={confirmApproveTenant} disabled={approvingId === approveModal.id}

@@ -16,21 +16,16 @@ interface Props {
 }
 
 /**
- * Mobile-only "More" destination for the Owner bottom nav (Phase 2, Premium
- * UI Upgrade). Not a new page/route — a native-style bottom sheet that
- * lists every owner destination NOT already pinned to the bottom nav
- * (Dashboard/Payments/Tenants/Approvals), reusing the exact same
- * `OWNER_MORE_NAV` config the desktop Sidebar renders, and the same
- * `Link` navigation + logout logic Sidebar already used. No duplicate
- * pages, no new routes, no business logic — purely a mobile-friendly
- * surface for links that already exist.
+ * Mobile-only "More" destination for the floating bottom nav. Not a new
+ * page — a bottom sheet listing every owner destination not pinned to
+ * the nav, reusing the exact same `OWNER_MORE_NAV` config the desktop
+ * Sidebar renders, and the same shared bottom-sheet shell used across
+ * every other module (Approvals, Tenants, Payments, Rooms, etc.).
  */
 export default function OwnerMoreSheet({ open, onClose, userName }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
-  // Lock background scroll while the sheet is open — standard native
-  // bottom-sheet behavior.
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
@@ -47,7 +42,6 @@ export default function OwnerMoreSheet({ open, onClose, userName }: Props) {
 
   return (
     <>
-      {/* Backdrop — fades in/out with the sheet */}
       <div
         aria-hidden={!open}
         onClick={onClose}
@@ -56,33 +50,30 @@ export default function OwnerMoreSheet({ open, onClose, userName }: Props) {
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
       />
-
-      {/* Sheet — slides up from below the bottom nav, native Android feel */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="More"
         className={cn(
           'fixed inset-x-0 bottom-0 z-50 lg:hidden',
-          'bg-owner-surface rounded-t-owner-2xl shadow-owner-lg',
+          'bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg',
           'max-h-[80vh] flex flex-col',
           'transition-transform duration-300 ease-out',
           open ? 'translate-y-0' : 'translate-y-full'
         )}
       >
-        {/* Grab handle */}
         <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-          <div className="h-1 w-9 rounded-owner-full bg-owner-border-strong" />
+          <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
         </div>
 
-        <div className="px-4 pb-1.5 pt-1 shrink-0">
+        <div className="px-5 pb-1.5 pt-1 shrink-0">
           <h2 className="text-sm font-extrabold text-owner-fg">More</h2>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-1">
           <div className="grid grid-cols-4 gap-y-4 py-2">
             {OWNER_MORE_NAV.map(item => {
-              const active = pathname === item.href || pathname.startsWith(item.href + '/')
+              const active = pathname === item.href || pathname?.startsWith(item.href + '/')
               return (
                 <Link
                   key={item.href}
@@ -112,7 +103,6 @@ export default function OwnerMoreSheet({ open, onClose, userName }: Props) {
           </div>
         </div>
 
-        {/* User + Logout footer */}
         <div className="native-safe-bottom border-t border-owner-border shrink-0">
           <div className="flex items-center gap-2.5 px-4 py-3">
             <OwnerAvatar name={userName || 'PG Owner'} size="sm" />

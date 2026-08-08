@@ -80,7 +80,7 @@ export default function RoomChangePage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
       <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
     </div>
   )
@@ -88,16 +88,16 @@ export default function RoomChangePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Room Change Workflow</h1>
-        <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name}</p>
+        <h1 className="text-xl font-extrabold text-owner-fg">Room Change Workflow</h1>
+        <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
       </div>
 
       {/* Move form */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-5 space-y-4">
         <div>
-          <label className="text-xs font-semibold text-gray-600 block mb-1">Tenant *</label>
+          <label className="text-xs font-semibold text-owner-muted block mb-1">Tenant *</label>
           <select value={tenantId} onChange={e => { setTenantId(e.target.value); setToRoomId('') }}
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500">
             <option value="">Select tenant</option>
             {tenants.map(t => (
               <option key={t.id} value={t.id}>{t.name}{t.room?.room_number ? ` — currently Room ${t.room.room_number}` : ' — unassigned'}</option>
@@ -106,17 +106,17 @@ export default function RoomChangePage() {
         </div>
 
         {selectedTenant && (
-          <div className="flex items-center gap-3 text-sm bg-gray-50 rounded-xl px-4 py-3">
-            <span className="font-semibold text-gray-700">{selectedTenant.room?.room_number ? `Room ${selectedTenant.room.room_number}` : 'Unassigned'}</span>
-            <ArrowRight className="w-4 h-4 text-gray-400" />
+          <div className="flex items-center gap-3 text-sm bg-owner-surface-hover rounded-xl px-4 py-3">
+            <span className="font-semibold text-owner-fg">{selectedTenant.room?.room_number ? `Room ${selectedTenant.room.room_number}` : 'Unassigned'}</span>
+            <ArrowRight className="w-4 h-4 text-owner-muted-subtle" />
             <span className="font-semibold text-blue-600">{toRoomId ? `Room ${rooms.find(r => r.id === toRoomId)?.room_number}` : 'Select new room →'}</span>
           </div>
         )}
 
         <div>
-          <label className="text-xs font-semibold text-gray-600 block mb-1">New Room *</label>
+          <label className="text-xs font-semibold text-owner-muted block mb-1">New Room *</label>
           <select value={toRoomId} onChange={e => setToRoomId(e.target.value)} disabled={!selectedTenant}
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50">
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50">
             <option value="">{selectedTenant ? 'Select a room with a vacancy' : 'Select a tenant first'}</option>
             {eligibleRooms.map(({ room, vacant }) => (
               <option key={room.id} value={room.id}>Room {room.room_number} · {room.sharing_type} · {vacant} vacant</option>
@@ -128,17 +128,17 @@ export default function RoomChangePage() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-gray-600 block mb-1">Reason</label>
+          <label className="text-xs font-semibold text-owner-muted block mb-1">Reason</label>
           <input value={reason} onChange={e => setReason(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="e.g. Tenant requested a quieter room" />
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="e.g. Tenant requested a quieter room" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-600 block mb-1">Changed By</label>
+          <label className="text-xs font-semibold text-owner-muted block mb-1">Changed By</label>
           <input value={changedBy} onChange={e => setChangedBy(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="Your name" />
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="Your name" />
         </div>
 
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-owner-muted-subtle">
           This updates the tenant&rsquo;s assigned room only. Rent and deposit amounts are unaffected — adjust those separately if the new room&rsquo;s rate differs.
         </p>
 
@@ -149,24 +149,24 @@ export default function RoomChangePage() {
       </div>
 
       {/* History */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 font-bold text-sm text-gray-900 border-b border-gray-100 flex items-center gap-2">
+      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm overflow-hidden">
+        <div className="px-5 py-4 font-bold text-sm text-owner-fg border-b border-owner-border flex items-center gap-2">
           <History className="w-4 h-4" /> Change History
         </div>
         {history.length === 0 ? (
-          <div className="text-center py-10 text-sm text-gray-400">No room changes recorded yet</div>
+          <div className="text-center py-10 text-sm text-owner-muted-subtle">No room changes recorded yet</div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-owner-border">
             {history.map(h => (
               <div key={h.id} className="px-5 py-3 text-sm">
-                <div className="font-semibold text-gray-800">{h.tenant?.name ?? 'Former tenant'}</div>
-                <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
+                <div className="font-semibold text-owner-fg">{h.tenant?.name ?? 'Former tenant'}</div>
+                <div className="text-xs text-owner-muted flex items-center gap-1.5 mt-0.5">
                   <span>{h.from_room?.room_number ? `Room ${h.from_room.room_number}` : 'Unassigned'}</span>
                   <ArrowRight className="w-3 h-3" />
                   <span>{h.to_room?.room_number ? `Room ${h.to_room.room_number}` : 'Unassigned'}</span>
                   <span>· {new Date(h.changed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                 </div>
-                {h.reason && <div className="text-xs text-gray-400 mt-1">{h.reason}</div>}
+                {h.reason && <div className="text-xs text-owner-muted-subtle mt-1">{h.reason}</div>}
               </div>
             ))}
           </div>

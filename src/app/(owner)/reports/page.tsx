@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getFinancialHistory, getDashboardStats, getExpenses, getPayments, getTenants } from '@/lib/supabase/queries'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Download, Loader2, TrendingUp, TrendingDown, Scale, History, ChevronRight } from 'lucide-react'
+import { Download, Loader2, TrendingUp, TrendingDown, Scale, History, ChevronRight, Building2, Users2, Clock } from 'lucide-react'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { DashboardStats } from '@/types'
@@ -121,16 +121,16 @@ export default function ReportsPage() {
   }
 
   const summaryCards = [
-    { label: 'Monthly Revenue', value: formatINR(stats?.monthlyRevenue ?? 0), color: 'text-green-600' },
-    { label: 'Occupancy Rate', value: `${occupancyPct}%`, color: 'text-blue-600' },
-    { label: 'Total Expenses', value: formatINR(thisMonthExpenses), color: 'text-red-600' },
-    { label: 'Net Profit', value: formatINR(netProfit), color: netProfit >= 0 ? 'text-purple-600' : 'text-red-600' },
-    { label: 'Pending Rent', value: formatINR(stats?.pendingRent ?? 0), color: 'text-yellow-600' },
-    { label: 'Active Tenants', value: String(stats?.totalTenants ?? 0), color: 'text-gray-700' },
+    { label: 'Monthly Revenue', value: formatINR(stats?.monthlyRevenue ?? 0), icon: TrendingUp, tone: 'text-green-600 bg-green-50' },
+    { label: 'Occupancy Rate', value: `${occupancyPct}%`, icon: Building2, tone: 'text-blue-600 bg-blue-50' },
+    { label: 'Total Expenses', value: formatINR(thisMonthExpenses), icon: TrendingDown, tone: 'text-red-600 bg-red-50' },
+    { label: 'Net Profit', value: formatINR(netProfit), icon: Scale, tone: netProfit >= 0 ? 'text-purple-600 bg-purple-50' : 'text-red-600 bg-red-50' },
+    { label: 'Pending Rent', value: formatINR(stats?.pendingRent ?? 0), icon: Clock, tone: 'text-yellow-600 bg-yellow-50' },
+    { label: 'Active Tenants', value: String(stats?.totalTenants ?? 0), icon: Users2, tone: 'text-owner-fg bg-owner-surface-hover' },
   ]
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-owner-muted">
       <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading report…
     </div>
   )
@@ -139,27 +139,30 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Reports Dashboard</h1>
-          <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name}</p>
+          <h1 className="text-xl font-extrabold text-owner-fg">Reports Dashboard</h1>
+          <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
       </div>
 
       {/* Summary cards — all real, computed from the database */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {summaryCards.map(r => (
-          <div key={r.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{r.label}</div>
-            <div className={`text-2xl font-extrabold mt-1 ${r.color}`}>{r.value}</div>
+          <div key={r.label} className="bg-owner-surface rounded-owner-xl border border-owner-border p-4 shadow-owner-xs hover:shadow-owner-sm transition-shadow">
+            <div className={`w-9 h-9 rounded-owner-lg flex items-center justify-center mb-2 ${r.tone}`}>
+              <r.icon className="w-4 h-4" />
+            </div>
+            <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">{r.label}</div>
+            <div className="text-xl font-extrabold mt-0.5 text-owner-fg owner-numeric">{r.value}</div>
           </div>
         ))}
       </div>
 
       {/* Chart — real revenue/expenses from payments & expenses tables */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="font-bold text-sm text-gray-900 mb-1">Revenue, Expenses & Profit</div>
-        <div className="text-xs text-gray-400 mb-4">Last 6 months</div>
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
+        <div className="font-bold text-sm text-owner-fg mb-1">Revenue, Expenses & Profit</div>
+        <div className="text-xs text-owner-muted-subtle mb-4">Last 6 months</div>
         {chartData.every(d => d.revenue === 0 && d.expenses === 0) ? (
-          <div className="text-center py-12 text-gray-400 text-sm">No payment or expense records yet for this period</div>
+          <div className="text-center py-12 text-owner-muted-subtle text-sm">No payment or expense records yet for this period</div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData} barGap={2}>
@@ -176,31 +179,32 @@ export default function ReportsPage() {
 
       {/* Report modules — each links to its own dedicated report page */}
       <div>
-        <div className="font-bold text-sm text-gray-900 mb-3">Report Modules</div>
+        <div className="font-bold text-sm text-owner-fg mb-3">Report Modules</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {REPORT_MODULES.map(m => (
             <Link key={m.href} href={m.href}
-              className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition text-left">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${m.color}`}>
+              className="bg-owner-surface rounded-owner-xl border border-owner-border p-4 flex items-center gap-3 shadow-owner-xs hover:shadow-owner-sm active:scale-[0.99] transition text-left">
+              <div className={`w-10 h-10 rounded-owner-lg flex items-center justify-center shrink-0 ${m.color}`}>
                 <m.icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-gray-800">{m.label}</div>
-                <div className="text-xs text-gray-400 truncate">{m.desc}</div>
+                <div className="text-sm font-semibold text-owner-fg">{m.label}</div>
+                <div className="text-xs text-owner-muted-subtle truncate">{m.desc}</div>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
             </Link>
           ))}
         </div>
       </div>
 
       {/* Quick full-data export — everything in one workbook */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between shadow-sm">
-        <div>
-          <div className="text-sm font-semibold text-gray-800">Full Data Export</div>
-          <div className="text-xs text-gray-400">Monthly summary, payments, expenses & tenants in one Excel file</div>
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-4 flex items-center justify-between gap-3 shadow-owner-xs">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-owner-fg">Full Data Export</div>
+          <div className="text-xs text-owner-muted-subtle truncate">Monthly summary, payments, expenses & tenants in one Excel file</div>
         </div>
-        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition disabled:opacity-50 flex-shrink-0">
+        <button onClick={exportExcel} disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-owner-lg text-sm font-semibold transition disabled:opacity-50 shrink-0">
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Export
         </button>
       </div>

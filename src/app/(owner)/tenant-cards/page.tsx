@@ -54,7 +54,7 @@ export default function TenantCardsPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
       <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading tenants…
     </div>
   )
@@ -62,19 +62,19 @@ export default function TenantCardsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">QR Tenant Cards</h1>
-        <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name} · {tenants.length} active tenant{tenants.length === 1 ? '' : 's'}</p>
+        <h1 className="text-xl font-extrabold text-owner-fg">QR Tenant Cards</h1>
+        <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name} · {tenants.length} active tenant{tenants.length === 1 ? '' : 's'}</p>
       </div>
 
       {tenants.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <QrCode className="w-8 h-8" />
           <div className="text-sm">No active tenants to show cards for</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tenants.map(t => (
-            <div key={t.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div key={t.id} className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm overflow-hidden">
               {/* Card preview — mirrors the layout of the downloaded PDF */}
               <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 py-2.5 flex items-center justify-between">
                 <div className="min-w-0">
@@ -84,25 +84,25 @@ export default function TenantCardsPage() {
                 <QrCode className="w-5 h-5 text-white/70 flex-shrink-0" />
               </div>
               <div className="p-4 flex gap-3">
-                <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <div className="w-14 h-14 rounded-xl bg-owner-surface-hover flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {t.photo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={t.photo_url} alt={t.name} className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-6 h-6 text-gray-300" />
+                    <User className="w-6 h-6 text-owner-muted-subtle" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-bold text-gray-900 truncate">{t.name}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-sm font-bold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted">
                     {t.room?.room_number ? `Room ${t.room.room_number}` : 'Room —'}{t.bed_label ? ` · Bed ${t.bed_label}` : ''}
                   </div>
-                  <div className="text-xs text-gray-400">{t.phone}</div>
+                  <div className="text-xs text-owner-muted-subtle">{t.phone}</div>
                 </div>
               </div>
               <div className="px-4 pb-4">
                 <button onClick={() => downloadCard(t)} disabled={downloadingId === t.id}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-owner-primary hover:opacity-90 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
                   {downloadingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                   Download ID Card
                 </button>

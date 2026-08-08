@@ -40,6 +40,15 @@ interface ActivityItem {
   text: string; time: string; icon: React.ElementType; tone: keyof typeof TONE_BG
 }
 
+// Pure presentational helper for the hero card — no data fetching, just
+// reads the local clock to pick a time-appropriate greeting.
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good Morning'
+  if (h < 17) return 'Good Afternoon'
+  return 'Good Evening'
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { activeId, active, properties } = useProperty()
@@ -293,10 +302,16 @@ export default function DashboardPage() {
   if (loading) return (
     <div className="space-y-6">
       <div className="h-7 w-40 rounded-owner-md bg-owner-surface-hover animate-pulse" />
+      <div className="h-32 rounded-owner-2xl bg-owner-surface-hover animate-pulse" />
+      <div className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
+      </div>
+      <div className="h-40 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
+      <div className="h-40 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {Array.from({ length: 9 }).map((_, i) => <div key={i} className="h-28 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
       </div>
-      <div className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 h-52 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
         <div className="h-52 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
@@ -325,6 +340,49 @@ export default function DashboardPage() {
           {activeId === 'all' ? `All ${properties.length} properties overview` : `${active?.name} — ${active?.city}`}
         </p>
       </div>
+
+      {/* Hero card — greeting + at-a-glance occupancy, built entirely from
+          the `stats` object already fetched below (no new data/queries) */}
+      {stats && (
+        <div className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-indigo-600 p-5 text-white shadow-owner-md relative overflow-hidden">
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" aria-hidden="true" />
+          <div className="absolute -right-2 -bottom-10 w-24 h-24 rounded-full bg-white/10" aria-hidden="true" />
+          <div className="relative">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-bold">{greeting()} 👋</div>
+                <div className="text-xs text-white/80 mt-0.5">
+                  {activeId === 'all' ? `Across all ${properties.length} properties` : active?.name}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-2xl font-extrabold owner-numeric">{stats.totalBeds > 0 ? Math.round((stats.occupiedBeds / stats.totalBeds) * 100) : 0}%</div>
+                <div className="text-[10px] text-white/70 font-semibold uppercase tracking-wide">Occupancy</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/15">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold owner-numeric">{stats.totalTenants}</div>
+                  <div className="text-[10px] text-white/70">Active Tenants</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <BedDouble className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold owner-numeric">{stats.vacantBeds}</div>
+                  <div className="text-[10px] text-white/70">Vacant Beds</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {properties.length === 0 && (
         <OwnerCard className="bg-owner-info-subtle border-owner-info/25 text-center">

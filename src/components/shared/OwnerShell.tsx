@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import { OwnerBottomNav } from './OwnerBottomNav'
+import OwnerMoreSheet from './OwnerMoreSheet'
 import { PropertyProvider } from './PropertyContext'
 import ForcePasswordChangeModal from './ForcePasswordChangeModal'
 import { OwnerThemeProvider } from '@/components/owner/ui'
@@ -9,6 +11,7 @@ import type { Profile } from '@/types'
 
 function OwnerShellInner({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [mustChangePw, setMustChangePw] = useState(profile.must_change_password)
 
   return (
@@ -24,10 +27,12 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
         />
         <div className="flex-1 flex flex-col lg:ml-56">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main id="main-content" className="flex-1 p-5 lg:p-7 animate-fade-in">
+          <main id="main-content" className="flex-1 p-5 pb-28 lg:p-7 lg:pb-7 animate-fade-in">
             {children}
           </main>
         </div>
+        <OwnerBottomNav onMoreClick={() => setMoreOpen(true)} />
+        <OwnerMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} userName={profile.full_name} />
       </div>
     </PropertyProvider>
   )

@@ -113,18 +113,18 @@ export default function BackupPage() {
   return (
     <div className="space-y-6 max-w-xl">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Manual Backup</h1>
-        <p className="text-sm text-gray-500">Download a full copy of your data, any time</p>
+        <h1 className="text-xl font-extrabold text-owner-fg">Manual Backup</h1>
+        <p className="text-sm text-owner-muted">Download a full copy of your data, any time</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
             <FileJson className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-sm font-bold text-gray-900">Everything, in one file</div>
-            <p className="text-xs text-gray-500 mt-1">
+            <div className="text-sm font-bold text-owner-fg">Everything, in one file</div>
+            <p className="text-xs text-owner-muted mt-1">
               Properties, rooms, tenants, payments, expenses, complaints, notices, visitors, parcels,
               waiting list, and room-change history — for every property you own, packaged as a single
               JSON file you can store wherever you like.
@@ -148,35 +148,35 @@ export default function BackupPage() {
       </div>
 
       {/* Automatic Backup (Phase 5.13) */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-bold text-gray-900">Automatic Backup</div>
-              <p className="text-xs text-gray-500 mt-1">
+              <div className="text-sm font-bold text-owner-fg">Automatic Backup</div>
+              <p className="text-xs text-owner-muted mt-1">
                 Runs on its own schedule and stores backups in secure cloud storage — nothing to remember.
               </p>
             </div>
           </div>
           {settingsLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-gray-300 flex-shrink-0" />
+            <Loader2 className="w-4 h-4 animate-spin text-owner-muted-subtle flex-shrink-0" />
           ) : (
             <button onClick={() => toggleEnabled(!settings?.enabled)} disabled={savingSettings}
-              className={`flex-shrink-0 w-11 h-6 rounded-full transition relative disabled:opacity-50 ${settings?.enabled ? 'bg-blue-600' : 'bg-gray-200'}`}>
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings?.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              className={`flex-shrink-0 w-11 h-6 rounded-full transition relative disabled:opacity-50 ${settings?.enabled ? 'bg-owner-primary' : 'bg-owner-bg-subtle'}`}>
+              <span className={`absolute top-0.5 w-5 h-5 bg-owner-surface rounded-full shadow transition-transform ${settings?.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
           )}
         </div>
 
         {settings?.enabled && (
           <div className="flex items-center gap-2 pl-14">
-            <span className="text-xs font-semibold text-gray-600">Frequency:</span>
+            <span className="text-xs font-semibold text-owner-muted">Frequency:</span>
             {(['daily', 'weekly'] as const).map(f => (
               <button key={f} onClick={() => changeFrequency(f)} disabled={savingSettings}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-50 ${settings.frequency === f ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-50 ${settings.frequency === f ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:opacity-80'}`}>
                 {f === 'daily' ? 'Daily' : 'Weekly'}
               </button>
             ))}
@@ -184,18 +184,18 @@ export default function BackupPage() {
         )}
 
         {settings?.last_run_at && (
-          <p className="text-xs text-gray-400 pl-14">
+          <p className="text-xs text-owner-muted-subtle pl-14">
             Last automatic backup: {new Date(settings.last_run_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
         )}
 
         {runs.length > 0 && (
           <div className="pl-14 space-y-1.5 pt-1">
-            <div className="text-xs font-semibold text-gray-500 mb-1">Recent runs</div>
+            <div className="text-xs font-semibold text-owner-muted mb-1">Recent runs</div>
             {runs.slice(0, 5).map(r => (
               <div key={r.id} className="flex items-center justify-between text-xs gap-2">
-                <div className="flex items-center gap-1.5 text-gray-500">
-                  {r.status === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : r.status === 'failed' ? <XCircle className="w-3.5 h-3.5 text-red-500" /> : <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+                <div className="flex items-center gap-1.5 text-owner-muted">
+                  {r.status === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : r.status === 'failed' ? <XCircle className="w-3.5 h-3.5 text-red-500" /> : <Loader2 className="w-3.5 h-3.5 animate-spin text-owner-muted-subtle" />}
                   {new Date(r.started_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   {r.status === 'success' && r.record_count != null && <span>· {r.record_count} records</span>}
                   {r.status === 'failed' && r.error_message && <span className="text-red-500 truncate max-w-[160px]">· {r.error_message}</span>}
@@ -211,7 +211,7 @@ export default function BackupPage() {
         )}
       </div>
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-owner-muted-subtle">
         Manual Backup above is an on-demand export. Automatic Backup runs unattended on the schedule you
         choose and keeps the most recent backups in cloud storage. Restoring from either is handled separately.
       </p>
