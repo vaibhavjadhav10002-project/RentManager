@@ -48,3 +48,6 @@ keystore-base64.txt
 # CI-generated build artifacts (not source)
 android/app/build/outputs/apk/
 android/app/build/outputs/bundle/
+
+.vercel
+.env*
