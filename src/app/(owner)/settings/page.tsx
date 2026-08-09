@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { updateProperty, addCollector, deleteCollector, getCollectors } from '@/lib/supabase/queries'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { toast } from 'sonner'
-import { Plus, Trash2, LogOut, Bell } from 'lucide-react'
+import { Plus, Trash2, LogOut, Bell, Palette, Building2, Users2, Lock, ShieldAlert } from 'lucide-react'
 import {
   OwnerButton, OwnerIconButton, OwnerCard, OwnerInput, OwnerSectionHeader, OwnerThemeToggle,
 } from '@/components/owner/ui'
@@ -125,15 +125,22 @@ export default function SettingsPage() {
 
       {/* Appearance */}
       <OwnerCard>
-        <OwnerSectionHeader title="Appearance" description="Theme applies across the whole dashboard" />
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-owner-lg bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center shrink-0">
+            <Palette className="w-4 h-4" />
+          </div>
+          <OwnerSectionHeader title="Appearance" description="Theme applies across the whole dashboard" className="mb-0" />
+        </div>
         <OwnerThemeToggle />
       </OwnerCard>
 
       {/* Notifications */}
       <OwnerCard className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Bell className="w-4 h-4 text-owner-muted-subtle" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-owner-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4" />
+            </div>
             <div className="font-bold text-sm text-owner-fg">Push Notifications</div>
           </div>
           {notifPermission !== 'unsupported' && notifPermission !== 'denied' && (
@@ -154,10 +161,16 @@ export default function SettingsPage() {
 
       {/* PG Details */}
       <OwnerCard className="space-y-4">
-        <OwnerSectionHeader
-          title="PG Details"
-          description={!active ? 'Select a specific property above to edit its details' : undefined}
-        />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-owner-lg bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center shrink-0">
+            <Building2 className="w-4 h-4" />
+          </div>
+          <OwnerSectionHeader
+            title="PG Details"
+            description={!active ? 'Select a specific property above to edit its details' : undefined}
+            className="mb-0"
+          />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <OwnerInput label="PG Name" value={pgForm.name} onChange={e => setPgForm(f => ({ ...f, name: e.target.value }))} />
           <OwnerInput label="City" value={pgForm.city} onChange={e => setPgForm(f => ({ ...f, city: e.target.value }))} />
@@ -175,11 +188,19 @@ export default function SettingsPage() {
 
       {/* Collectors */}
       <OwnerCard className="space-y-4">
-        <OwnerSectionHeader title="Rent Collectors" description="People who can collect rent (Owner 1, Owner 2, Warden, etc.). Selected when recording a payment." />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-owner-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0">
+            <Users2 className="w-4 h-4" />
+          </div>
+          <OwnerSectionHeader title="Rent Collectors" description="People who can collect rent (Owner 1, Owner 2, Warden, etc.). Selected when recording a payment." className="mb-0" />
+        </div>
         <div className="space-y-2">
           {collectors.map(c => (
-            <div key={c.id} className="flex items-center justify-between bg-owner-bg-subtle rounded-owner-lg px-3 py-2">
-              <span className="text-sm text-owner-fg">{c.name}</span>
+            <div key={c.id} className="flex items-center gap-3 bg-owner-bg-subtle rounded-owner-lg px-3 py-2.5">
+              <div className="w-7 h-7 rounded-full bg-owner-surface-hover text-owner-muted flex items-center justify-center text-xs font-bold shrink-0">
+                {c.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <span className="text-sm text-owner-fg flex-1">{c.name}</span>
               <OwnerIconButton aria-label={`Remove ${c.name}`} variant="ghost" size="sm" onClick={() => handleDeleteCollector(c.id)} className="hover:text-owner-danger">
                 <Trash2 />
               </OwnerIconButton>
@@ -196,7 +217,12 @@ export default function SettingsPage() {
 
       {/* Change Password */}
       <OwnerCard className="space-y-4">
-        <OwnerSectionHeader title="Change Password" />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-owner-lg bg-gradient-to-br from-slate-500 to-slate-700 text-white flex items-center justify-center shrink-0">
+            <Lock className="w-4 h-4" />
+          </div>
+          <OwnerSectionHeader title="Change Password" className="mb-0" />
+        </div>
         <div className="space-y-3">
           <OwnerInput label="New Password" type="password" value={pwForm.newPw} onChange={e => setPwForm(f => ({ ...f, newPw: e.target.value }))} />
           <OwnerInput label="Confirm Password" type="password" value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} />
@@ -206,7 +232,12 @@ export default function SettingsPage() {
 
       {/* Logout */}
       <OwnerCard className="border-owner-danger/25">
-        <div className="font-bold text-sm text-owner-danger mb-3">Danger Zone</div>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-owner-lg bg-owner-danger-subtle text-owner-danger flex items-center justify-center shrink-0">
+            <ShieldAlert className="w-4 h-4" />
+          </div>
+          <div className="font-bold text-sm text-owner-danger">Danger Zone</div>
+        </div>
         <OwnerButton
           onClick={async () => { const sb = createClient(); await sb.auth.signOut(); window.location.href = '/login' }}
           variant="destructive" icon={<LogOut className="w-4 h-4" />}

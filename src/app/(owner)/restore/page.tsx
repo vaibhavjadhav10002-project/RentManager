@@ -144,7 +144,7 @@ export default function RestorePage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
       <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
     </div>
   )
@@ -152,8 +152,8 @@ export default function RestorePage() {
   return (
     <div className="space-y-6 max-w-xl">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Backup Restore</h1>
-        <p className="text-sm text-gray-500">Bring back data from a Manual or Automatic backup file</p>
+        <h1 className="text-xl font-extrabold text-owner-fg">Backup Restore</h1>
+        <p className="text-sm text-owner-muted">Bring back data from a Manual or Automatic backup file</p>
       </div>
 
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-xs text-amber-700">
@@ -165,24 +165,24 @@ export default function RestorePage() {
       </div>
 
       {/* Choose a source */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-        <div className="text-sm font-bold text-gray-900">1. Choose a backup</div>
+      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
+        <div className="text-sm font-bold text-owner-fg">1. Choose a backup</div>
 
         <button onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition">
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-owner-surface-hover hover:opacity-80 text-owner-fg rounded-xl text-sm font-semibold transition">
           <UploadCloud className="w-4 h-4" /> Upload a Manual Backup file (.json)
         </button>
         <input ref={fileInputRef} type="file" accept="application/json" onChange={handleFileUpload} className="hidden" />
 
         {runs.length > 0 && (
           <div>
-            <div className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1"><History className="w-3.5 h-3.5" /> Or pick an Automatic Backup</div>
+            <div className="text-xs font-semibold text-owner-muted mb-2 flex items-center gap-1"><History className="w-3.5 h-3.5" /> Or pick an Automatic Backup</div>
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {runs.map(r => (
                 <button key={r.id} onClick={() => handleLoadRun(r)}
-                  className="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-xl text-xs hover:bg-gray-50 transition">
-                  <span className="text-gray-600">{new Date(r.started_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span className="text-gray-400">{r.record_count} records</span>
+                  className="w-full flex items-center justify-between px-3 py-2 border border-owner-border rounded-xl text-xs hover:bg-owner-surface-hover transition">
+                  <span className="text-owner-muted">{new Date(r.started_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-owner-muted-subtle">{r.record_count} records</span>
                 </button>
               ))}
             </div>
@@ -194,9 +194,9 @@ export default function RestorePage() {
 
       {/* Preview */}
       {parsed && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <div className="text-sm font-bold text-gray-900 flex items-center gap-2"><FileJson className="w-4 h-4" /> 2. Review before restoring</div>
-          <p className="text-xs text-gray-500">
+        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
+          <div className="text-sm font-bold text-owner-fg flex items-center gap-2"><FileJson className="w-4 h-4" /> 2. Review before restoring</div>
+          <p className="text-xs text-owner-muted">
             Backup taken {new Date(parsed.exported_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
             {' '}· {parsed.property_count} propert{parsed.property_count === 1 ? 'y' : 'ies'} in the file
           </p>
@@ -208,9 +208,9 @@ export default function RestorePage() {
               {matchingProperties.map(pb => {
                 const total = Object.entries(pb).filter(([k]) => k !== 'property').reduce((s, [, v]) => s + (Array.isArray(v) ? v.length : 0), 0)
                 return (
-                  <div key={pb.property.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-xl px-3 py-2">
-                    <span className="font-semibold text-gray-700">{pb.property.name}</span>
-                    <span className="text-gray-400">{total} records</span>
+                  <div key={pb.property.id} className="flex items-center justify-between text-xs bg-owner-surface-hover rounded-xl px-3 py-2">
+                    <span className="font-semibold text-owner-fg">{pb.property.name}</span>
+                    <span className="text-owner-muted-subtle">{total} records</span>
                   </div>
                 )
               })}
@@ -218,7 +218,7 @@ export default function RestorePage() {
           )}
 
           {orphanedProperties.length > 0 && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-owner-muted-subtle">
               {orphanedProperties.length} propert{orphanedProperties.length === 1 ? 'y' : 'ies'} in this backup no longer belong to your account and will be skipped.
             </p>
           )}
@@ -235,18 +235,18 @@ export default function RestorePage() {
 
       {/* Results */}
       {results && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-2">
-          <div className="text-sm font-bold text-gray-900 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Restore Summary</div>
+        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-2">
+          <div className="text-sm font-bold text-owner-fg flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Restore Summary</div>
           {results.map(r => (
             <div key={r.table} className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 capitalize">{r.table.replace('_', ' ')}</span>
-              <span className="text-gray-500">
+              <span className="text-owner-muted capitalize">{r.table.replace('_', ' ')}</span>
+              <span className="text-owner-muted">
                 {r.upserted} restored{r.failed > 0 && <span className="text-red-500"> · {r.failed} failed</span>}
               </span>
             </div>
           ))}
           {results.some(r => r.failed > 0) && (
-            <p className="text-xs text-gray-400 pt-1">
+            <p className="text-xs text-owner-muted-subtle pt-1">
               Some rows failed — usually because something they referenced (like a room or tenant) no longer exists. Everything else restored successfully.
             </p>
           )}

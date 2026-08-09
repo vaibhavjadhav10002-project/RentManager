@@ -6,7 +6,7 @@ import { formatINR, formatDate, whatsappLink, rentReminderMsg, cn } from '@/lib/
 import { generateReceiptPDF } from '@/lib/pdf'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Download, LogOut, Calendar, X, Loader2, Trash2, Send, Copy, Check } from 'lucide-react'
+import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Download, LogOut, Calendar, X, Loader2, Trash2, Send, Copy, Check, ChevronRight } from 'lucide-react'
 import type { Tenant } from '@/types'
 import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerAvatar, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
@@ -363,88 +363,115 @@ export default function TenantsPage() {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-14 rounded-owner-lg bg-owner-surface-hover animate-pulse" />)}
         </div>
+      ) : filtered.length === 0 ? (
+        <OwnerEmptyState icon={Search} title="No tenants found" />
       ) : (
-        <OwnerTable>
-          <OwnerTableHead>
-            <tr>
-              {['Tenant', 'Phone', 'Room/Bed', 'Rent', 'Deposit', 'Joining', 'KYC', 'Status', 'Remind', 'Actions'].map(h => (
-                <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>
-              ))}
-            </tr>
-          </OwnerTableHead>
-          <OwnerTableBody>
-            {filtered.length === 0 ? (
-              <OwnerTableEmptyRow colSpan={10}>
-                <OwnerEmptyState icon={Search} title="No tenants found" />
-              </OwnerTableEmptyRow>
-            ) : filtered.map(t => (
-              <OwnerTableRow key={t.id}>
-                <OwnerTableCell>
-                  <div className="flex items-center gap-2.5">
-                    <OwnerAvatar name={t.name} size="sm" />
-                    <div>
-                      <div className="font-semibold text-owner-fg">{t.name}</div>
-                      <div className="text-xs text-owner-muted-subtle">{t.email || '—'}</div>
-                    </div>
+        <>
+          {/* Mobile: stacked card list, no horizontal scroll */}
+          <div className="sm:hidden space-y-2">
+            {filtered.map(t => (
+              <button key={t.id} onClick={() => openView(t)}
+                className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
+                <OwnerAvatar name={t.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted-subtle mt-0.5 truncate">
+                    {t.room ? `Room ${t.room.room_number}` : 'No room'}{t.bed_label ? ` · ${t.bed_label}` : ''} · {formatINR(t.monthly_rent)}/mo
                   </div>
-                </OwnerTableCell>
-                <OwnerTableCell className="font-mono text-xs">{t.phone}</OwnerTableCell>
-                <OwnerTableCell>
-                  <span className="font-semibold">
-                    {t.room ? `Room ${t.room.room_number}` : '—'}
-                    {t.bed_label ? ` · ${t.bed_label}` : ''}
-                  </span>
-                </OwnerTableCell>
-                <OwnerTableCell className="font-bold text-owner-primary owner-numeric">{formatINR(t.monthly_rent)}</OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="text-xs owner-numeric">
-                    <span className="font-bold text-owner-fg">{formatINR(t.deposit_paid)}</span>
-                    <span className="text-owner-muted-subtle"> / {formatINR(t.deposit_amount)}</span>
-                  </div>
-                  {t.deposit_paid < t.deposit_amount && (
-                    <span className="text-xs text-owner-warning font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</span>
-                  )}
-                </OwnerTableCell>
-                <OwnerTableCell className="text-xs text-owner-muted">{formatDate(t.joining_date)}</OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="flex gap-1">
-                    <OwnerBadge tone={KYC_TONE[t.aadhaar_status]} size="sm">ID</OwnerBadge>
-                    <OwnerBadge tone={KYC_TONE[t.pan_status]} size="sm">PAN</OwnerBadge>
-                  </div>
-                </OwnerTableCell>
-                <OwnerTableCell>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
                   <OwnerBadge tone={STATUS_TONE[t.status]} className="capitalize">
                     {t.status.replace('_', ' ')}
                   </OwnerBadge>
-                </OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="flex gap-1.5">
-                    <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? 'PG'))}
-                      target="_blank" rel="noreferrer"
-                      className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors" title="WhatsApp">
-                      <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
-                    </a>
-                    <a href={`tel:${t.phone}`}
-                      className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors" title="Call">
-                      <Phone className="w-3.5 h-3.5 text-owner-info" />
-                    </a>
-                  </div>
-                </OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="flex gap-1">
-                    <OwnerIconButton aria-label={`View ${t.name}`} variant="ghost" size="sm" onClick={() => openView(t)}><Eye /></OwnerIconButton>
-                    <OwnerIconButton aria-label={`Edit ${t.name}`} variant="ghost" size="sm" onClick={() => openEdit(t)}><Pencil /></OwnerIconButton>
-                    {t.status === 'active' && (
-                      <OwnerIconButton aria-label={`Give notice to ${t.name}`} variant="ghost" size="sm" onClick={() => { setNoticeModal(t); setLeavingDate('') }} className="hover:text-owner-warning" title="Give notice / mark leaving">
-                        <LogOut />
-                      </OwnerIconButton>
-                    )}
-                  </div>
-                </OwnerTableCell>
-              </OwnerTableRow>
+                  {t.deposit_paid < t.deposit_amount && (
+                    <span className="text-[10px] font-semibold text-owner-warning">Deposit due</span>
+                  )}
+                </div>
+                <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
+              </button>
             ))}
-          </OwnerTableBody>
-        </OwnerTable>
+          </div>
+          {/* Desktop/tablet: full table */}
+          <div className="hidden sm:block">
+            <OwnerTable>
+              <OwnerTableHead>
+                <tr>
+                  {['Tenant', 'Phone', 'Room/Bed', 'Rent', 'Deposit', 'Joining', 'KYC', 'Status', 'Remind', 'Actions'].map(h => (
+                    <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>
+                  ))}
+                </tr>
+              </OwnerTableHead>
+              <OwnerTableBody>
+                {filtered.map(t => (
+                  <OwnerTableRow key={t.id}>
+                    <OwnerTableCell>
+                      <div className="flex items-center gap-2.5">
+                        <OwnerAvatar name={t.name} size="sm" />
+                        <div>
+                          <div className="font-semibold text-owner-fg">{t.name}</div>
+                          <div className="text-xs text-owner-muted-subtle">{t.email || '—'}</div>
+                        </div>
+                      </div>
+                    </OwnerTableCell>
+                    <OwnerTableCell className="font-mono text-xs">{t.phone}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <span className="font-semibold">
+                        {t.room ? `Room ${t.room.room_number}` : '—'}
+                        {t.bed_label ? ` · ${t.bed_label}` : ''}
+                      </span>
+                    </OwnerTableCell>
+                    <OwnerTableCell className="font-bold text-owner-primary owner-numeric">{formatINR(t.monthly_rent)}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="text-xs owner-numeric">
+                        <span className="font-bold text-owner-fg">{formatINR(t.deposit_paid)}</span>
+                        <span className="text-owner-muted-subtle"> / {formatINR(t.deposit_amount)}</span>
+                      </div>
+                      {t.deposit_paid < t.deposit_amount && (
+                        <span className="text-xs text-owner-warning font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</span>
+                      )}
+                    </OwnerTableCell>
+                    <OwnerTableCell className="text-xs text-owner-muted">{formatDate(t.joining_date)}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="flex gap-1">
+                        <OwnerBadge tone={KYC_TONE[t.aadhaar_status]} size="sm">ID</OwnerBadge>
+                        <OwnerBadge tone={KYC_TONE[t.pan_status]} size="sm">PAN</OwnerBadge>
+                      </div>
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <OwnerBadge tone={STATUS_TONE[t.status]} className="capitalize">
+                        {t.status.replace('_', ' ')}
+                      </OwnerBadge>
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="flex gap-1.5">
+                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? 'PG'))}
+                          target="_blank" rel="noreferrer"
+                          className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors" title="WhatsApp">
+                          <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
+                        </a>
+                        <a href={`tel:${t.phone}`}
+                          className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors" title="Call">
+                          <Phone className="w-3.5 h-3.5 text-owner-info" />
+                        </a>
+                      </div>
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="flex gap-1">
+                        <OwnerIconButton aria-label={`View ${t.name}`} variant="ghost" size="sm" onClick={() => openView(t)}><Eye /></OwnerIconButton>
+                        <OwnerIconButton aria-label={`Edit ${t.name}`} variant="ghost" size="sm" onClick={() => openEdit(t)}><Pencil /></OwnerIconButton>
+                        {t.status === 'active' && (
+                          <OwnerIconButton aria-label={`Give notice to ${t.name}`} variant="ghost" size="sm" onClick={() => { setNoticeModal(t); setLeavingDate('') }} className="hover:text-owner-warning" title="Give notice / mark leaving">
+                            <LogOut />
+                          </OwnerIconButton>
+                        )}
+                      </div>
+                    </OwnerTableCell>
+                  </OwnerTableRow>
+                ))}
+              </OwnerTableBody>
+            </OwnerTable>
+          </div>
+        </>
       )}
 
       {/* Add Tenant Modal */}
@@ -610,51 +637,53 @@ export default function TenantsPage() {
 
       {/* View Tenant Modal */}
       {viewTenant && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Tenant Details</h2>
+        <>
+          <div onClick={() => setViewTenant(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={viewTenant.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Tenant Details</div>
+                <div className="font-bold text-owner-fg truncate">{viewTenant.name}</div>
+              </div>
+              <OwnerBadge tone={STATUS_TONE[viewTenant.status]} className="capitalize shrink-0">{viewTenant.status.replace('_', ' ')}</OwnerBadge>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setViewTenant(null)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 space-y-3 text-sm max-h-[75vh] overflow-y-auto">
-              {[
-                ['Name', viewTenant.name],
-                ['Phone', viewTenant.phone],
-                ['Email', viewTenant.email || '—'],
-                ['Emergency Contact', viewTenant.emergency_contact || '—'],
-                ['Room', viewTenant.room ? `Room ${viewTenant.room.room_number}` : '—'],
-                ['Bed', viewTenant.bed_label || '—'],
-                ['Joining Date', formatDate(viewTenant.joining_date)],
-                ['Monthly Rent', formatINR(viewTenant.monthly_rent)],
-                ['Deposit', `${formatINR(viewTenant.deposit_paid)} / ${formatINR(viewTenant.deposit_amount)}`],
-                ['Notice Period', `${viewTenant.notice_period_days} days`],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between border-b border-owner-border pb-2">
-                  <span className="text-owner-muted">{label}</span>
-                  <span className="font-semibold text-owner-fg capitalize">{value}</span>
-                </div>
-              ))}
-              <div className="flex justify-between border-b border-owner-border pb-2">
-                <span className="text-owner-muted">Status</span>
-                <OwnerBadge tone={STATUS_TONE[viewTenant.status]} className="capitalize">{viewTenant.status.replace('_', ' ')}</OwnerBadge>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['Phone', viewTenant.phone],
+                  ['Email', viewTenant.email || '—'],
+                  ['Room', viewTenant.room ? `Room ${viewTenant.room.room_number}` : '—'],
+                  ['Bed', viewTenant.bed_label || '—'],
+                  ['Monthly Rent', formatINR(viewTenant.monthly_rent)],
+                  ['Joining Date', formatDate(viewTenant.joining_date)],
+                  ['Deposit', `${formatINR(viewTenant.deposit_paid)} / ${formatINR(viewTenant.deposit_amount)}`],
+                  ['Notice Period', `${viewTenant.notice_period_days} days`],
+                  ['Emergency Contact', viewTenant.emergency_contact || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">{label}</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{value}</div>
+                  </div>
+                ))}
               </div>
-              <div className="flex justify-between border-b border-owner-border pb-2">
-                <span className="text-owner-muted">Aadhaar KYC</span>
-                <OwnerBadge tone={KYC_TONE[viewTenant.aadhaar_status]} className="capitalize">{viewTenant.aadhaar_status}</OwnerBadge>
-              </div>
-              <div className="flex justify-between border-b border-owner-border pb-2">
-                <span className="text-owner-muted">PAN KYC</span>
-                <OwnerBadge tone={KYC_TONE[viewTenant.pan_status]} className="capitalize">{viewTenant.pan_status}</OwnerBadge>
+              <div className="flex items-center gap-2">
+                <OwnerBadge tone={KYC_TONE[viewTenant.aadhaar_status]} className="capitalize">Aadhaar: {viewTenant.aadhaar_status}</OwnerBadge>
+                <OwnerBadge tone={KYC_TONE[viewTenant.pan_status]} className="capitalize">PAN: {viewTenant.pan_status}</OwnerBadge>
               </div>
 
-              <div className="pt-2">
-                <div className="font-bold text-owner-fg mb-2">Payment History</div>
+              <div>
+                <div className="text-xs font-bold text-owner-muted uppercase tracking-wide mb-2">Rent History</div>
                 {viewTenantPayments.length === 0 ? (
                   <OwnerEmptyState icon={Download} title="No payments recorded yet" className="py-6" />
                 ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  <div className="space-y-1.5">
                     {viewTenantPayments.map(p => (
                       <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-owner-border last:border-0">
                         <div>
@@ -677,26 +706,55 @@ export default function TenantsPage() {
                 )}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-owner-border">
-              <OwnerButton onClick={() => setViewTenant(null)} variant="secondary" fullWidth>
-                Close
-              </OwnerButton>
+            {/* Actions at bottom — quick-contact row + management actions */}
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 space-y-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <div className="flex gap-2.5">
+                <a href={whatsappLink(viewTenant.phone, rentReminderMsg(viewTenant.name, viewTenant.monthly_rent, viewTenant.property?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="flex-1 h-11 flex items-center justify-center gap-1.5 bg-owner-success/15 hover:bg-owner-success/25 active:scale-[0.98] text-owner-success rounded-2xl text-xs font-bold transition">
+                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </a>
+                <a href={`tel:${viewTenant.phone}`}
+                  className="flex-1 h-11 flex items-center justify-center gap-1.5 bg-owner-info/15 hover:bg-owner-info/25 active:scale-[0.98] text-owner-info rounded-2xl text-xs font-bold transition">
+                  <Phone className="w-3.5 h-3.5" /> Call
+                </a>
+              </div>
+              <div className="flex gap-2.5">
+                <button onClick={() => { const t = viewTenant; setViewTenant(null); openEdit(t) }}
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                  <Pencil className="w-4 h-4" /> Edit Tenant
+                </button>
+                {viewTenant.status === 'active' && (
+                  <button onClick={() => { const t = viewTenant; setViewTenant(null); setNoticeModal(t); setLeavingDate('') }}
+                    className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-warning/15 hover:bg-owner-warning/25 active:scale-[0.98] text-owner-warning rounded-2xl text-sm font-bold transition">
+                    <LogOut className="w-4 h-4" /> Give Notice
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Edit Tenant Modal */}
       {editTenant && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-2xl shadow-owner-lg border border-owner-border my-4 animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Edit Tenant</h2>
+        <>
+          <div onClick={() => setEditTenant(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={editTenant.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Edit Tenant</div>
+                <div className="font-bold text-owner-fg truncate">{editTenant.name}</div>
+              </div>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setEditTenant(null)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto max-h-[75vh]">
+            <div className="flex-1 overflow-y-auto px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <OwnerInput
                 label="Mobile Number (login username)"
                 type="tel"
@@ -791,16 +849,18 @@ export default function TenantsPage() {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
-              <OwnerButton onClick={handleEditSave} loading={editSaving} fullWidth>
-                {editSaving ? 'Saving…' : 'Save Changes'}
-              </OwnerButton>
-              <OwnerButton onClick={() => setEditTenant(null)} variant="secondary" fullWidth>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => setEditTenant(null)}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
                 Cancel
-              </OwnerButton>
+              </button>
+              <button onClick={handleEditSave} disabled={editSaving}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Notice-Period Modal — the "Give Notice" button in the table (and
@@ -809,16 +869,24 @@ export default function TenantsPage() {
           This is that missing dialog — zero new business logic, just the
           UI for a handler that was already fully written. */}
       {noticeModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Give Notice</h2>
+        <>
+          <div onClick={() => { setNoticeModal(null); setLeavingDate('') }} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={noticeModal.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Give Notice</div>
+                <div className="font-bold text-owner-fg truncate">{noticeModal.name}</div>
+              </div>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => { setNoticeModal(null); setLeavingDate('') }}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-owner-muted">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <p className="text-sm text-owner-muted bg-owner-surface-hover rounded-xl px-3 py-2.5">
                 Set a leaving date for <span className="font-semibold text-owner-fg">{noticeModal.name}</span>. They&apos;ll be moved to
                 &quot;Leaving&quot; status and appear in the Notice Period tracker until then.
               </p>
@@ -829,12 +897,18 @@ export default function TenantsPage() {
                 onChange={e => setLeavingDate(e.target.value)}
               />
             </div>
-            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
-              <OwnerButton onClick={handleSetNotice} fullWidth>Confirm</OwnerButton>
-              <OwnerButton onClick={() => { setNoticeModal(null); setLeavingDate('') }} variant="secondary" fullWidth>Cancel</OwnerButton>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => { setNoticeModal(null); setLeavingDate('') }}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
+                Cancel
+              </button>
+              <button onClick={handleSetNotice}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                Confirm
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Move-Out Checklist (Phase 3.4) — kept in its original literal-Tailwind
@@ -843,29 +917,36 @@ export default function TenantsPage() {
           restyling every ported feature is a larger effort than this merge
           covers. Functions identically to the redesigned surfaces around it. */}
       {checklistTenant && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold">Move-Out Checklist</h2>
-                <p className="text-xs text-gray-400">{checklistTenant.name} · Room {checklistTenant.room?.room_number}</p>
-              </div>
-              <button onClick={() => { setChecklistTenant(null); setChecklist(null) }} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+        <>
+          <div onClick={() => { setChecklistTenant(null); setChecklist(null) }} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
             </div>
-            <div className="p-5">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={checklistTenant.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Move-Out Checklist</div>
+                <div className="font-bold text-owner-fg truncate">{checklistTenant.name} <span className="text-owner-muted-subtle font-normal text-xs">· Room {checklistTenant.room?.room_number}</span></div>
+              </div>
+              <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => { setChecklistTenant(null); setChecklist(null) }}>
+                <X />
+              </OwnerIconButton>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               {checklistLoading || !checklist ? (
-                <div className="flex items-center justify-center py-10 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
+                <div className="flex items-center justify-center py-10 text-owner-muted"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
               ) : (
                 <div className="space-y-2">
                   {checklist.items.map((item: any, idx: number) => (
                     <button key={idx} onClick={() => toggleChecklistItem(idx)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition ${item.checked ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}>
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition active:scale-[0.99] ${item.checked ? 'bg-owner-success-subtle border-owner-success/30' : 'bg-owner-surface-hover border-owner-border hover:opacity-80'}`}>
                       <span className="text-lg">{item.checked ? '✅' : '⬜'}</span>
-                      <span className={`text-sm ${item.checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>{item.label}</span>
+                      <span className={`text-sm ${item.checked ? 'text-owner-success line-through' : 'text-owner-fg'}`}>{item.label}</span>
                     </button>
                   ))}
                   {checklist.completed && (
-                    <div className="text-xs text-green-600 font-semibold text-center pt-2">
+                    <div className="text-xs text-owner-success font-semibold text-center pt-2">
                       All items checked — ready to Mark Left when you&apos;re set.
                     </div>
                   )}
@@ -873,7 +954,7 @@ export default function TenantsPage() {
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

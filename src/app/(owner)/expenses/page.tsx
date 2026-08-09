@@ -92,25 +92,21 @@ export default function ExpensesPage() {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 rounded-owner-lg bg-owner-surface-hover animate-pulse" />)}
         </div>
+      ) : expenses.length === 0 ? (
+        <OwnerEmptyState icon={Receipt} title="No expenses yet" action={<OwnerButton onClick={() => setModal(true)} icon={<Plus className="w-4 h-4" />}>Add Expense</OwnerButton>} />
       ) : (
-        <OwnerTable>
-          <OwnerTableHead>
-            <tr>
-              {['Category', 'Amount', 'Date', 'Notes', 'Actions'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
-            </tr>
-          </OwnerTableHead>
-          <OwnerTableBody>
-            {expenses.length === 0 ? (
-              <OwnerTableEmptyRow colSpan={5}>
-                <OwnerEmptyState icon={Receipt} title="No expenses yet" action={<OwnerButton onClick={() => setModal(true)} icon={<Plus className="w-4 h-4" />}>Add Expense</OwnerButton>} />
-              </OwnerTableEmptyRow>
-            ) : expenses.map(e => (
-              <OwnerTableRow key={e.id}>
-                <OwnerTableCell><OwnerBadge tone={CAT_TONE[e.category] ?? 'neutral'}>{e.category}</OwnerBadge></OwnerTableCell>
-                <OwnerTableCell className="font-bold owner-numeric">{formatINR(e.amount)}</OwnerTableCell>
-                <OwnerTableCell className="text-xs text-owner-muted">{formatDate(e.expense_date)}</OwnerTableCell>
-                <OwnerTableCell className="text-xs text-owner-muted-subtle">{e.notes || '—'}</OwnerTableCell>
-                <OwnerTableCell>
+        <>
+          {/* Mobile: stacked card list, no horizontal scroll */}
+          <div className="sm:hidden space-y-2">
+            {expenses.map(e => (
+              <div key={e.id} className="bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <OwnerBadge tone={CAT_TONE[e.category] ?? 'neutral'}>{e.category}</OwnerBadge>
+                  <div className="text-xs text-owner-muted mt-1">{formatDate(e.expense_date)}</div>
+                  {e.notes && <div className="text-xs text-owner-muted-subtle mt-1 truncate">{e.notes}</div>}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="font-bold owner-numeric text-owner-fg">{formatINR(e.amount)}</div>
                   <OwnerIconButton
                     aria-label="Delete expense"
                     variant="ghost"
@@ -120,11 +116,42 @@ export default function ExpensesPage() {
                   >
                     <Trash2 />
                   </OwnerIconButton>
-                </OwnerTableCell>
-              </OwnerTableRow>
+                </div>
+              </div>
             ))}
-          </OwnerTableBody>
-        </OwnerTable>
+          </div>
+          {/* Desktop/tablet: full table */}
+          <div className="hidden sm:block">
+            <OwnerTable>
+              <OwnerTableHead>
+                <tr>
+                  {['Category', 'Amount', 'Date', 'Notes', 'Actions'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
+                </tr>
+              </OwnerTableHead>
+              <OwnerTableBody>
+                {expenses.map(e => (
+                  <OwnerTableRow key={e.id}>
+                    <OwnerTableCell><OwnerBadge tone={CAT_TONE[e.category] ?? 'neutral'}>{e.category}</OwnerBadge></OwnerTableCell>
+                    <OwnerTableCell className="font-bold owner-numeric">{formatINR(e.amount)}</OwnerTableCell>
+                    <OwnerTableCell className="text-xs text-owner-muted">{formatDate(e.expense_date)}</OwnerTableCell>
+                    <OwnerTableCell className="text-xs text-owner-muted-subtle">{e.notes || '—'}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <OwnerIconButton
+                        aria-label="Delete expense"
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => { await deleteExpense(e.id); toast.success('Deleted'); load() }}
+                        className="hover:text-owner-danger"
+                      >
+                        <Trash2 />
+                      </OwnerIconButton>
+                    </OwnerTableCell>
+                  </OwnerTableRow>
+                ))}
+              </OwnerTableBody>
+            </OwnerTable>
+          </div>
+        </>
       )}
 
       {modal && (

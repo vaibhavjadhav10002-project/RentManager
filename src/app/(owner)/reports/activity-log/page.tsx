@@ -135,55 +135,55 @@ export default function ActivityLogPage() {
   }, [events])
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-owner-muted">
       <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading activity…
     </div>
   )
 
   return (
     <div className="space-y-6">
-      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-gray-700 transition">
+      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-owner-muted hover:text-owner-fg transition">
         <ChevronLeft className="w-4 h-4" /> Reports Dashboard
       </Link>
 
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Activity Logs</h1>
-        <p className="text-sm text-gray-500">A timeline of key actions across your properties</p>
+        <h1 className="text-xl font-extrabold text-owner-fg">Activity Logs</h1>
+        <p className="text-sm text-owner-muted">A timeline of key actions across your properties</p>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-1.5">
         <button onClick={() => setFilter('all')}
-          className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+          className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition active:scale-[0.98] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
           All ({events.length})
         </button>
         {(Object.keys(KIND_LABEL) as EventKind[]).map(k => (
           <button key={k} onClick={() => setFilter(k)}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === k ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition active:scale-[0.98] ${filter === k ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
             {KIND_LABEL[k]} ({counts[k]})
           </button>
         ))}
       </div>
 
       {/* Timeline */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+          <div className="flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
             <History className="w-8 h-8" />
             <div className="text-sm">No activity yet</div>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-owner-border">
             {filtered.map(e => (
               <div key={e.id} className="flex items-start gap-3 px-5 py-4">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${e.color}`}>
+                <div className={`w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0 ${e.color}`}>
                   <e.icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-800">{e.title}</div>
-                  <div className="text-xs text-gray-400">{e.subtitle}</div>
+                  <div className="text-sm font-semibold text-owner-fg">{e.title}</div>
+                  <div className="text-xs text-owner-muted-subtle">{e.subtitle}</div>
                 </div>
-                <div className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                <div className="text-xs text-owner-muted-subtle whitespace-nowrap shrink-0">
                   {new Date(e.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
@@ -192,7 +192,7 @@ export default function ActivityLogPage() {
         )}
       </div>
       {events.length > 200 && filtered.length === 200 && (
-        <p className="text-xs text-gray-400 text-center">Showing the 200 most recent events for this filter.</p>
+        <p className="text-xs text-owner-muted-subtle text-center">Showing the 200 most recent events for this filter.</p>
       )}
     </div>
   )

@@ -4,7 +4,7 @@ import { useProperty } from '@/components/shared/PropertyContext'
 import { getComplaints, addComplaint, resolveComplaint } from '@/lib/supabase/queries'
 import { formatDate, cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Check, X, User, DoorOpen, Calendar, ArrowRight, MessageSquareWarning } from 'lucide-react'
+import { Plus, Check, X, MessageSquareWarning, ChevronRight } from 'lucide-react'
 import { sendPushNotification } from '@/lib/push'
 import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
@@ -24,6 +24,8 @@ export default function ComplaintsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [modal, setModal] = useState(false)
+  const [complaintDetail, setComplaintDetail] = useState<any | null>(null)
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ property_id: '', issue_type: 'Plumbing', description: '', priority: 'medium', assigned_to: '' })
 
@@ -76,30 +78,109 @@ export default function ComplaintsPage() {
 
       {loading ? (
         <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {filtered.map(c => (
-            <OwnerCard key={c.id}>
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="font-bold text-owner-fg text-sm">{c.issue_type}</span>
-                    <OwnerBadge tone={PRIORITY_TONE[c.priority]} className="capitalize">{c.priority}</OwnerBadge>
-                    <OwnerBadge tone={STATUS_TONE[c.status]}>{c.status.replace('_', ' ')}</OwnerBadge>
+            <button key={c.id} onClick={() => setComplaintDetail(c)}
+              className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white flex items-center justify-center shrink-0">
+                <MessageSquareWarning className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-owner-fg truncate">{c.issue_type}</div>
+                <div className="text-xs text-owner-muted-subtle truncate">
+                  {c.tenant?.name ?? '—'}{c.room ? ` · Room ${c.room.room_number}` : ''} · {formatDate(c.created_at)}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <OwnerBadge tone={PRIORITY_TONE[c.priority]} className="capitalize">{c.priority}</OwnerBadge>
+                <OwnerBadge tone={STATUS_TONE[c.status]}>{c.status.replace('_', ' ')}</OwnerBadge>
+              </div>
+              <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <OwnerCard>
+              <OwnerEmptyState icon={MessageSquareWarning} title="No complaints found" />
+            </OwnerCard>
+          )}
+        </div>
+      )}
+
+      {/* Complaint Detail sheet — full info + simple 3-step status progress
+          (Open → In Progress → Resolved). Not a timestamped history log —
+          complaints only track a current status, not a change history, so
+          this reflects where the complaint sits right now rather than
+          fabricating a timeline that doesn't exist in the data. */}
+      {complaintDetail && (() => {
+        const c = complaintDetail
+        const isResolving = resolvingId === c.id
+        const steps = ['open', 'in_progress', 'resolved']
+        const stepIdx = steps.indexOf(c.status)
+        return (
+          <>
+            <div onClick={() => setComplaintDetail(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+            <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+              <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+              </div>
+              <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white flex items-center justify-center shrink-0">
+                  <MessageSquareWarning className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Complaint Details</div>
+                  <div className="font-bold text-owner-fg truncate">{c.issue_type}</div>
+                </div>
+                <OwnerBadge tone={PRIORITY_TONE[c.priority]} className="capitalize shrink-0">{c.priority}</OwnerBadge>
+                <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setComplaintDetail(null)}>
+                  <X />
+                </OwnerIconButton>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                {/* Simple status progress */}
+                <div className="flex items-center gap-1.5">
+                  {steps.map((s, i) => (
+                    <div key={s} className="flex-1 flex items-center gap-1.5">
+                      <div className="flex-1">
+                        <div className={`h-1.5 rounded-full ${i <= stepIdx ? 'bg-owner-primary' : 'bg-owner-surface-hover'}`} />
+                        <div className={`text-[10px] font-semibold mt-1 capitalize ${i <= stepIdx ? 'text-owner-fg' : 'text-owner-muted-subtle'}`}>{s.replace('_', ' ')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {c.description && (
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Description</div>
+                    <div className="text-sm text-owner-fg mt-0.5">{c.description}</div>
                   </div>
-                  {c.description && <p className="text-sm text-owner-muted mb-2">{c.description}</p>}
-                  <div className="flex gap-3 text-xs text-owner-muted-subtle flex-wrap items-center">
-                    {c.tenant && <span className="flex items-center gap-1"><User className="w-3 h-3" /> {c.tenant.name}</span>}
-                    {c.room && <span className="flex items-center gap-1"><DoorOpen className="w-3 h-3" /> Room {c.room.room_number}</span>}
-                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(c.created_at)}</span>
-                    {c.assigned_to && <span className="flex items-center gap-1 text-owner-primary font-semibold"><ArrowRight className="w-3 h-3" /> {c.assigned_to}</span>}
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Tenant</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{c.tenant?.name ?? '—'}</div>
+                  </div>
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Room</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{c.room ? `Room ${c.room.room_number}` : '—'}</div>
+                  </div>
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Raised On</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{formatDate(c.created_at)}</div>
+                  </div>
+                  <div className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Assigned To</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{c.assigned_to || 'Unassigned'}</div>
                   </div>
                 </div>
-                {c.status !== 'resolved' && (
-                  <OwnerButton
+              </div>
+              {c.status !== 'resolved' && (
+                <div className="px-5 py-4 border-t border-owner-border shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                  <button
                     onClick={async () => {
+                      setResolvingId(c.id)
                       await resolveComplaint(c.id)
                       toast.success('Marked resolved!')
                       if (c.tenant?.auth_user_id) {
@@ -110,34 +191,41 @@ export default function ComplaintsPage() {
                           url: '/portal', tag: 'complaint',
                         })
                       }
-                      load()
+                      await load()
+                      setResolvingId(null)
+                      setComplaintDetail(null)
                     }}
-                    variant="secondary" size="sm" icon={<Check className="w-3.5 h-3.5 text-owner-success" />}
-                  >
-                    Resolve
-                  </OwnerButton>
-                )}
-              </div>
-            </OwnerCard>
-          ))}
-          {filtered.length === 0 && (
-            <OwnerCard>
-              <OwnerEmptyState icon={MessageSquareWarning} title="No complaints found" />
-            </OwnerCard>
-          )}
-        </div>
-      )}
+                    disabled={isResolving}
+                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-success hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                    <Check className="w-4 h-4" /> Mark Resolved
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )
+      })()}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Add Complaint</h2>
+        <>
+          <div onClick={() => setModal(false)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white flex items-center justify-center shrink-0">
+                <MessageSquareWarning className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">New Entry</div>
+                <div className="font-bold text-owner-fg">Add Complaint</div>
+              </div>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setModal(false)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {activeId === 'all' && (
                 <OwnerSelect label="Property *" value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}>
                   <option value="">Select Property</option>
@@ -161,12 +249,18 @@ export default function ComplaintsPage() {
               <OwnerTextarea label="Description" rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the issue…" />
               <OwnerInput label="Assign To" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} placeholder="e.g. Plumber Raju" />
             </div>
-            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
-              <OwnerButton onClick={handleAdd} loading={saving} fullWidth>Submit</OwnerButton>
-              <OwnerButton onClick={() => setModal(false)} variant="secondary" fullWidth>Cancel</OwnerButton>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => setModal(false)}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
+                Cancel
+              </button>
+              <button onClick={handleAdd} disabled={saving}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                Submit
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

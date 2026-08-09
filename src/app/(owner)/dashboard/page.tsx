@@ -40,6 +40,15 @@ interface ActivityItem {
   text: string; time: string; icon: React.ElementType; tone: keyof typeof TONE_BG
 }
 
+// Pure presentational helper for the hero card — no data fetching, just
+// reads the local clock to pick a time-appropriate greeting.
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good Morning'
+  if (h < 17) return 'Good Afternoon'
+  return 'Good Evening'
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { activeId, active, properties } = useProperty()
@@ -293,10 +302,16 @@ export default function DashboardPage() {
   if (loading) return (
     <div className="space-y-6">
       <div className="h-7 w-40 rounded-owner-md bg-owner-surface-hover animate-pulse" />
+      <div className="h-32 rounded-owner-2xl bg-owner-surface-hover animate-pulse" />
+      <div className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
+      </div>
+      <div className="h-40 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
+      <div className="h-40 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {Array.from({ length: 9 }).map((_, i) => <div key={i} className="h-28 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
       </div>
-      <div className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 h-52 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
         <div className="h-52 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
@@ -326,6 +341,49 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Hero card — greeting + at-a-glance occupancy, built entirely from
+          the `stats` object already fetched below (no new data/queries) */}
+      {stats && (
+        <div className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-indigo-600 p-5 text-white shadow-owner-md relative overflow-hidden">
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" aria-hidden="true" />
+          <div className="absolute -right-2 -bottom-10 w-24 h-24 rounded-full bg-white/10" aria-hidden="true" />
+          <div className="relative">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-bold">{greeting()} 👋</div>
+                <div className="text-xs text-white/80 mt-0.5">
+                  {activeId === 'all' ? `Across all ${properties.length} properties` : active?.name}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-2xl font-extrabold owner-numeric">{stats.totalBeds > 0 ? Math.round((stats.occupiedBeds / stats.totalBeds) * 100) : 0}%</div>
+                <div className="text-[10px] text-white/70 font-semibold uppercase tracking-wide">Occupancy</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/15">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold owner-numeric">{stats.totalTenants}</div>
+                  <div className="text-[10px] text-white/70">Active Tenants</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <BedDouble className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold owner-numeric">{stats.vacantBeds}</div>
+                  <div className="text-[10px] text-white/70">Vacant Beds</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {properties.length === 0 && (
         <OwnerCard className="bg-owner-info-subtle border-owner-info/25 text-center">
           <div className="text-sm font-bold text-owner-fg">No properties yet</div>
@@ -353,22 +411,6 @@ export default function DashboardPage() {
         </OwnerCard>
       )}
 
-      {/* Stat Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
-          <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
-          <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
-          <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
-          <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
-            trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
-          <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
-          <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
-          <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
-          <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
-        </div>
-      )}
-
       {/* Quick Actions */}
       <OwnerCard>
         <div className="font-bold text-sm text-owner-fg mb-4">Quick Actions</div>
@@ -393,6 +435,86 @@ export default function DashboardPage() {
           ))}
         </div>
       </OwnerCard>
+
+      {/* Pending Rent (date-sorted) */}
+      <OwnerCard>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-bold text-sm text-owner-fg">Pending Rent</div>
+            <div className="text-xs text-owner-muted-subtle">Sorted by due date — oldest first</div>
+          </div>
+          <OwnerBadge tone="primary">{pendingTenants.length} tenants</OwnerBadge>
+        </div>
+        {pendingTenants.length === 0 ? (
+          <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
+        ) : (
+          <div className="space-y-2">
+            {pendingTenants.map(t => (
+              <div key={t.id} className={cn(
+                'flex items-center gap-3 p-3 rounded-owner-lg',
+                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
+              )}>
+                <OwnerAvatar name={t.name} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
+                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
+                    {t.overdueDays}d overdue
+                  </span>
+                </div>
+                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="p-2 bg-owner-success/15 rounded-owner-lg hover:bg-owner-success/25 transition-colors shrink-0" title="WhatsApp Reminder">
+                  <svg className="w-4 h-4 text-owner-success" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+                  </svg>
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </OwnerCard>
+
+      {/* Recent Activities */}
+      <OwnerCard>
+        <h2 className="text-sm font-bold text-owner-fg mb-1">Recent Activities</h2>
+        <p className="text-xs text-owner-muted-subtle mb-3">Latest tenant, payment, expense, complaint and request events — across all your properties</p>
+        {activities.length === 0 ? (
+          <OwnerEmptyState icon={Clock} title="No recent activity" className="py-8" />
+        ) : (
+          <div className="divide-y divide-owner-border">
+            {activities.map(a => (
+              <div key={a.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <div className={cn('w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0', TONE_BG[a.tone])}>
+                  <a.icon className={cn('w-4 h-4', TONE_FG[a.tone])} />
+                </div>
+                <div className="flex-1 min-w-0 text-sm text-owner-fg truncate">{a.text}</div>
+                <div className="text-xs text-owner-muted-subtle shrink-0">{formatDate(a.time)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </OwnerCard>
+
+      {/* Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+          <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
+          <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
+          <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
+          <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
+          <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
+            trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
+          <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
+          <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
+          <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
+          <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -542,70 +664,6 @@ export default function DashboardPage() {
           </div>
         </OwnerCard>
       </div>
-
-      {/* Pending Rent (date-sorted) */}
-      <OwnerCard>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="font-bold text-sm text-owner-fg">Pending Rent</div>
-            <div className="text-xs text-owner-muted-subtle">Sorted by due date — oldest first</div>
-          </div>
-          <OwnerBadge tone="primary">{pendingTenants.length} tenants</OwnerBadge>
-        </div>
-        {pendingTenants.length === 0 ? (
-          <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
-        ) : (
-          <div className="space-y-2">
-            {pendingTenants.map(t => (
-              <div key={t.id} className={cn(
-                'flex items-center gap-3 p-3 rounded-owner-lg',
-                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
-              )}>
-                <OwnerAvatar name={t.name} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
-                  <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
-                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
-                    {t.overdueDays}d overdue
-                  </span>
-                </div>
-                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
-                  target="_blank" rel="noreferrer"
-                  className="p-2 bg-owner-success/15 rounded-owner-lg hover:bg-owner-success/25 transition-colors shrink-0" title="WhatsApp Reminder">
-                  <svg className="w-4 h-4 text-owner-success" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
-                  </svg>
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </OwnerCard>
-
-      {/* Recent Activities */}
-      <OwnerCard>
-        <h2 className="text-sm font-bold text-owner-fg mb-1">Recent Activities</h2>
-        <p className="text-xs text-owner-muted-subtle mb-3">Latest tenant, payment, expense, complaint and request events — across all your properties</p>
-        {activities.length === 0 ? (
-          <OwnerEmptyState icon={Clock} title="No recent activity" className="py-8" />
-        ) : (
-          <div className="divide-y divide-owner-border">
-            {activities.map(a => (
-              <div key={a.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                <div className={cn('w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0', TONE_BG[a.tone])}>
-                  <a.icon className={cn('w-4 h-4', TONE_FG[a.tone])} />
-                </div>
-                <div className="flex-1 min-w-0 text-sm text-owner-fg truncate">{a.text}</div>
-                <div className="text-xs text-owner-muted-subtle shrink-0">{formatDate(a.time)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </OwnerCard>
 
       {/* Renew Agreement Modal */}
       {renewModal && (

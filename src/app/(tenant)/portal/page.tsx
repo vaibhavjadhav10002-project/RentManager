@@ -688,7 +688,7 @@ export default function TenantPortal() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-gray-100 px-4 lg:px-8 h-16 flex items-center justify-between sticky top-0 z-20">
+        <header className="bg-white border-b border-gray-100 px-4 lg:px-8 min-h-16 native-safe-top flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
             <div className="hidden sm:block">
@@ -1038,15 +1038,36 @@ export default function TenantPortal() {
                 {payments.length === 0 ? (
                   <div className="text-center py-10 text-sm text-gray-400">No payments yet</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <>
+                    {/* Mobile: stacked card list, no horizontal scroll */}
+                    <div className="sm:hidden divide-y divide-gray-50">
+                      {payments.slice(0, 5).map(p => (
+                        <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">{p.for_month ?? '—'}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)}</div>
+                            <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {p.approval_status.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
+                            {p.approval_status === 'approved' && (
+                              <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Desktop/tablet: full table */}
+                    <table className="w-full text-sm hidden sm:table">
                       <thead>
                         <tr className="text-left text-xs text-gray-400 border-b border-gray-50">
                           <th className="px-5 py-2.5 font-semibold">Date</th>
                           <th className="px-5 py-2.5 font-semibold">Month</th>
                           <th className="px-5 py-2.5 font-semibold">Amount</th>
                           <th className="px-5 py-2.5 font-semibold">Status</th>
-                          <th className="px-5 py-2.5 font-semibold hidden sm:table-cell">Transaction ID</th>
+                          <th className="px-5 py-2.5 font-semibold">Transaction ID</th>
                           <th className="px-5 py-2.5 font-semibold text-right">Receipt</th>
                         </tr>
                       </thead>
@@ -1061,7 +1082,7 @@ export default function TenantPortal() {
                                 {p.approval_status.replace('_', ' ')}
                               </span>
                             </td>
-                            <td className="px-5 py-3 text-xs text-gray-400 font-mono hidden sm:table-cell">#{p.id.slice(0, 8).toUpperCase()}</td>
+                            <td className="px-5 py-3 text-xs text-gray-400 font-mono">#{p.id.slice(0, 8).toUpperCase()}</td>
                             <td className="px-5 py-3 text-right">
                               {p.approval_status === 'approved' ? (
                                 <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
@@ -1071,7 +1092,7 @@ export default function TenantPortal() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1387,8 +1408,44 @@ export default function TenantPortal() {
                 {payments.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 text-sm">No payments yet</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <>
+                    {/* Mobile: stacked card list, no horizontal scroll */}
+                    <div className="sm:hidden divide-y divide-gray-50">
+                      {payments.map(p => (
+                        <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 capitalize">{p.type} · {p.for_month ?? '—'}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)}</div>
+                            <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {p.approval_status.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 relative">
+                            <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
+                            <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg transition" aria-label="Row options">
+                              <MoreVertical className="w-4 h-4 text-gray-400" />
+                            </button>
+                            {rowMenuOpen === p.id && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setRowMenuOpen(null)} />
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                  {p.approval_status === 'approved' ? (
+                                    <button onClick={() => { downloadReceipt(p); setRowMenuOpen(null) }}
+                                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                      <Download className="w-3.5 h-3.5" /> Download Receipt
+                                    </button>
+                                  ) : (
+                                    <div className="px-4 py-2.5 text-xs text-gray-400">Awaiting owner approval</div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Desktop/tablet: full table */}
+                    <table className="w-full text-sm hidden sm:table">
                       <thead>
                         <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
                           <th className="px-5 py-3 font-semibold">Date</th>
@@ -1437,7 +1494,7 @@ export default function TenantPortal() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1483,7 +1540,7 @@ export default function TenantPortal() {
                 <p className="text-sm text-gray-500">Every leave, extension, move-out and maintenance request in one place.</p>
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="flex flex-wrap gap-2">
                 {[['all', 'All'], ['leave', 'Leave'], ['extension', 'Extension'], ['moveout', 'Move-Out'], ['maintenance', 'Maintenance'], ['profile', 'Profile Update']].map(([v, l]) => (
                   <button key={v} onClick={() => setRequestTypeFilter(v as any)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${requestTypeFilter === v ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>

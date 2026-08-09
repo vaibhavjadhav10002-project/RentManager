@@ -32,3 +32,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Android release signing — NEVER commit these (Release Automation)
+# The real keystore only ever exists as the ANDROID_KEYSTORE_BASE64 GitHub
+# Secret and a temp file on the CI runner; it must never touch git history.
+*.keystore
+*.jks
+*.p12
+android/**/keystore.properties
+android/app/release
+keystore-base64.txt
+*.keystore.base64
+*.keystore.b64
+
+# CI-generated build artifacts (not source)
+android/app/build/outputs/apk/
+android/app/build/outputs/bundle/
+
+.vercel
+.env*

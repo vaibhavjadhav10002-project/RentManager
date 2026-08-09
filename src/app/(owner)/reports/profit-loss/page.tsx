@@ -107,33 +107,33 @@ export default function ProfitLossReportPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
       <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading profit &amp; loss data…
     </div>
   )
 
   return (
     <div className="space-y-6">
-      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-gray-700 transition">
+      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-owner-muted hover:text-owner-fg transition">
         <ChevronLeft className="w-4 h-4" /> Reports Dashboard
       </Link>
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Profit &amp; Loss Report</h1>
-          <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name}</p>
+          <h1 className="text-xl font-extrabold text-owner-fg">Profit &amp; Loss Report</h1>
+          <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
-        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
+        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Excel
         </button>
       </div>
 
       {/* Range selector */}
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 flex-wrap">
         {RANGE_OPTIONS.map(r => (
           <button key={r.value} onClick={() => setRangeMonths(r.value)}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${
-              rangeMonths === r.value ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition ${
+              rangeMonths === r.value ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'
             }`}>
             {r.label}
           </button>
@@ -142,30 +142,30 @@ export default function ProfitLossReportPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Income</div>
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
+          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Total Income</div>
           <div className="text-2xl font-extrabold mt-1 text-green-600">{formatINR(totals.income)}</div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Expenses</div>
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
+          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Total Expenses</div>
           <div className="text-2xl font-extrabold mt-1 text-red-600">{formatINR(totals.expenses)}</div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Net Profit</div>
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
+          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Net Profit</div>
           <div className={`text-2xl font-extrabold mt-1 ${totals.profit >= 0 ? 'text-purple-600' : 'text-red-600'}`}>{formatINR(totals.profit)}</div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Profit Margin</div>
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
+          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Profit Margin</div>
           <div className={`text-2xl font-extrabold mt-1 ${totals.margin >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{totals.margin}%</div>
         </div>
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="font-bold text-sm text-gray-900 mb-1">Income vs. Expenses</div>
-        <div className="text-xs text-gray-400 mb-4">Last {rangeMonths} months</div>
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
+        <div className="font-bold text-sm text-owner-fg mb-1">Income vs. Expenses</div>
+        <div className="text-xs text-owner-muted-subtle mb-4">Last {rangeMonths} months</div>
         {visible.every(r => r.income === 0 && r.expenses === 0) ? (
-          <div className="text-center py-12 text-gray-400 text-sm">No income or expense records yet for this period</div>
+          <div className="text-center py-12 text-owner-muted-subtle text-sm">No income or expense records yet for this period</div>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={visible} barGap={2}>
@@ -182,18 +182,36 @@ export default function ProfitLossReportPage() {
       </div>
 
       {/* Monthly table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 font-bold text-sm text-gray-900 border-b border-gray-100">Month-by-Month</div>
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs overflow-hidden">
+        <div className="px-5 py-4 font-bold text-sm text-owner-fg border-b border-owner-border">Month-by-Month</div>
         {visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+          <div className="flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
             <Scale className="w-8 h-8" />
             <div className="text-sm">No data for this period</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <>
+            {/* Mobile: stacked card list, no horizontal scroll */}
+            <div className="sm:hidden divide-y divide-owner-border">
+              {visible.map(r => (
+                <div key={r.key} className="px-5 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-owner-fg">{r.month}</div>
+                    <div className={`text-sm font-semibold ${r.profit >= 0 ? 'text-owner-fg' : 'text-red-600'}`}>
+                      {formatINR(r.profit)} <span className={`text-xs font-normal ${r.margin >= 0 ? 'text-owner-muted' : 'text-red-500'}`}>({r.margin}%)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1 text-xs">
+                    <span className="text-green-600">Income {formatINR(r.income)}</span>
+                    <span className="text-red-600">Expenses {formatINR(r.expenses)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop/tablet: full table */}
+            <table className="w-full text-sm hidden sm:table">
               <thead>
-                <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                <tr className="text-left text-xs text-owner-muted-subtle uppercase tracking-wide border-b border-owner-border">
                   <th className="px-5 py-3 font-semibold">Month</th>
                   <th className="px-5 py-3 font-semibold text-right">Income</th>
                   <th className="px-5 py-3 font-semibold text-right">Expenses</th>
@@ -203,17 +221,17 @@ export default function ProfitLossReportPage() {
               </thead>
               <tbody>
                 {visible.map(r => (
-                  <tr key={r.key} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                    <td className="px-5 py-3 font-medium text-gray-800">{r.month}</td>
+                  <tr key={r.key} className="border-b border-owner-border last:border-0 hover:bg-owner-surface-hover/50">
+                    <td className="px-5 py-3 font-medium text-owner-fg">{r.month}</td>
                     <td className="px-5 py-3 text-right text-green-600">{formatINR(r.income)}</td>
                     <td className="px-5 py-3 text-right text-red-600">{formatINR(r.expenses)}</td>
-                    <td className={`px-5 py-3 text-right font-semibold ${r.profit >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatINR(r.profit)}</td>
-                    <td className={`px-5 py-3 text-right ${r.margin >= 0 ? 'text-gray-500' : 'text-red-500'}`}>{r.margin}%</td>
+                    <td className={`px-5 py-3 text-right font-semibold ${r.profit >= 0 ? 'text-owner-fg' : 'text-red-600'}`}>{formatINR(r.profit)}</td>
+                    <td className={`px-5 py-3 text-right ${r.margin >= 0 ? 'text-owner-muted' : 'text-red-500'}`}>{r.margin}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </>
         )}
       </div>
     </div>
