@@ -22,13 +22,13 @@ import {
   AlertCircle, LayoutDashboard, ShieldCheck, User as UserIcon, Bell,
   ChevronRight, Headset, ChevronDown, MoreVertical, Send, HelpCircle,
   Wallet, Wrench, Users2, CalendarClock, Eye, Megaphone, X,
-  ChevronLeft, Paperclip, Sun, Moon,
+  ChevronLeft, Paperclip, Sun, Moon, Zap, Building2, LayoutGrid, FolderOpen,
 } from 'lucide-react'
-import { PieChart, Pie, Cell } from 'recharts'
 import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
 import OnboardingWizard from '@/components/tenant/OnboardingWizard'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
+import { Card, Badge, Button, SectionHeader, EmptyState } from '@/components/tenant/ui'
 
 type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices' | 'requests'
 
@@ -129,6 +129,8 @@ export default function TenantPortal() {
   }, [router])
 
   const thisMonth = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+  const greetingHour = new Date().getHours()
+  const greeting = greetingHour < 12 ? 'Good Morning' : greetingHour < 17 ? 'Good Afternoon' : 'Good Evening'
   const nextDueDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date(tenant?.joining_date ?? Date.now()).getDate())
   const daysLeft = tenant ? Math.ceil((nextDueDate.getTime() - Date.now()) / 86400000) : 0
   const depositDue = tenant ? tenant.deposit_amount - tenant.deposit_paid : 0
@@ -306,6 +308,20 @@ export default function TenantPortal() {
     + (depositDue > 0 && !depositClaimed ? depositDue : 0)
     + pendingBillsList.reduce((s, b) => s + b.amount, 0)
   const pendingItemCount = (totalRentPending > 0 && !claimed ? 1 : 0) + (depositDue > 0 && !depositClaimed ? 1 : 0) + pendingBillsList.length
+
+  // Dashboard redesign (T2): rent + electricity, merged into one due-date-sorted list
+  const upcomingDues = [
+    ...(totalRentPending > 0 && tenant?.status === 'active' ? [{
+      key: 'rent', icon: CalendarClock, title: `Rent — ${thisMonth}`,
+      due: formatDate(nextDueDate.toISOString()), amount: totalRentPending,
+    }] : []),
+    ...pendingBillsList.map(b => ({
+      key: `bill-${b.id}`, icon: Zap, title: `Electricity Bill — ${b.for_month}`,
+      due: b.due_date ? formatDate(b.due_date) : 'Date not set', amount: b.amount,
+    })),
+  ]
+  const latestBill = pendingBillsList[0] ?? bills[0]
+  const unreadNoticeCount = allNotices.filter(n => !n.isRead).length
 
   async function handlePayAll() {
     if (tenant.status !== 'active') return
@@ -766,49 +782,174 @@ export default function TenantPortal() {
           </div>
         </header>
 
-        <main id="main-content" className="flex-1 p-4 lg:p-8 max-w-6xl w-full mx-auto">
+        <main id="main-content" className="flex-1 p-4 pb-24 lg:p-8 max-w-6xl w-full mx-auto">
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
               <EnableNotificationsBanner />
-              <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Tenant Dashboard</h1>
-                <p className="text-sm text-gray-500">Welcome back, <span className="font-semibold text-gray-700">{tenant.name}</span> 👋</p>
+
+              {/* Welcome banner */}
+              <div className="relative overflow-hidden rounded-tenant-2xl bg-tenant-primary/10 border border-tenant-primary/15 p-5">
+                <div className="relative z-10 max-w-[75%]">
+                  <h1 className="font-tenant-display text-lg font-extrabold text-tenant-fg">
+                    {greeting}, {tenant.name.split(' ')[0]} 👋
+                  </h1>
+                  <p className="text-sm text-tenant-muted mt-1">Welcome back! Here&apos;s what&apos;s happening.</p>
+                </div>
+                <Building2 className="absolute -right-4 -bottom-5 w-28 h-28 text-tenant-primary/15 pointer-events-none" strokeWidth={1} />
               </div>
 
-              {/* Quick Actions */}
-              {tenant.status === 'active' && (
-                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-                  {[
-                    { label: 'Pay Rent', icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-50', onClick: () => openPay('rent') },
-                    { label: 'Maintenance', icon: Wrench, color: 'text-orange-600', bg: 'bg-orange-50', onClick: () => setComplaintModal(true) },
-                    { label: 'Message', icon: MessageCircle, color: 'text-blue-600', bg: 'bg-blue-50', onClick: openMessagesTab },
-                    { label: 'Request Leave', icon: Users2, color: 'text-purple-600', bg: 'bg-purple-50', onClick: () => setLeaveModal(true) },
-                    { label: 'Agreement', icon: Download, color: 'text-green-600', bg: 'bg-green-50', onClick: downloadAgreement },
-                    { label: 'My Requests', icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-50', onClick: () => setTab('requests') },
-                  ].map(a => (
-                    <button key={a.label} onClick={a.onClick}
-                      className="flex flex-col items-center gap-2 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.bg}`}>
-                        <a.icon className={`w-5 h-5 ${a.color}`} />
+              {agreementDaysLeft !== null && agreementDaysLeft <= 14 && (agreement.status === 'signed' || agreement.status === 'active') && (
+                <Card variant="default" className={agreementDaysLeft < 0 ? 'bg-tenant-danger-subtle border-tenant-danger/20' : 'bg-tenant-warning-subtle border-tenant-warning/20'}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">📄</span>
+                    <div className="flex-1">
+                      <div className={`text-sm font-bold ${agreementDaysLeft < 0 ? 'text-tenant-danger' : 'text-tenant-warning'}`}>
+                        {agreementDaysLeft < 0 ? 'Your rent agreement has expired' : `Your rent agreement expires in ${agreementDaysLeft}d`}
                       </div>
-                      <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{a.label}</span>
+                      <div className={`text-xs mt-0.5 ${agreementDaysLeft < 0 ? 'text-tenant-danger/80' : 'text-tenant-warning/80'}`}>Contact your owner to renew it.</div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Overview */}
+              <div>
+                <SectionHeader title="Overview" />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <Card className="text-center">
+                    <div className="w-11 h-11 rounded-tenant-xl mx-auto mb-2.5 flex items-center justify-center bg-tenant-primary/15">
+                      <CalendarClock className="w-5 h-5 text-tenant-primary" />
+                    </div>
+                    <div className="text-xs text-tenant-muted">Total Rent (Monthly)</div>
+                    <div className="text-lg font-extrabold text-tenant-fg mt-1 tenant-numeric">{formatINR(tenant.monthly_rent)}</div>
+                    <div className="text-[11px] text-tenant-muted-subtle mt-0.5">Due on {formatDate(nextDueDate.toISOString())}</div>
+                  </Card>
+                  <Card className="text-center">
+                    <div className="w-11 h-11 rounded-tenant-xl mx-auto mb-2.5 flex items-center justify-center bg-tenant-danger/15">
+                      <AlertCircle className="w-5 h-5 text-tenant-danger" />
+                    </div>
+                    <div className="text-xs text-tenant-muted">Pending Rent</div>
+                    <div className="text-lg font-extrabold text-tenant-fg mt-1 tenant-numeric">{formatINR(totalRentPending)}</div>
+                    <div className={`text-[11px] mt-0.5 ${thisMonthPaid ? 'text-tenant-success' : 'text-tenant-danger'}`}>{thisMonthPaid ? 'All paid' : '1 month pending'}</div>
+                  </Card>
+                  <Card className="text-center">
+                    <div className="w-11 h-11 rounded-tenant-xl mx-auto mb-2.5 flex items-center justify-center bg-tenant-success/15">
+                      <ShieldCheck className="w-5 h-5 text-tenant-success" />
+                    </div>
+                    <div className="text-xs text-tenant-muted">Deposit Amount</div>
+                    <div className="text-lg font-extrabold text-tenant-fg mt-1 tenant-numeric">{formatINR(tenant.deposit_amount)}</div>
+                    <div className={`text-[11px] mt-0.5 ${depositDue <= 0 ? 'text-tenant-success' : 'text-tenant-warning'}`}>{depositDue <= 0 ? 'Paid' : 'Pending'}</div>
+                  </Card>
+                  <Card className="text-center">
+                    <div className="w-11 h-11 rounded-tenant-xl mx-auto mb-2.5 flex items-center justify-center bg-tenant-warning/15">
+                      <Zap className="w-5 h-5 text-tenant-warning" />
+                    </div>
+                    <div className="text-xs text-tenant-muted">Electricity Bill</div>
+                    <div className="text-lg font-extrabold text-tenant-fg mt-1 tenant-numeric">{latestBill ? formatINR(latestBill.amount) : '—'}</div>
+                    <div className="text-[11px] text-tenant-muted-subtle mt-0.5">{latestBill ? latestBill.for_month : 'No bills yet'}</div>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Rent Overview with progress bar */}
+              <Card padding="lg">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="text-[15px] font-bold text-tenant-fg">
+                    Rent Overview <span className="text-tenant-primary">— {thisMonth}</span>
+                  </div>
+                  <button onClick={() => setTab('rent')} className="flex items-center gap-0.5 text-xs font-semibold text-tenant-primary shrink-0">
+                    View Details <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div>
+                    <div className="text-xs text-tenant-muted">Rent Amount</div>
+                    <div className="text-base font-extrabold text-tenant-fg tenant-numeric mt-0.5">{formatINR(referenceMonth?.amount ?? tenant.monthly_rent)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-tenant-muted">Paid Amount</div>
+                    <div className="text-base font-extrabold text-tenant-success tenant-numeric mt-0.5">{formatINR(donutPaid)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-tenant-muted">Pending Amount</div>
+                    <div className="text-base font-extrabold text-tenant-danger tenant-numeric mt-0.5">{formatINR(donutPending)}</div>
+                  </div>
+                </div>
+                <div className="h-2 rounded-tenant-full bg-tenant-danger/20 overflow-hidden mb-4">
+                  <div className="h-full bg-tenant-success rounded-tenant-full transition-all" style={{ width: `${Math.min(100, donutPct)}%` }} />
+                </div>
+                {!thisMonthPaid && tenant.status === 'active' ? (
+                  <div className="flex items-center justify-between gap-3 flex-wrap bg-tenant-danger-subtle rounded-tenant-xl px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs text-tenant-danger font-semibold">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      Rent is pending. Please pay before {formatDate(nextDueDate.toISOString())}.
+                    </div>
+                    <Button size="sm" onClick={() => openPay('rent')}>Pay Rent</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-tenant-success text-sm font-semibold">
+                    <CheckCircle className="w-4 h-4" /> All rent paid up!
+                  </div>
+                )}
+              </Card>
+
+              {/* Upcoming Dues */}
+              <div>
+                <SectionHeader title="Upcoming Dues" action={upcomingDues.length > 0 && <button onClick={() => setTab('rent')}>View All</button>} />
+                <Card padding="none">
+                  {upcomingDues.length === 0 ? (
+                    <EmptyState icon={CheckCircle} title="No dues right now" subtitle="You're all caught up!" className="py-10" />
+                  ) : (
+                    <div className="divide-y divide-tenant-border">
+                      {upcomingDues.map(d => (
+                        <button key={d.key} onClick={() => setTab('rent')}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-tenant-surface-hover transition">
+                          <div className="w-10 h-10 rounded-tenant-xl bg-tenant-warning/15 flex items-center justify-center flex-shrink-0">
+                            <d.icon className="w-4.5 h-4.5 text-tenant-warning" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-tenant-fg truncate">{d.title}</div>
+                            <div className="text-xs text-tenant-muted">Due on {d.due}</div>
+                          </div>
+                          <div className="text-sm font-bold text-tenant-danger tenant-numeric shrink-0">{formatINR(d.amount)}</div>
+                          <ChevronRight className="w-4 h-4 text-tenant-muted-subtle flex-shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {/* Module shortcuts */}
+              <div>
+                <SectionHeader title="Quick Access" />
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { label: 'Rent & Payments', icon: Wallet, bg: 'bg-tenant-primary/15', color: 'text-tenant-primary', onClick: () => setTab('rent') },
+                    { label: 'Deposit', icon: ShieldCheck, bg: 'bg-tenant-success/15', color: 'text-tenant-success', onClick: () => setTab('rent') },
+                    { label: 'Electricity Bill', icon: Zap, bg: 'bg-tenant-warning/15', color: 'text-tenant-warning', onClick: () => setTab('rent') },
+                    { label: 'Documents', icon: FolderOpen, bg: 'bg-tenant-info/15', color: 'text-tenant-info', onClick: () => setTab('documents') },
+                    { label: 'Complaints', icon: Wrench, bg: 'bg-tenant-danger/15', color: 'text-tenant-danger', onClick: () => setTab('maintenance'), badge: openComplaints },
+                    { label: 'Notices', icon: Megaphone, bg: 'bg-tenant-purple/15', color: 'text-tenant-purple', onClick: () => setTab('notices'), badge: unreadNoticeCount },
+                    { label: 'My Profile', icon: UserIcon, bg: 'bg-tenant-teal/15', color: 'text-tenant-teal', onClick: () => setTab('tenancy') },
+                    { label: 'My Room', icon: Users2, bg: 'bg-tenant-primary/15', color: 'text-tenant-primary', onClick: () => setTab('tenancy') },
+                  ].map(m => (
+                    <button key={m.label} onClick={m.onClick}
+                      className="relative flex flex-col items-center gap-2 bg-tenant-surface border border-tenant-border rounded-tenant-xl p-3 active:scale-[0.97] transition">
+                      {m.badge ? (
+                        <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 bg-tenant-danger rounded-tenant-full text-[9px] text-white font-bold flex items-center justify-center">
+                          {m.badge > 9 ? '9+' : m.badge}
+                        </span>
+                      ) : null}
+                      <div className={`w-11 h-11 rounded-tenant-xl flex items-center justify-center ${m.bg}`}>
+                        <m.icon className={`w-5 h-5 ${m.color}`} />
+                      </div>
+                      <span className="text-[11px] font-semibold text-tenant-fg text-center leading-tight">{m.label}</span>
                     </button>
                   ))}
                 </div>
-              )}
-
-              {agreementDaysLeft !== null && agreementDaysLeft <= 14 && (agreement.status === 'signed' || agreement.status === 'active') && (
-                <div className={`rounded-2xl p-4 border flex items-center gap-3 ${agreementDaysLeft < 0 ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
-                  <span className="text-xl">📄</span>
-                  <div className="flex-1">
-                    <div className={`text-sm font-bold ${agreementDaysLeft < 0 ? 'text-red-700' : 'text-amber-700'}`}>
-                      {agreementDaysLeft < 0 ? 'Your rent agreement has expired' : `Your rent agreement expires in ${agreementDaysLeft}d`}
-                    </div>
-                    <div className={`text-xs mt-0.5 ${agreementDaysLeft < 0 ? 'text-red-600' : 'text-amber-600'}`}>Contact your owner to renew it.</div>
-                  </div>
-                </div>
-              )}
+              </div>
 
               {/* Upcoming birthdays of co-tenants at the same PG */}
               {birthdays.length > 0 && (() => {
@@ -823,278 +964,27 @@ export default function TenantPortal() {
                 }).sort((a, b) => a.next.getTime() - b.next.getTime()).slice(0, 5)
 
                 return (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <Card padding="none">
+                    <div className="px-4 py-3 border-b border-tenant-border flex items-center gap-2">
                       <span className="text-base">🎂</span>
-                      <span className="font-bold text-sm text-gray-900">Upcoming Birthdays</span>
+                      <span className="font-bold text-sm text-tenant-fg">Upcoming Birthdays</span>
                     </div>
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-tenant-border">
                       {withNextOccurrence.map((b, i) => {
                         const isToday = b.next.toDateString() === today.toDateString()
                         return (
                           <div key={i} className="px-4 py-2.5 flex items-center justify-between">
-                            <span className="text-sm text-gray-800">{b.name}{isToday ? ' 🎉' : ''}</span>
-                            <span className={`text-xs font-semibold ${isToday ? 'text-pink-600' : 'text-gray-400'}`}>
+                            <span className="text-sm text-tenant-fg">{b.name}{isToday ? ' 🎉' : ''}</span>
+                            <span className={`text-xs font-semibold ${isToday ? 'text-pink-500' : 'text-tenant-muted-subtle'}`}>
                               {isToday ? 'Today!' : b.next.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                             </span>
                           </div>
                         )
                       })}
                     </div>
-                  </div>
+                  </Card>
                 )
               })()}
-
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-semibold text-gray-500">Total Rent</div>
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center"><Wallet className="w-4 h-4 text-indigo-600" /></div>
-                  </div>
-                  <div className="text-2xl font-extrabold text-gray-900">{formatINR(tenant.monthly_rent)}</div>
-                  <div className="text-xs text-gray-400 mt-1">Monthly Rent</div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-semibold text-gray-500">Paid Amount</div>
-                    <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><Download className="w-4 h-4 text-green-600" /></div>
-                  </div>
-                  <div className="text-2xl font-extrabold text-green-600">{formatINR(donutPaid)}</div>
-                  <div className="text-xs text-gray-400 mt-1">{referenceMonth?.label ?? thisMonth}</div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-semibold text-gray-500">Pending Rent</div>
-                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-orange-500" /></div>
-                  </div>
-                  <div className="text-2xl font-extrabold text-red-600">{formatINR(totalRentPending)}</div>
-                  <div className="text-xs text-gray-400 mt-1">Due Amount</div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-semibold text-gray-500">Due Date</div>
-                    <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center"><CalendarClock className="w-4 h-4 text-red-500" /></div>
-                  </div>
-                  <div className="text-lg font-extrabold text-gray-900">{formatDate(nextDueDate.toISOString())}</div>
-                  <div className={`text-xs mt-1 font-semibold ${daysLeft <= 3 ? 'text-red-500' : 'text-gray-400'}`}>
-                    {thisMonthPaid ? 'All caught up' : daysLeft > 0 ? `${daysLeft} Days Left` : 'Overdue'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Pay All Now banner */}
-              {pendingItemCount > 1 && tenant.status === 'active' && (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2.5 text-sm text-indigo-800">
-                    <Clock className="w-4 h-4 flex-shrink-0" />
-                    You have {pendingItemCount} pending payments. <span className="font-bold">Pay All: {formatINR(totalDueAll)}</span>
-                  </div>
-                  <button onClick={handlePayAll} disabled={saving} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition disabled:opacity-50 flex items-center gap-2">
-                    {saving && <Loader2 className="w-4 h-4 animate-spin" />} Pay All Now
-                  </button>
-                </div>
-              )}
-
-              {/* Bills strip (electricity etc, if any) */}
-              {bills.filter(b => b.status === 'pending').length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-2">
-                  <div className="font-bold text-sm text-gray-900 mb-1">Other Bills Due</div>
-                  {bills.filter(b => b.status === 'pending').map(b => (
-                    <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0"><AlertCircle className="w-4 h-4 text-yellow-600" /></div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900">{b.bill_type} — {b.for_month}</div>
-                          <div className="text-xs text-gray-400">{b.due_date ? `Due ${formatDate(b.due_date)} · ` : ''}{formatINR(b.amount)}</div>
-                        </div>
-                      </div>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        {tenant.property?.upi_id && (
-                          <UpiPayButtons compact upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={b.amount} note={`${b.bill_type} - ${tenant.name}`} />
-                        )}
-                        <button onClick={() => handlePayBill(b.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">Pay Now</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Rent Overview donut */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="font-bold text-sm text-gray-900 mb-4">Rent Overview</div>
-                  <div className="flex items-center gap-6">
-                    <div className="relative w-32 h-32 flex-shrink-0">
-                      <PieChart width={128} height={128}>
-                        <Pie data={[{ value: donutPaid || 0.0001 }, { value: donutPending }]} dataKey="value"
-                          innerRadius={44} outerRadius={62} startAngle={90} endAngle={-270} stroke="none">
-                          <Cell fill="#4f46e5" />
-                          <Cell fill="#e0e7ff" />
-                        </Pie>
-                      </PieChart>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <div className="text-lg font-extrabold text-gray-900">{donutPct}%</div>
-                        <div className="text-[10px] text-gray-400">Paid</div>
-                      </div>
-                    </div>
-                    <div className="space-y-3 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 flex-shrink-0" />
-                        <div>
-                          <div className="text-xs text-gray-500">Paid Amount</div>
-                          <div className="text-sm font-bold text-gray-900">{formatINR(donutPaid)}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-100 flex-shrink-0" />
-                        <div>
-                          <div className="text-xs text-gray-500">Pending Amount</div>
-                          <div className="text-sm font-bold text-gray-900">{formatINR(donutPending)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-gray-50 text-xs text-gray-500 flex items-center gap-1.5">
-                    <CalendarClock className="w-3.5 h-3.5" /> Due Date: <span className="font-semibold text-gray-900">{formatDate(nextDueDate.toISOString())}</span>
-                  </div>
-                </div>
-
-                {/* Pay Rent panel */}
-                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100 p-5 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="font-bold text-sm text-gray-900 mb-1">Pay Rent</div>
-                    {totalRentPending > 0 ? (
-                      <>
-                        <p className="text-xs text-gray-500">You have pending rent of</p>
-                        <div className="text-2xl font-extrabold text-gray-900 mt-1">{formatINR(totalRentPending)}</div>
-                        <div className="text-xs text-gray-500 mt-2">Due Date: <span className="font-semibold text-red-600">{formatDate(nextDueDate.toISOString())}</span></div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-2 mt-2 text-green-700">
-                        <CheckCircle className="w-5 h-5" />
-                        <span className="text-sm font-semibold">All rent paid up!</span>
-                      </div>
-                    )}
-                  </div>
-                  {totalRentPending > 0 && tenant.status === 'active' && (
-                    <button onClick={() => openPay('rent')} className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
-                      Pay Rent Now
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Mini cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><ShieldCheck className="w-4 h-4 text-green-600" /></div>
-                    <div className="font-bold text-sm text-gray-900">Security Deposit</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-extrabold text-gray-900">{formatINR(tenant.deposit_amount)}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${depositDue <= 0 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                      {depositDue <= 0 ? 'Paid' : 'Pending'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">Will be refunded after tenancy end.</div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500" /></div>
-                    <div className="font-bold text-sm text-gray-900">Upcoming Due</div>
-                  </div>
-                  <div className="text-lg font-extrabold text-gray-900">{formatINR(totalRentPending > 0 ? payAmountFor('rent') : tenant.monthly_rent)}</div>
-                  <div className="text-xs text-orange-600 font-semibold mt-1">Due on {formatDate(nextDueDate.toISOString())}</div>
-                  <div className="text-xs text-gray-400">{daysLeft > 0 ? `${daysLeft} days remaining` : 'Overdue'}</div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><FileText className="w-4 h-4 text-blue-600" /></div>
-                    <div className="font-bold text-sm text-gray-900">Recent Payment</div>
-                  </div>
-                  {recentPayment ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-extrabold text-gray-900">{formatINR(recentPayment.amount_received)}</span>
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Paid</span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">Paid on {formatDate(recentPayment.payment_date)}</div>
-                      <div className="text-xs text-gray-400">Txn #{recentPayment.id.slice(0, 8).toUpperCase()}</div>
-                    </>
-                  ) : (
-                    <div className="text-xs text-gray-400">No payments yet</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Payment History table (recent) */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-                  <div className="font-bold text-sm text-gray-900">Payment History</div>
-                  <button onClick={() => setTab('history')} className="text-xs font-semibold text-indigo-600 hover:underline">View All</button>
-                </div>
-                {payments.length === 0 ? (
-                  <div className="text-center py-10 text-sm text-gray-400">No payments yet</div>
-                ) : (
-                  <>
-                    {/* Mobile: stacked card list, no horizontal scroll */}
-                    <div className="sm:hidden divide-y divide-gray-50">
-                      {payments.slice(0, 5).map(p => (
-                        <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">{p.for_month ?? '—'}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)}</div>
-                            <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                              {p.approval_status.replace('_', ' ')}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
-                            {p.approval_status === 'approved' && (
-                              <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Desktop/tablet: full table */}
-                    <table className="w-full text-sm hidden sm:table">
-                      <thead>
-                        <tr className="text-left text-xs text-gray-400 border-b border-gray-50">
-                          <th className="px-5 py-2.5 font-semibold">Date</th>
-                          <th className="px-5 py-2.5 font-semibold">Month</th>
-                          <th className="px-5 py-2.5 font-semibold">Amount</th>
-                          <th className="px-5 py-2.5 font-semibold">Status</th>
-                          <th className="px-5 py-2.5 font-semibold">Transaction ID</th>
-                          <th className="px-5 py-2.5 font-semibold text-right">Receipt</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {payments.slice(0, 5).map(p => (
-                          <tr key={p.id} className="border-b border-gray-50 last:border-0">
-                            <td className="px-5 py-3 text-gray-600">{formatDate(p.payment_date)}</td>
-                            <td className="px-5 py-3 text-gray-600">{p.for_month ?? '—'}</td>
-                            <td className="px-5 py-3 font-semibold text-gray-900">{formatINR(p.amount_received)}</td>
-                            <td className="px-5 py-3">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                {p.approval_status.replace('_', ' ')}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3 text-xs text-gray-400 font-mono">#{p.id.slice(0, 8).toUpperCase()}</td>
-                            <td className="px-5 py-3 text-right">
-                              {p.approval_status === 'approved' ? (
-                                <button onClick={() => downloadReceipt(p)} aria-label="Download receipt" className="p-1.5 hover:bg-gray-100 rounded-lg transition"><Download className="w-3.5 h-3.5 text-gray-400" /></button>
-                              ) : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </div>
             </div>
           )}
 
@@ -1765,6 +1655,41 @@ export default function TenantPortal() {
 
         </main>
       </div>
+
+      {/* Bottom tab bar — mobile only, sidebar already covers desktop nav */}
+      <nav className="lg:hidden relative tenant-safe-bottom fixed bottom-0 left-0 right-0 z-30 bg-tenant-surface-elevated/95 backdrop-blur-md border-t border-tenant-border">
+        <div className="flex items-stretch justify-around px-1">
+          {[
+            { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, onClick: () => setTab('dashboard') },
+            { key: 'rent', label: 'Payments', icon: Wallet, onClick: () => setTab('rent') },
+            null,
+            { key: 'notices', label: 'Notices', icon: Megaphone, onClick: () => setTab('notices'), badge: unreadNoticeCount },
+            { key: 'tenancy', label: 'Profile', icon: UserIcon, onClick: () => setTab('tenancy') },
+          ].map((item, i) => item === null ? (
+            <div key="spacer" className="flex-1" />
+          ) : (
+            <button key={item.key} onClick={item.onClick}
+              className="relative flex flex-col items-center justify-center gap-1 flex-1 py-2.5 min-w-0"
+              aria-current={tab === item.key ? 'page' : undefined}>
+              <span className={`relative flex items-center justify-center h-8 w-11 rounded-tenant-full transition-colors ${tab === item.key ? 'bg-tenant-primary/15' : ''}`}>
+                <item.icon className={`h-[19px] w-[19px] transition-colors ${tab === item.key ? 'text-tenant-primary' : 'text-tenant-muted'}`} />
+                {item.badge ? (
+                  <span className="absolute -top-0.5 right-1.5 min-w-[15px] h-[15px] px-0.5 flex items-center justify-center rounded-tenant-full bg-tenant-danger text-white font-bold text-[9px] ring-2 ring-tenant-surface-elevated">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                ) : null}
+              </span>
+              <span className={`text-[10.5px] font-semibold truncate max-w-full ${tab === item.key ? 'text-tenant-primary' : 'text-tenant-muted'}`}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+        <button onClick={() => openPay('rent')} aria-label="Pay Now"
+          className="absolute -top-6 left-1/2 -translate-x-1/2 w-14 h-14 rounded-tenant-full bg-tenant-primary text-tenant-primary-fg shadow-tenant-glow-lg flex items-center justify-center active:scale-95 transition-transform">
+          <LayoutGrid className="w-6 h-6" />
+        </button>
+      </nav>
 
       {/* Notice Announcement Modal */}
       {noticeModalOpen && noticeQueue[noticeIndex] && (() => {

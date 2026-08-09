@@ -231,29 +231,38 @@ export default function PaymentsPage() {
           </div>
           <div className="space-y-2">
             {bills.map(b => (
-              <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-owner-bg-subtle rounded-owner-lg">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg">{b.tenant?.name ?? 'Tenant'} · {b.for_month}</div>
-                  <div className="text-xs text-owner-muted-subtle">
+              <div key={b.id} className="bg-owner-bg-subtle rounded-owner-lg p-3.5 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 text-white flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-owner-fg truncate">
+                    {b.tenant?.name ?? 'Tenant'} <span className="text-owner-muted-subtle font-normal text-xs">· {b.for_month}</span>
+                  </div>
+                  <div className="text-xs text-owner-muted-subtle truncate">
                     Room {b.tenant?.room?.room_number ?? '—'} · {formatINR(b.amount)}
                     {b.due_date && ` · Due ${formatDate(b.due_date)}`}
-                    {b.tenant_note && ` · "${b.tenant_note}"`}
                   </div>
+                  {b.tenant_note && (
+                    <div className="text-xs text-owner-muted-subtle truncate italic">&quot;{b.tenant_note}&quot;</div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <OwnerBadge tone={b.status === 'paid' ? 'success' : b.status === 'pending_approval' ? 'info' : 'warning'}>
-                    {b.status === 'paid' ? 'Paid' : b.status === 'pending_approval' ? 'Awaiting Confirmation' : 'Unpaid'}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <OwnerBadge tone={b.status === 'paid' ? 'success' : b.status === 'pending_approval' ? 'info' : 'warning'} size="sm">
+                    {b.status === 'paid' ? 'Paid' : b.status === 'pending_approval' ? 'Awaiting' : 'Unpaid'}
                   </OwnerBadge>
-                  {b.status === 'pending_approval' && (
-                    <OwnerIconButton aria-label="Confirm paid" variant="ghost" size="sm" onClick={() => handleApproveBill(b.id)} className="hover:text-owner-success">
-                      <Check />
-                    </OwnerIconButton>
-                  )}
-                  {b.status !== 'paid' && (
-                    <OwnerIconButton aria-label="Delete bill" variant="ghost" size="sm" onClick={() => handleDeleteBill(b.id)} className="hover:text-owner-danger">
-                      <Trash2 />
-                    </OwnerIconButton>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {b.status === 'pending_approval' && (
+                      <OwnerIconButton aria-label="Confirm paid" variant="ghost" size="sm" onClick={() => handleApproveBill(b.id)} className="hover:text-owner-success">
+                        <Check />
+                      </OwnerIconButton>
+                    )}
+                    {b.status !== 'paid' && (
+                      <OwnerIconButton aria-label="Delete bill" variant="ghost" size="sm" onClick={() => handleDeleteBill(b.id)} className="hover:text-owner-danger">
+                        <Trash2 />
+                      </OwnerIconButton>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

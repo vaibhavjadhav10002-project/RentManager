@@ -116,23 +116,26 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Pull Vercel project config (production env)
-        run: vercel pull --yes --environment=production --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Link Vercel project
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Build (Vercel-managed, real production env vars)
-        run: vercel build --prod --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}"
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy prebuilt output to production
+      # NOTE: intentionally NOT `vercel build` + `vercel deploy --prebuilt`.
+      # That builds locally on the GitHub Actions runner and uploads a
+      # pre-built .vercel/output bundle — a different code path than
+      # Vercel's own cloud build (which is what a manual `vercel --prod`
+      # or a dashboard "Redeploy" uses). The two can produce a differently
+      # compiled Edge Middleware bundle; a working manual deploy alongside
+      # a `MIDDLEWARE_INVOCATION_FAILED` on the CI deploy is the classic
+      # symptom. `vercel deploy --prod` below uploads source and lets
+      # Vercel build it remotely, matching the manual deploy exactly.
+      - name: Deploy to production (Vercel-managed cloud build)
         id: deploy
         run: |
           set -euo pipefail
-          URL=$(vercel deploy --prebuilt --prod --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}")
+          URL=$(vercel deploy --prod --token="${{ secrets.VERCEL_TOKEN }}")
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
           echo "Deployed: ${URL}"
         env:
@@ -305,20 +308,17 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Pull Vercel project config (production env)
+      - name: Link Vercel project
         run: vercel pull --yes --environment=production --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Build with updated app-version.json
-        run: vercel build --prod --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}"
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy updated app-version.json to production
-        run: vercel deploy --prebuilt --prod --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}"
+      # See the note in the `deploy` job above — same reason `--prebuilt`
+      # is avoided here: a local CLI build is a different code path than
+      # Vercel's own cloud build and can produce a broken Middleware bundle.
+      - name: Deploy updated app-version.json to production (Vercel-managed cloud build)
+        run: vercel deploy --prod --scope="rent-manager-ok" --token="${{ secrets.VERCEL_TOKEN }}"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
