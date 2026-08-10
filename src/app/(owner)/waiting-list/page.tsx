@@ -9,7 +9,7 @@ import type { WaitingListEntry, WaitingListStatus, Room, Tenant } from '@/types'
 
 const STATUS_COLOR: Record<WaitingListStatus, string> = {
   waiting: 'bg-amber-50 text-amber-600',
-  contacted: 'bg-blue-50 text-blue-600',
+  contacted: 'bg-owner-primary/15 text-owner-primary',
   converted: 'bg-green-50 text-green-600',
   expired: 'bg-owner-surface-hover text-owner-muted',
 }
@@ -128,17 +128,17 @@ export default function WaitingListPage() {
           <h1 className="text-xl font-extrabold text-owner-fg">Waiting List</h1>
           <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
-        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
+        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-xl text-sm font-semibold transition">
           <Plus className="w-4 h-4" /> Add to List
         </button>
       </div>
 
       {/* Vacancy reference */}
       {vacanciesBySharing.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-blue-700">Currently vacant:</span>
+        <div className="bg-owner-primary/10 border border-owner-primary/20 rounded-2xl px-4 py-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-owner-primary">Currently vacant:</span>
           {vacanciesBySharing.map(([type, count]) => (
-            <span key={type} className="text-xs font-semibold px-2.5 py-1 bg-owner-surface rounded-full text-blue-700">{count} × {type}</span>
+            <span key={type} className="text-xs font-semibold px-2.5 py-1 bg-owner-surface rounded-full text-owner-primary">{count} × {type}</span>
           ))}
         </div>
       )}
@@ -179,14 +179,14 @@ export default function WaitingListPage() {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <select value={e.status} onChange={ev => handleStatusChange(e.id, ev.target.value as WaitingListStatus)} disabled={actioningId === e.id}
-                  className="px-2 py-1.5 border border-owner-border rounded-lg text-xs bg-owner-surface focus:outline-none focus:border-blue-500 disabled:opacity-50">
+                  className="px-2 py-1.5 border border-owner-border rounded-lg text-xs bg-owner-surface focus:outline-none focus:border-owner-primary disabled:opacity-50">
                   <option value="waiting">Waiting</option>
                   <option value="contacted">Contacted</option>
                   <option value="converted">Converted</option>
                   <option value="expired">Expired</option>
                 </select>
                 <button onClick={() => handleArchive(e.id)} disabled={actioningId === e.id}
-                  className="p-1.5 text-owner-muted-subtle hover:text-blue-500 transition disabled:opacity-50" title="Archive" aria-label="Archive">
+                  className="p-1.5 text-owner-muted-subtle hover:text-owner-primary transition disabled:opacity-50" title="Archive" aria-label="Archive">
                   <Archive className="w-4 h-4" />
                 </button>
                 <button onClick={() => handleDelete(e.id)} disabled={actioningId === e.id}
@@ -211,7 +211,7 @@ export default function WaitingListPage() {
                 <div>
                   <label className="text-xs font-semibold text-owner-muted block mb-1">Property *</label>
                   <select value={form.property_id} onChange={e => setForm(f => ({ ...f, property_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                    className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary">
                     <option value="">Select Property</option>
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -220,35 +220,35 @@ export default function WaitingListPage() {
               <div>
                 <label className="text-xs font-semibold text-owner-muted block mb-1">Name *</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="e.g. Priya Sharma" />
+                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" placeholder="e.g. Priya Sharma" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-owner-muted block mb-1">Phone *</label>
                 <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="10-digit mobile number" />
+                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" placeholder="10-digit mobile number" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-owner-muted block mb-1">Preferred Sharing</label>
                 <select value={form.preferred_sharing} onChange={e => setForm(f => ({ ...f, preferred_sharing: e.target.value }))}
-                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary">
                   {SHARING_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs font-semibold text-owner-muted block mb-1">Budget (₹/month)</label>
                 <input type="number" value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
-                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="Optional" />
+                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" placeholder="Optional" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-owner-muted block mb-1">Notes</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="Optional" />
+                  className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" placeholder="Optional" />
               </div>
             </div>
             <div className="px-6 py-4 border-t border-owner-border flex justify-end gap-2">
               <button onClick={() => { setModal(false); resetForm() }} className="px-4 py-2 text-sm font-semibold text-owner-muted hover:bg-owner-surface-hover rounded-xl transition">Cancel</button>
               <button onClick={handleAdd} disabled={saving}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2">
+                className="px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-xl text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Add
               </button>
             </div>

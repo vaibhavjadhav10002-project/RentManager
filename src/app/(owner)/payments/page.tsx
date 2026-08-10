@@ -271,11 +271,11 @@ export default function PaymentsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg w-fit flex-wrap">
+      <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg overflow-x-auto sm:w-fit sm:flex-wrap sm:overflow-visible">
         {TABS.map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
             className={cn(
-              'px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors',
+              'px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
               tab === v ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg'
             )}>
             {l}
@@ -298,10 +298,10 @@ export default function PaymentsPage() {
                   <div key={t.id} className="bg-owner-surface border border-owner-border rounded-owner-lg p-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold text-owner-fg">{t.name}</div>
-                        <div className="text-xs text-owner-muted-subtle">Room {t.room?.room_number}</div>
+                        <div className="font-semibold text-owner-fg truncate">{t.name}</div>
+                        <div className="text-xs text-owner-muted-subtle truncate">Room {t.room?.room_number}</div>
                       </div>
-                      <OwnerBadge tone={t.overdueDays > 5 ? 'danger' : 'warning'}>{t.overdueDays}d overdue</OwnerBadge>
+                      <OwnerBadge tone={t.overdueDays > 5 ? 'danger' : 'warning'} className="shrink-0 whitespace-nowrap">{t.overdueDays}d overdue</OwnerBadge>
                     </div>
                     <div className="flex items-center justify-between mt-3">
                       <div>
@@ -474,7 +474,7 @@ export default function PaymentsPage() {
               <div className="space-y-2">
                 {tabFiltered.map(p => (
                   <button key={p.id} onClick={() => setPaymentDetail(p)}
-                    className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
+                    className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-2.5 text-left transition active:scale-[0.99] active:bg-owner-surface-hover overflow-hidden">
                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shrink-0">
                       <Wallet className="w-5 h-5" />
                     </div>
@@ -482,12 +482,12 @@ export default function PaymentsPage() {
                       <div className="font-semibold text-owner-fg truncate">{p.tenant?.name ?? '—'}</div>
                       <div className="text-xs text-owner-muted-subtle truncate">Room {p.tenant?.room?.room_number ?? '—'} · {p.for_month ?? p.type} · {formatDate(p.payment_date)}</div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-bold text-owner-fg owner-numeric">{formatINR(p.amount_received)}</div>
+                    <div className="text-right shrink-0 max-w-[38%]">
+                      <div className="font-bold text-owner-fg owner-numeric truncate">{formatINR(p.amount_received)}</div>
                       {tab === 'ledger'
-                        ? <OwnerBadge tone="purple" size="sm">{p.collector?.name ?? '—'}</OwnerBadge>
-                        : <OwnerBadge tone={p.approval_status === 'approved' ? 'success' : p.approval_status === 'rejected' ? 'danger' : 'warning'} className="capitalize" size="sm">
-                            {p.approval_status.replace('_', ' ')}
+                        ? <OwnerBadge tone="purple" size="sm" className="truncate max-w-full">{p.collector?.name ?? '—'}</OwnerBadge>
+                        : <OwnerBadge tone={p.approval_status === 'approved' ? 'success' : p.approval_status === 'rejected' ? 'danger' : 'warning'} size="sm">
+                            {p.approval_status === 'pending_approval' ? 'Pending' : p.approval_status === 'approved' ? 'Approved' : 'Rejected'}
                           </OwnerBadge>
                       }
                     </div>

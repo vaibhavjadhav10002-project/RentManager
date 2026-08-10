@@ -97,7 +97,7 @@ export default function RoomChangePage() {
         <div>
           <label className="text-xs font-semibold text-owner-muted block mb-1">Tenant *</label>
           <select value={tenantId} onChange={e => { setTenantId(e.target.value); setToRoomId('') }}
-            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500">
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary">
             <option value="">Select tenant</option>
             {tenants.map(t => (
               <option key={t.id} value={t.id}>{t.name}{t.room?.room_number ? ` — currently Room ${t.room.room_number}` : ' — unassigned'}</option>
@@ -109,14 +109,14 @@ export default function RoomChangePage() {
           <div className="flex items-center gap-3 text-sm bg-owner-surface-hover rounded-xl px-4 py-3">
             <span className="font-semibold text-owner-fg">{selectedTenant.room?.room_number ? `Room ${selectedTenant.room.room_number}` : 'Unassigned'}</span>
             <ArrowRight className="w-4 h-4 text-owner-muted-subtle" />
-            <span className="font-semibold text-blue-600">{toRoomId ? `Room ${rooms.find(r => r.id === toRoomId)?.room_number}` : 'Select new room →'}</span>
+            <span className="font-semibold text-owner-primary">{toRoomId ? `Room ${rooms.find(r => r.id === toRoomId)?.room_number}` : 'Select new room →'}</span>
           </div>
         )}
 
         <div>
           <label className="text-xs font-semibold text-owner-muted block mb-1">New Room *</label>
           <select value={toRoomId} onChange={e => setToRoomId(e.target.value)} disabled={!selectedTenant}
-            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50">
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary disabled:opacity-50">
             <option value="">{selectedTenant ? 'Select a room with a vacancy' : 'Select a tenant first'}</option>
             {eligibleRooms.map(({ room, vacant }) => (
               <option key={room.id} value={room.id}>Room {room.room_number} · {room.sharing_type} · {vacant} vacant</option>
@@ -130,12 +130,12 @@ export default function RoomChangePage() {
         <div>
           <label className="text-xs font-semibold text-owner-muted block mb-1">Reason</label>
           <input value={reason} onChange={e => setReason(e.target.value)}
-            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="e.g. Tenant requested a quieter room" />
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" placeholder="e.g. Tenant requested a quieter room" />
         </div>
         <div>
           <label className="text-xs font-semibold text-owner-muted block mb-1">Changed By</label>
           <input value={changedBy} onChange={e => setChangedBy(e.target.value)}
-            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" placeholder="Your name" />
+            className="w-full px-3 py-2 border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" placeholder="Your name" />
         </div>
 
         <p className="text-xs text-owner-muted-subtle">
@@ -143,7 +143,7 @@ export default function RoomChangePage() {
         </p>
 
         <button onClick={handleMove} disabled={saving || !selectedTenant || !toRoomId}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Repeat className="w-4 h-4" />} Move Tenant
         </button>
       </div>

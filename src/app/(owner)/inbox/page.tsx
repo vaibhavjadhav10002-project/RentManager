@@ -101,10 +101,10 @@ export default function InboxPage() {
         </OwnerCard>
       ) : (
         <>
-          <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg w-fit flex-wrap">
+          <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg overflow-x-auto sm:w-fit sm:flex-wrap sm:overflow-visible">
             {tabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={cn('flex items-center gap-1.5 px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors',
+                className={cn('flex items-center gap-1.5 px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
                   tab === t.key ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg')}>
                 <t.icon className="w-3.5 h-3.5" /> {t.label}
               </button>
@@ -585,7 +585,7 @@ function HistoryTab({ logs }: { logs: CommunicationLogEntry[] }) {
       ) : filtered.map(l => (
         <OwnerCard key={l.id} padding="sm" className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-owner-fg">{l.tenant?.name ?? 'Unknown tenant'}</div>
+            <div className="text-sm font-semibold text-owner-fg truncate">{l.tenant?.name ?? 'Unknown tenant'}</div>
             <div className="text-xs text-owner-muted truncate">{l.rendered_message}</div>
           </div>
           <div className="text-right shrink-0">

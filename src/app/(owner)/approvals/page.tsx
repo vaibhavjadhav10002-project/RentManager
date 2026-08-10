@@ -333,10 +333,10 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1.5 p-1 bg-owner-surface-hover rounded-2xl w-fit">
+      <div className="flex gap-1.5 p-1 bg-owner-surface-hover rounded-owner-lg overflow-x-auto">
         {[['payments', 'Payment Claims'], ['tenants', 'New Tenant Requests'], ['reviews', 'Profile Reviews'], ['updates', 'Profile Updates'], ['leave', 'Leave Requests'], ['extensions', 'Rent Extensions'], ['moveout', 'Move-Out Requests']].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v as any)}
-            className={`flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-semibold transition-all shrink-0 whitespace-nowrap active:scale-[0.97] ${tab === v ? 'bg-owner-surface shadow-sm text-owner-fg' : 'text-owner-muted hover:text-owner-fg'}`}>
+            className={`flex items-center gap-2 px-4 h-9 rounded-owner-md text-xs font-semibold transition-all shrink-0 whitespace-nowrap active:scale-[0.97] ${tab === v ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg'}`}>
             {l}
             {v === 'payments' && payments.length > 0 && <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{payments.length}</span>}
             {v === 'tenants' && pendingTenants.length > 0 && <span className="bg-purple-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{pendingTenants.length}</span>}
@@ -798,31 +798,33 @@ export default function ApprovalsPage() {
               <div>
                 <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-2">Submitted Details</div>
                 <div className="border border-owner-border rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-owner-surface-hover text-left text-xs text-owner-muted">
-                        <th className="px-3 py-2 font-semibold">Field</th>
-                        <th className="px-3 py-2 font-semibold">Previous (Owner)</th>
-                        <th className="px-3 py-2 font-semibold">Submitted (Tenant) — editable</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        ['name', 'Full Name'], ['email', 'Email'], ['aadhaar_number', 'Aadhaar Number'],
-                        ['permanent_address', 'Permanent Address'], ['emergency_contact_name', 'Emergency Contact Name'],
-                        ['emergency_contact', 'Emergency Contact Number'],
-                      ].map(([key, label]) => (
-                        <tr key={key} className="border-t border-owner-border">
-                          <td className="px-3 py-2 font-semibold text-owner-fg align-top">{label}</td>
-                          <td className="px-3 py-2 text-owner-muted-subtle align-top">{reviewModal[key] || <span className="italic">Not set</span>}</td>
-                          <td className="px-3 py-2">
-                            <input value={reviewForm[key] ?? ''} onChange={e => setReviewForm(f => ({ ...f, [key]: e.target.value }))}
-                              className="w-full px-2 py-1 border border-owner-border rounded-lg text-sm focus:outline-none focus:border-blue-500" />
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[480px]">
+                      <thead>
+                        <tr className="bg-owner-surface-hover text-left text-xs text-owner-muted">
+                          <th className="px-3 py-2 font-semibold">Field</th>
+                          <th className="px-3 py-2 font-semibold">Previous (Owner)</th>
+                          <th className="px-3 py-2 font-semibold">Submitted (Tenant) — editable</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {[
+                          ['name', 'Full Name'], ['email', 'Email'], ['aadhaar_number', 'Aadhaar Number'],
+                          ['permanent_address', 'Permanent Address'], ['emergency_contact_name', 'Emergency Contact Name'],
+                          ['emergency_contact', 'Emergency Contact Number'],
+                        ].map(([key, label]) => (
+                          <tr key={key} className="border-t border-owner-border">
+                            <td className="px-3 py-2 font-semibold text-owner-fg align-top whitespace-nowrap">{label}</td>
+                            <td className="px-3 py-2 text-owner-muted-subtle align-top max-w-[160px] truncate">{reviewModal[key] || <span className="italic">Not set</span>}</td>
+                            <td className="px-3 py-2">
+                              <input value={reviewForm[key] ?? ''} onChange={e => setReviewForm(f => ({ ...f, [key]: e.target.value }))}
+                                className="w-full min-w-[140px] px-2 py-1 border border-owner-border rounded-lg text-sm focus:outline-none focus:border-blue-500" />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 

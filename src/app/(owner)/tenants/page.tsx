@@ -337,21 +337,23 @@ export default function TenantsPage() {
           </div>
           <div className="space-y-2">
             {onNotice.map(t => (
-              <div key={t.id} className="flex items-center gap-3 bg-owner-surface rounded-owner-lg p-3">
+              <div key={t.id} className="flex flex-wrap items-center gap-2 bg-owner-surface rounded-owner-lg p-3">
                 <OwnerAvatar name={t.name} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg">{t.name} <span className="text-owner-muted-subtle font-normal">· Room {t.room?.room_number}</span></div>
+                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name} <span className="text-owner-muted-subtle font-normal">· Room {t.room?.room_number}</span></div>
                   <div className="text-xs text-owner-muted">Leaving on {formatDate(t.leaving_date!)}</div>
                 </div>
-                <OwnerBadge tone={t.daysLeft <= 3 ? 'danger' : 'warning'}>
+                <OwnerBadge tone={t.daysLeft <= 3 ? 'danger' : 'warning'} className="shrink-0">
                   {t.daysLeft > 0 ? `${t.daysLeft}d left` : t.daysLeft === 0 ? 'Leaving today' : `${Math.abs(t.daysLeft)}d overdue`}
                 </OwnerBadge>
-                <OwnerButton onClick={() => openChecklist(t)} variant="secondary" size="sm">
-                  Checklist
-                </OwnerButton>
-                <OwnerButton onClick={() => handleMarkLeft(t.id, t.name)} variant="secondary" size="sm" icon={<LogOut className="w-3.5 h-3.5" />}>
-                  Mark Left
-                </OwnerButton>
+                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                  <OwnerButton onClick={() => openChecklist(t)} variant="secondary" size="sm" className="flex-1 sm:flex-none">
+                    Checklist
+                  </OwnerButton>
+                  <OwnerButton onClick={() => handleMarkLeft(t.id, t.name)} variant="secondary" size="sm" icon={<LogOut className="w-3.5 h-3.5" />} className="flex-1 sm:flex-none">
+                    Mark Left
+                  </OwnerButton>
+                </div>
               </div>
             ))}
           </div>

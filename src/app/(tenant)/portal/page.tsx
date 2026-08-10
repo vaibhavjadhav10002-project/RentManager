@@ -28,7 +28,7 @@ import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
 import OnboardingWizard from '@/components/tenant/OnboardingWizard'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
-import { Card, Badge, Button, SectionHeader, EmptyState } from '@/components/tenant/ui'
+import { Card, Badge, Button, SectionHeader, EmptyState, Avatar } from '@/components/tenant/ui'
 
 type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices' | 'requests'
 
@@ -991,22 +991,22 @@ export default function TenantPortal() {
           {tab === 'tenancy' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">My Tenancy</h1>
-                <p className="text-sm text-gray-500">Your room, property and agreement details.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">My Tenancy</h1>
+                <p className="text-sm text-tenant-muted">Your room, property and agreement details.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-4 mb-6">
+
+              <Card padding="lg">
+                <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-xl">
-                      {initials}
-                    </div>
+                    <Avatar name={tenant.name} size="lg" />
                     <div>
-                      <div className="text-lg font-extrabold text-gray-900">{tenant.name}</div>
-                      <div className="text-sm text-gray-500">Room {tenant.room?.room_number ?? '—'} · Bed {tenant.bed_label ?? '—'}</div>
+                      <div className="text-lg font-extrabold text-tenant-fg">{tenant.name}</div>
+                      <div className="text-sm text-tenant-muted">Room {tenant.room?.room_number ?? '—'} · Bed {tenant.bed_label ?? '—'}</div>
                     </div>
                   </div>
                   {tenant.status === 'active' && !profileUpdateRequests.some(u => u.status === 'pending') && (
-                    <button
+                    <Button
+                      size="sm"
                       onClick={() => {
                         setProfileUpdateForm({
                           name: tenant.name || '', email: tenant.email || '', aadhaar_number: tenant.aadhaar_number || '',
@@ -1015,14 +1015,13 @@ export default function TenantPortal() {
                         })
                         setProfileUpdateModal(true)
                       }}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition whitespace-nowrap"
                     >
                       Request Profile Update
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {profileUpdateRequests.some(u => u.status === 'pending') && (
-                  <div className="bg-amber-50 rounded-xl p-3 mb-4 text-xs text-amber-800">
+                  <div className="bg-tenant-warning-subtle rounded-tenant-xl p-3 mb-4 text-xs text-tenant-warning">
                     You have a profile update request pending owner review.
                   </div>
                 )}
@@ -1037,16 +1036,16 @@ export default function TenantPortal() {
                     ['Notice Period', `${tenant.notice_period_days} days`],
                     ['Status', tenant.status.replace('_', ' ')],
                   ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                      <span className="text-sm text-gray-500">{label}</span>
-                      <span className="text-sm font-bold text-gray-900 capitalize">{value}</span>
+                    <div key={label} className="flex justify-between border-b border-tenant-border pb-3 last:border-0 last:pb-0">
+                      <span className="text-sm text-tenant-muted">{label}</span>
+                      <span className="text-sm font-bold text-tenant-fg capitalize">{value}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
 
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                <div className="font-bold text-sm text-gray-900 mb-4">Security Deposit</div>
+              <Card padding="lg">
+                <div className="font-bold text-sm text-tenant-fg mb-4">Security Deposit</div>
                 <div className="space-y-3">
                   {[
                     ['Total Deposit', formatINR(tenant.deposit_amount)],
@@ -1054,29 +1053,29 @@ export default function TenantPortal() {
                     ['Pending', formatINR(Math.max(0, depositDue))],
                     ['Status', depositDue <= 0 ? 'Fully Paid' : 'Partially Paid'],
                   ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                      <span className="text-sm text-gray-500">{label}</span>
-                      <span className="text-sm font-bold text-gray-900">{value}</span>
+                    <div key={label} className="flex justify-between border-b border-tenant-border pb-3 last:border-0 last:pb-0">
+                      <span className="text-sm text-tenant-muted">{label}</span>
+                      <span className="text-sm font-bold text-tenant-fg tenant-numeric">{value}</span>
                     </div>
                   ))}
                   {tenant.deposit_refunded > 0 && (
-                    <div className="bg-green-50 rounded-xl p-4 space-y-2 mt-2">
-                      <div className="text-xs font-bold text-green-800">Refund Processed</div>
+                    <div className="bg-tenant-success-subtle rounded-tenant-xl p-4 space-y-2 mt-2">
+                      <div className="text-xs font-bold text-tenant-success">Refund Processed</div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Amount Refunded</span>
-                        <span className="font-bold text-green-700">{formatINR(tenant.deposit_refunded)}</span>
+                        <span className="text-tenant-muted">Amount Refunded</span>
+                        <span className="font-bold text-tenant-success tenant-numeric">{formatINR(tenant.deposit_refunded)}</span>
                       </div>
                       {tenant.deposit_refund_date && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Refund Date</span>
-                          <span className="font-bold text-gray-900">{formatDate(tenant.deposit_refund_date)}</span>
+                          <span className="text-tenant-muted">Refund Date</span>
+                          <span className="font-bold text-tenant-fg">{formatDate(tenant.deposit_refund_date)}</span>
                         </div>
                       )}
                       {tenant.deposit_deduction_items?.length > 0 && (
-                        <div className="pt-1 space-y-1 border-t border-green-100 mt-1">
-                          <div className="text-xs font-semibold text-green-800 pt-1">Deductions</div>
+                        <div className="pt-1 space-y-1 border-t border-tenant-success/20 mt-1">
+                          <div className="text-xs font-semibold text-tenant-success pt-1">Deductions</div>
                           {tenant.deposit_deduction_items.map((item: DepositDeductionItem, idx: number) => (
-                            <div key={idx} className="flex justify-between text-xs text-gray-600">
+                            <div key={idx} className="flex justify-between text-xs text-tenant-muted">
                               <span>{item.label}</span>
                               <span>− {formatINR(item.amount)}</span>
                             </div>
@@ -1084,71 +1083,67 @@ export default function TenantPortal() {
                         </div>
                       )}
                       {tenant.deposit_deduction_notes && (
-                        <div className="text-xs text-gray-500 mt-1">Note: {tenant.deposit_deduction_notes}</div>
+                        <div className="text-xs text-tenant-muted-subtle mt-1">Note: {tenant.deposit_deduction_notes}</div>
                       )}
                     </div>
                   )}
                   {tenant.deposit_refunded === 0 && (tenant.status === 'leaving' || tenant.status === 'left') && tenant.deposit_paid > 0 && (
-                    <div className="bg-amber-50 rounded-xl p-4 mt-2">
-                      <div className="text-xs font-bold text-amber-800">Settlement Pending</div>
-                      <div className="text-xs text-amber-700 mt-1">Your deposit refund is being processed by the owner.</div>
+                    <div className="bg-tenant-warning-subtle rounded-tenant-xl p-4 mt-2">
+                      <div className="text-xs font-bold text-tenant-warning">Settlement Pending</div>
+                      <div className="text-xs text-tenant-warning/80 mt-1">Your deposit refund is being processed by the owner.</div>
                     </div>
                   )}
                 </div>
                 {depositDue > 0 && !depositClaimed && tenant.status === 'active' && (
-                  <button onClick={() => openPay('deposit')} className="w-full mt-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
+                  <Button fullWidth className="mt-4" onClick={() => openPay('deposit')}>
                     Pay {formatINR(depositDue)} Deposit
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </Card>
 
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <Card padding="lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="font-bold text-sm text-gray-900">Temporary Leave</div>
+                  <div className="font-bold text-sm text-tenant-fg">Temporary Leave</div>
                   {tenant.status === 'active' && (
-                    <button onClick={() => setLeaveModal(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition">
-                      Request Leave
-                    </button>
+                    <Button size="sm" onClick={() => setLeaveModal(true)}>Request Leave</Button>
                   )}
                 </div>
                 {leaveRequests.length === 0 ? (
-                  <div className="text-sm text-gray-400 text-center py-6">No leave requests yet</div>
+                  <EmptyState icon={CalendarClock} title="No leave requests yet" className="py-6" />
                 ) : (
                   <div className="space-y-3">
                     {leaveRequests.map(l => (
-                      <div key={l.id} className="border border-gray-50 rounded-xl p-4">
+                      <div key={l.id} className="border border-tenant-border rounded-tenant-lg p-4">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-gray-900">{formatDate(l.start_date)} – {formatDate(l.end_date)}</span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${
-                            l.status === 'approved' ? 'bg-green-100 text-green-700' : l.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>{l.status}</span>
+                          <span className="text-sm font-bold text-tenant-fg">{formatDate(l.start_date)} – {formatDate(l.end_date)}</span>
+                          <Badge tone={l.status === 'approved' ? 'success' : l.status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize">
+                            {l.status}
+                          </Badge>
                         </div>
-                        {l.reason && <p className="text-sm text-gray-500 mt-1.5">{l.reason}</p>}
-                        {l.owner_note && <p className="text-xs text-gray-400 mt-1.5">Owner note: {l.owner_note}</p>}
-                        <div className="text-xs text-gray-400 mt-2">Requested {formatDate(l.created_at)}</div>
+                        {l.reason && <p className="text-sm text-tenant-muted mt-1.5">{l.reason}</p>}
+                        {l.owner_note && <p className="text-xs text-tenant-muted-subtle mt-1.5">Owner note: {l.owner_note}</p>}
+                        <div className="text-xs text-tenant-muted-subtle mt-2">Requested {formatDate(l.created_at)}</div>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
 
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <Card padding="lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="font-bold text-sm text-gray-900">Move-Out</div>
+                  <div className="font-bold text-sm text-tenant-fg">Move-Out</div>
                   {tenant.status === 'active' && !moveOutRequests.some(m => m.status !== 'rejected') && (
-                    <button onClick={() => setMoveOutModal(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition">
-                      Request Move-Out
-                    </button>
+                    <Button size="sm" onClick={() => setMoveOutModal(true)}>Request Move-Out</Button>
                   )}
                 </div>
                 {tenant.status === 'leaving' && moveOutChecklist && (
-                  <div className="mb-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
-                    <div className="text-xs font-bold text-amber-800 mb-2">
+                  <div className="mb-4 bg-tenant-warning-subtle border border-tenant-warning/20 rounded-tenant-xl p-4">
+                    <div className="text-xs font-bold text-tenant-warning mb-2">
                       Owner Move-Out Checklist ({moveOutChecklist.items.filter((i: any) => i.checked).length}/{moveOutChecklist.items.length})
                     </div>
                     <div className="space-y-1.5">
                       {moveOutChecklist.items.map((i: any, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs text-amber-700">
+                        <div key={idx} className="flex items-center gap-2 text-xs text-tenant-warning">
                           <span>{i.checked ? '✅' : '⬜'}</span> {i.label}
                         </div>
                       ))}
@@ -1156,133 +1151,141 @@ export default function TenantPortal() {
                   </div>
                 )}
                 {moveOutRequests.length === 0 ? (
-                  <div className="text-sm text-gray-400 text-center py-6">No move-out requests yet</div>
+                  <EmptyState icon={LogOut} title="No move-out requests yet" className="py-6" />
                 ) : (
                   <div className="space-y-3">
                     {moveOutRequests.map(m => (
-                      <div key={m.id} className="border border-gray-50 rounded-xl p-4">
+                      <div key={m.id} className="border border-tenant-border rounded-tenant-lg p-4">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-gray-900">Move out on {formatDate(m.requested_date)}</span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${
-                            m.status === 'approved' ? 'bg-green-100 text-green-700' : m.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>{m.status}</span>
+                          <span className="text-sm font-bold text-tenant-fg">Move out on {formatDate(m.requested_date)}</span>
+                          <Badge tone={m.status === 'approved' ? 'success' : m.status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize">
+                            {m.status}
+                          </Badge>
                         </div>
-                        {m.reason && <p className="text-sm text-gray-500 mt-1.5">{m.reason}</p>}
-                        {m.owner_note && <p className="text-xs text-gray-400 mt-1.5">Owner note: {m.owner_note}</p>}
-                        <div className="text-xs text-gray-400 mt-2">Requested {formatDate(m.created_at)}</div>
+                        {m.reason && <p className="text-sm text-tenant-muted mt-1.5">{m.reason}</p>}
+                        {m.owner_note && <p className="text-xs text-tenant-muted-subtle mt-1.5">Owner note: {m.owner_note}</p>}
+                        <div className="text-xs text-tenant-muted-subtle mt-2">Requested {formatDate(m.created_at)}</div>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
             </div>
           )}
 
           {tab === 'rent' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Rent & Payments</h1>
-                <p className="text-sm text-gray-500">Your full monthly rent history.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Rent & Payments</h1>
+                <p className="text-sm text-tenant-muted">Your full monthly rent history.</p>
               </div>
+
               {(lateFee > 0 || remainingAdvance > 0 || (oldestUnpaidMonth?.adjustment ?? 0) > 0 || activeExtension) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {lateFee > 0 && (
-                    <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
-                      <div className="text-xs font-bold text-red-700">Late Fee Applied</div>
-                      <div className="text-lg font-extrabold text-red-700 mt-0.5">{formatINR(lateFee)}</div>
-                      <div className="text-xs text-red-500 mt-0.5">Added to your next payment for {oldestUnpaidMonth?.label}</div>
-                    </div>
+                    <Card className="bg-tenant-danger-subtle border-tenant-danger/20">
+                      <div className="text-xs font-bold text-tenant-danger">Late Fee Applied</div>
+                      <div className="text-lg font-extrabold text-tenant-danger mt-0.5 tenant-numeric">{formatINR(lateFee)}</div>
+                      <div className="text-xs text-tenant-danger/80 mt-0.5">Added to your next payment for {oldestUnpaidMonth?.label}</div>
+                    </Card>
                   )}
                   {remainingAdvance > 0 && (
-                    <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
-                      <div className="text-xs font-bold text-green-700">Advance Balance</div>
-                      <div className="text-lg font-extrabold text-green-700 mt-0.5">{formatINR(remainingAdvance)}</div>
-                      <div className="text-xs text-green-600 mt-0.5">Will auto-apply to your next due month</div>
-                    </div>
+                    <Card className="bg-tenant-success-subtle border-tenant-success/20">
+                      <div className="text-xs font-bold text-tenant-success">Advance Balance</div>
+                      <div className="text-lg font-extrabold text-tenant-success mt-0.5 tenant-numeric">{formatINR(remainingAdvance)}</div>
+                      <div className="text-xs text-tenant-success/80 mt-0.5">Will auto-apply to your next due month</div>
+                    </Card>
                   )}
                   {(oldestUnpaidMonth?.adjustment ?? 0) > 0 && (
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
-                      <div className="text-xs font-bold text-indigo-700">Leave Adjustment</div>
-                      <div className="text-lg font-extrabold text-indigo-700 mt-0.5">− {formatINR(oldestUnpaidMonth?.adjustment ?? 0)}</div>
-                      <div className="text-xs text-indigo-600 mt-0.5">Prorated for your approved leave in {oldestUnpaidMonth?.label}</div>
-                    </div>
+                    <Card className="bg-tenant-primary/10 border-tenant-primary/20">
+                      <div className="text-xs font-bold text-tenant-primary">Leave Adjustment</div>
+                      <div className="text-lg font-extrabold text-tenant-primary mt-0.5 tenant-numeric">− {formatINR(oldestUnpaidMonth?.adjustment ?? 0)}</div>
+                      <div className="text-xs text-tenant-primary/80 mt-0.5">Prorated for your approved leave in {oldestUnpaidMonth?.label}</div>
+                    </Card>
                   )}
                   {activeExtension && (
-                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                      <div className="text-xs font-bold text-blue-700">Extension Granted</div>
-                      <div className="text-lg font-extrabold text-blue-700 mt-0.5">Until {formatDate(activeExtension.requested_until)}</div>
-                      <div className="text-xs text-blue-600 mt-0.5">No late fee for {oldestUnpaidMonth?.label} until this date</div>
-                    </div>
+                    <Card className="bg-tenant-info-subtle border-tenant-info/20">
+                      <div className="text-xs font-bold text-tenant-info">Extension Granted</div>
+                      <div className="text-lg font-extrabold text-tenant-info mt-0.5">Until {formatDate(activeExtension.requested_until)}</div>
+                      <div className="text-xs text-tenant-info/80 mt-0.5">No late fee for {oldestUnpaidMonth?.label} until this date</div>
+                    </Card>
                   )}
                 </div>
               )}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                {ledgerDisplay.map(m => (
-                  <div key={m.label} className="flex items-center justify-between px-5 py-4 border-b border-gray-50 last:border-0">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">{m.label}</div>
-                      <div className="text-xs text-gray-400">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : 'Not yet paid'}</div>
-                      {m.adjustment > 0 && <div className="text-xs text-indigo-500 mt-0.5">Leave adjustment: − {formatINR(m.adjustment)}</div>}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-gray-900">{formatINR(m.amount)}</div>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.status === 'paid' ? 'bg-green-100 text-green-700' : m.status === 'partial' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+
+              <Card padding="none">
+                <div className="divide-y divide-tenant-border">
+                  {ledgerDisplay.map(m => (
+                    <div key={m.label} className="flex items-center justify-between px-4 py-3.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-tenant-fg">{m.label}</div>
+                        <div className="text-xs text-tenant-muted-subtle">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : 'Not yet paid'}</div>
+                        {m.adjustment > 0 && <div className="text-xs text-tenant-primary mt-0.5">Leave adjustment: − {formatINR(m.adjustment)}</div>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-bold text-tenant-fg tenant-numeric">{formatINR(m.amount)}</div>
+                        <Badge tone={m.status === 'paid' ? 'success' : m.status === 'partial' ? 'warning' : 'danger'} size="sm" className="mt-1">
                           {m.status === 'paid' ? 'Paid' : m.status === 'partial' ? 'Partial' : 'Pending'}
-                        </span>
+                        </Badge>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </Card>
+
               {!thisMonthPaid && !claimed && tenant.status === 'active' && (
-                <button onClick={() => openPay('rent')} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition">
+                <Button fullWidth onClick={() => openPay('rent')}>
                   Pay {oldestUnpaidMonth?.label ?? thisMonth} Rent
-                </button>
+                </Button>
               )}
               {!thisMonthPaid && !claimed && tenant.status === 'active' && oldestUnpaidMonth &&
                 !rentExtensions.some(e => e.for_month === oldestUnpaidMonth.label && e.status !== 'rejected') && (
-                <button onClick={() => setExtensionModal(true)} className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-semibold transition">
+                <Button fullWidth variant="secondary" onClick={() => setExtensionModal(true)}>
                   Request Extension for {oldestUnpaidMonth.label}
-                </button>
+                </Button>
               )}
 
               {rentExtensions.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="font-bold text-sm text-gray-900 mb-3">Extension Requests</div>
+                <Card>
+                  <div className="font-bold text-sm text-tenant-fg mb-3">Extension Requests</div>
                   <div className="space-y-3">
                     {rentExtensions.map(e => (
-                      <div key={e.id} className="border border-gray-50 rounded-xl p-3">
+                      <div key={e.id} className="border border-tenant-border rounded-tenant-lg p-3">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-gray-900">{e.for_month} → {formatDate(e.requested_until)}</span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${
-                            e.status === 'approved' ? 'bg-green-100 text-green-700' : e.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>{e.status}</span>
+                          <span className="text-sm font-bold text-tenant-fg">{e.for_month} → {formatDate(e.requested_until)}</span>
+                          <Badge tone={e.status === 'approved' ? 'success' : e.status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize">
+                            {e.status}
+                          </Badge>
                         </div>
-                        {e.reason && <p className="text-xs text-gray-500 mt-1">{e.reason}</p>}
-                        {e.owner_note && <p className="text-xs text-gray-400 mt-1">Owner note: {e.owner_note}</p>}
+                        {e.reason && <p className="text-xs text-tenant-muted mt-1">{e.reason}</p>}
+                        {e.owner_note && <p className="text-xs text-tenant-muted-subtle mt-1">Owner note: {e.owner_note}</p>}
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
               )}
 
               {bills.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="font-bold text-sm text-gray-900 mb-3">Other Bills</div>
-                  <div className="space-y-2">
-                    {bills.map(b => (
-                      <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div>
-                          <div className="text-sm font-semibold text-gray-900">{b.bill_type} — {b.for_month}</div>
-                          <div className="text-xs text-gray-400">{formatINR(b.amount)}</div>
+                <div>
+                  <SectionHeader title="Other Bills" />
+                  <Card padding="none">
+                    <div className="divide-y divide-tenant-border">
+                      {bills.map(b => (
+                        <div key={b.id} className="flex items-center gap-3 px-4 py-3.5">
+                          <div className="w-10 h-10 rounded-tenant-xl bg-tenant-warning/15 flex items-center justify-center flex-shrink-0">
+                            <Zap className="w-4.5 h-4.5 text-tenant-warning" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-tenant-fg truncate">{b.bill_type} — {b.for_month}</div>
+                            <div className="text-xs text-tenant-muted-subtle tenant-numeric">{formatINR(b.amount)}</div>
+                          </div>
+                          <Badge tone={b.status === 'paid' ? 'success' : b.status === 'pending_approval' ? 'info' : 'warning'} size="sm" className="capitalize shrink-0">
+                            {b.status.replace('_', ' ')}
+                          </Badge>
                         </div>
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${b.status === 'paid' ? 'bg-green-100 text-green-700' : b.status === 'pending_approval' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {b.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </Card>
                 </div>
               )}
             </div>
@@ -1291,41 +1294,41 @@ export default function TenantPortal() {
           {tab === 'history' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Payment History</h1>
-                <p className="text-sm text-gray-500">All your payments, in one place.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Payment History</h1>
+                <p className="text-sm text-tenant-muted">All your payments, in one place.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <Card padding="none">
                 {payments.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">No payments yet</div>
+                  <EmptyState icon={Wallet} title="No payments yet" className="py-12" />
                 ) : (
                   <>
                     {/* Mobile: stacked card list, no horizontal scroll */}
-                    <div className="sm:hidden divide-y divide-gray-50">
+                    <div className="sm:hidden divide-y divide-tenant-border">
                       {payments.map(p => (
-                        <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                        <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900 capitalize">{p.type} · {p.for_month ?? '—'}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(p.payment_date)}</div>
-                            <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            <div className="text-sm font-semibold text-tenant-fg capitalize">{p.type} · {p.for_month ?? '—'}</div>
+                            <div className="text-xs text-tenant-muted-subtle mt-0.5">{formatDate(p.payment_date)}</div>
+                            <Badge tone={p.approval_status === 'approved' ? 'success' : p.approval_status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize mt-1">
                               {p.approval_status.replace('_', ' ')}
-                            </span>
+                            </Badge>
                           </div>
                           <div className="flex items-center gap-1 shrink-0 relative">
-                            <div className="text-sm font-bold text-gray-900">{formatINR(p.amount_received)}</div>
-                            <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg transition" aria-label="Row options">
-                              <MoreVertical className="w-4 h-4 text-gray-400" />
+                            <div className="text-sm font-bold text-tenant-fg tenant-numeric">{formatINR(p.amount_received)}</div>
+                            <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-tenant-surface-hover rounded-tenant-lg transition" aria-label="Row options">
+                              <MoreVertical className="w-4 h-4 text-tenant-muted" />
                             </button>
                             {rowMenuOpen === p.id && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setRowMenuOpen(null)} />
-                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-tenant-surface-elevated rounded-tenant-xl shadow-tenant-md border border-tenant-border z-50 overflow-hidden">
                                   {p.approval_status === 'approved' ? (
                                     <button onClick={() => { downloadReceipt(p); setRowMenuOpen(null) }}
-                                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-tenant-fg hover:bg-tenant-surface-hover transition">
                                       <Download className="w-3.5 h-3.5" /> Download Receipt
                                     </button>
                                   ) : (
-                                    <div className="px-4 py-2.5 text-xs text-gray-400">Awaiting owner approval</div>
+                                    <div className="px-4 py-2.5 text-xs text-tenant-muted-subtle">Awaiting owner approval</div>
                                   )}
                                 </div>
                               </>
@@ -1337,44 +1340,44 @@ export default function TenantPortal() {
                     {/* Desktop/tablet: full table */}
                     <table className="w-full text-sm hidden sm:table">
                       <thead>
-                        <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                          <th className="px-5 py-3 font-semibold">Date</th>
-                          <th className="px-5 py-3 font-semibold">Type</th>
-                          <th className="px-5 py-3 font-semibold">Month</th>
-                          <th className="px-5 py-3 font-semibold">Amount</th>
-                          <th className="px-5 py-3 font-semibold">Status</th>
-                          <th className="px-5 py-3 font-semibold text-right">Txn ID</th>
-                          <th className="px-5 py-3"></th>
+                        <tr className="text-left text-xs text-tenant-muted-subtle border-b border-tenant-border">
+                          <th className="px-4 py-3 font-semibold">Date</th>
+                          <th className="px-4 py-3 font-semibold">Type</th>
+                          <th className="px-4 py-3 font-semibold">Month</th>
+                          <th className="px-4 py-3 font-semibold">Amount</th>
+                          <th className="px-4 py-3 font-semibold">Status</th>
+                          <th className="px-4 py-3 font-semibold text-right">Txn ID</th>
+                          <th className="px-4 py-3"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {payments.map(p => (
-                          <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                            <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap">{formatDate(p.payment_date)}</td>
-                            <td className="px-5 py-3.5 text-gray-600 capitalize">{p.type}</td>
-                            <td className="px-5 py-3.5 text-gray-600">{p.for_month ?? '—'}</td>
-                            <td className="px-5 py-3.5 font-semibold text-gray-900">{formatINR(p.amount_received)}</td>
-                            <td className="px-5 py-3.5">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.approval_status === 'approved' ? 'bg-green-100 text-green-700' : p.approval_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          <tr key={p.id} className="border-b border-tenant-border last:border-0 hover:bg-tenant-surface-hover">
+                            <td className="px-4 py-3.5 text-tenant-muted whitespace-nowrap">{formatDate(p.payment_date)}</td>
+                            <td className="px-4 py-3.5 text-tenant-muted capitalize">{p.type}</td>
+                            <td className="px-4 py-3.5 text-tenant-muted">{p.for_month ?? '—'}</td>
+                            <td className="px-4 py-3.5 font-semibold text-tenant-fg tenant-numeric">{formatINR(p.amount_received)}</td>
+                            <td className="px-4 py-3.5">
+                              <Badge tone={p.approval_status === 'approved' ? 'success' : p.approval_status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize">
                                 {p.approval_status.replace('_', ' ')}
-                              </span>
+                              </Badge>
                             </td>
-                            <td className="px-5 py-3.5 text-right text-xs text-gray-400 font-mono">#{p.id.slice(0, 8).toUpperCase()}</td>
-                            <td className="px-5 py-3.5 text-right relative">
-                              <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-gray-100 rounded-lg transition" aria-label="Row options">
-                                <MoreVertical className="w-4 h-4 text-gray-400" />
+                            <td className="px-4 py-3.5 text-right text-xs text-tenant-muted-subtle font-mono">#{p.id.slice(0, 8).toUpperCase()}</td>
+                            <td className="px-4 py-3.5 text-right relative">
+                              <button onClick={() => setRowMenuOpen(o => o === p.id ? null : p.id)} className="p-1.5 hover:bg-tenant-surface-hover rounded-tenant-lg transition" aria-label="Row options">
+                                <MoreVertical className="w-4 h-4 text-tenant-muted" />
                               </button>
                               {rowMenuOpen === p.id && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setRowMenuOpen(null)} />
-                                  <div className="absolute right-5 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                  <div className="absolute right-4 top-full mt-1 w-44 bg-tenant-surface-elevated rounded-tenant-xl shadow-tenant-md border border-tenant-border z-50 overflow-hidden">
                                     {p.approval_status === 'approved' ? (
                                       <button onClick={() => { downloadReceipt(p); setRowMenuOpen(null) }}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-tenant-fg hover:bg-tenant-surface-hover transition">
                                         <Download className="w-3.5 h-3.5" /> Download Receipt
                                       </button>
                                     ) : (
-                                      <div className="px-4 py-2.5 text-xs text-gray-400">Awaiting owner approval</div>
+                                      <div className="px-4 py-2.5 text-xs text-tenant-muted-subtle">Awaiting owner approval</div>
                                     )}
                                   </div>
                                 </>
@@ -1386,267 +1389,274 @@ export default function TenantPortal() {
                     </table>
                   </>
                 )}
-              </div>
+              </Card>
             </div>
           )}
 
           {tab === 'maintenance' && (
             <div className="space-y-5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h1 className="text-xl font-extrabold text-gray-900">Maintenance</h1>
-                  <p className="text-sm text-gray-500">Track issues you&apos;ve raised.</p>
+                  <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Maintenance</h1>
+                  <p className="text-sm text-tenant-muted">Track issues you&apos;ve raised.</p>
                 </div>
-                <button onClick={() => setComplaintModal(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition">
-                  <Wrench className="w-4 h-4" /> Raise New
-                </button>
+                <Button size="sm" icon={<Wrench className="w-4 h-4" />} onClick={() => setComplaintModal(true)}>
+                  Raise New
+                </Button>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+              <Card padding="none">
                 {complaints.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">No requests raised yet</div>
-                ) : complaints.map(c => (
-                  <div key={c.id} className="flex items-start justify-between gap-3 px-5 py-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" /> {c.issue_type}
-                        <span className="text-xs text-gray-400 font-normal">#{c.id.slice(0, 8).toUpperCase()}</span>
+                  <EmptyState icon={Wrench} title="No requests raised yet" className="py-12" />
+                ) : (
+                  <div className="divide-y divide-tenant-border">
+                    {complaints.map(c => (
+                      <div key={c.id} className="flex items-start justify-between gap-3 px-4 py-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-tenant-fg flex items-center gap-1.5 flex-wrap">
+                            <AlertCircle className="w-3.5 h-3.5 text-tenant-warning flex-shrink-0" /> {c.issue_type}
+                            <span className="text-xs text-tenant-muted-subtle font-normal">#{c.id.slice(0, 8).toUpperCase()}</span>
+                          </div>
+                          {c.description && <div className="text-xs text-tenant-muted mt-1">{c.description}</div>}
+                          <div className="text-xs text-tenant-muted-subtle mt-1">{formatDate(c.created_at)}</div>
+                        </div>
+                        <Badge tone={c.status === 'resolved' ? 'success' : c.status === 'in_progress' ? 'info' : 'warning'} size="sm" className="capitalize flex-shrink-0">
+                          {c.status.replace('_', ' ')}
+                        </Badge>
                       </div>
-                      {c.description && <div className="text-xs text-gray-500 mt-1">{c.description}</div>}
-                      <div className="text-xs text-gray-400 mt-1">{formatDate(c.created_at)}</div>
-                    </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${c.status === 'resolved' ? 'bg-green-100 text-green-700' : c.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                      {c.status.replace('_', ' ')}
-                    </span>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </Card>
             </div>
           )}
 
           {tab === 'requests' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">My Requests</h1>
-                <p className="text-sm text-gray-500">Every leave, extension, move-out and maintenance request in one place.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">My Requests</h1>
+                <p className="text-sm text-tenant-muted">Every leave, extension, move-out and maintenance request in one place.</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 {[['all', 'All'], ['leave', 'Leave'], ['extension', 'Extension'], ['moveout', 'Move-Out'], ['maintenance', 'Maintenance'], ['profile', 'Profile Update']].map(([v, l]) => (
                   <button key={v} onClick={() => setRequestTypeFilter(v as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${requestTypeFilter === v ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    className={`px-3 py-1.5 rounded-tenant-lg text-xs font-semibold whitespace-nowrap transition ${requestTypeFilter === v ? 'bg-tenant-primary text-tenant-primary-fg' : 'bg-tenant-surface border border-tenant-border text-tenant-muted hover:bg-tenant-surface-hover'}`}>
                     {l}
                   </button>
                 ))}
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+              <Card padding="none">
                 {allRequests.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">No requests yet</div>
-                ) : allRequests.map(r => (
-                  <div key={r.id} className="flex items-start justify-between gap-3 px-5 py-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                        <span>{r.icon}</span> {r.title}
+                  <EmptyState icon={FileText} title="No requests yet" className="py-12" />
+                ) : (
+                  <div className="divide-y divide-tenant-border">
+                    {allRequests.map(r => (
+                      <div key={r.id} className="flex items-start justify-between gap-3 px-4 py-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-tenant-fg flex items-center gap-1.5">
+                            <span>{r.icon}</span> {r.title}
+                          </div>
+                          <div className="text-xs text-tenant-muted-subtle mt-1">{r.typeLabel} · Requested {formatDate(r.created_at)}</div>
+                          {r.detail && <div className="text-xs text-tenant-muted mt-1">{r.detail}</div>}
+                        </div>
+                        <Badge tone={r.status === 'approved' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize flex-shrink-0">
+                          {(r as any).statusLabel ?? r.status}
+                        </Badge>
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">{r.typeLabel} · Requested {formatDate(r.created_at)}</div>
-                      {r.detail && <div className="text-xs text-gray-500 mt-1">{r.detail}</div>}
-                    </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 capitalize ${
-                      r.status === 'approved' ? 'bg-green-100 text-green-700' : r.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {(r as any).statusLabel ?? r.status}
-                    </span>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </Card>
             </div>
           )}
 
           {tab === 'documents' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Documents</h1>
-                <p className="text-sm text-gray-500">Your KYC and agreement status.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Documents</h1>
+                <p className="text-sm text-tenant-muted">Your KYC and agreement status.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><FileText className="w-4 h-4 text-blue-500" /></div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">Rent Agreement</div>
-                      <div className="text-xs text-gray-400">{agreement ? `${agreement.agreement_number} · ${agreement.status}` : 'System-generated from your tenant record'}</div>
-                      {agreementDaysLeft !== null && agreementDaysLeft <= 30 && (agreement.status === 'signed' || agreement.status === 'active') && (
-                        <div className={`text-xs font-semibold mt-0.5 ${agreementDaysLeft < 0 ? 'text-red-600' : 'text-amber-600'}`}>
-                          {agreementDaysLeft < 0 ? `Expired ${Math.abs(agreementDaysLeft)}d ago — ask your owner to renew` : agreementDaysLeft === 0 ? 'Expires today' : `Expires in ${agreementDaysLeft}d`}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <button onClick={downloadAgreement} aria-label="Download rent agreement" className="p-2 hover:bg-gray-100 rounded-lg transition"><Download className="w-4 h-4 text-gray-500" /></button>
-                </div>
-                {agreement?.government_id && (
-                  <div className="flex items-center justify-between px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><FileText className="w-4 h-4 text-green-500" /></div>
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">Government ID</div>
-                        <div className="text-xs text-gray-400">Uploaded at joining</div>
+              <Card padding="none">
+                <div className="divide-y divide-tenant-border">
+                  <div className="flex items-center justify-between gap-3 px-4 py-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-tenant-xl bg-tenant-info/15 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-tenant-info" /></div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-tenant-fg">Rent Agreement</div>
+                        <div className="text-xs text-tenant-muted-subtle truncate">{agreement ? `${agreement.agreement_number} · ${agreement.status}` : 'System-generated from your tenant record'}</div>
+                        {agreementDaysLeft !== null && agreementDaysLeft <= 30 && (agreement.status === 'signed' || agreement.status === 'active') && (
+                          <div className={`text-xs font-semibold mt-0.5 ${agreementDaysLeft < 0 ? 'text-tenant-danger' : 'text-tenant-warning'}`}>
+                            {agreementDaysLeft < 0 ? `Expired ${Math.abs(agreementDaysLeft)}d ago — ask your owner to renew` : agreementDaysLeft === 0 ? 'Expires today' : `Expires in ${agreementDaysLeft}d`}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <a href={agreement.government_id} target="_blank" rel="noreferrer" className="p-2 hover:bg-gray-100 rounded-lg transition" aria-label="View government ID"><Eye className="w-4 h-4 text-gray-500" /></a>
+                    <button onClick={downloadAgreement} aria-label="Download rent agreement" className="p-2 hover:bg-tenant-surface-hover rounded-tenant-lg transition flex-shrink-0"><Download className="w-4 h-4 text-tenant-muted" /></button>
                   </div>
-                )}
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><FileText className="w-4 h-4 text-orange-500" /></div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">Aadhaar Card</div>
-                      <div className="text-xs text-gray-400">KYC verification status</div>
+                  {agreement?.government_id && (
+                    <div className="flex items-center justify-between gap-3 px-4 py-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-tenant-xl bg-tenant-success/15 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-tenant-success" /></div>
+                        <div>
+                          <div className="text-sm font-semibold text-tenant-fg">Government ID</div>
+                          <div className="text-xs text-tenant-muted-subtle">Uploaded at joining</div>
+                        </div>
+                      </div>
+                      <a href={agreement.government_id} target="_blank" rel="noreferrer" className="p-2 hover:bg-tenant-surface-hover rounded-tenant-lg transition flex-shrink-0" aria-label="View government ID"><Eye className="w-4 h-4 text-tenant-muted" /></a>
                     </div>
-                  </div>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${tenant.aadhaar_status === 'verified' ? 'bg-green-100 text-green-700' : tenant.aadhaar_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {tenant.aadhaar_status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center"><FileText className="w-4 h-4 text-purple-500" /></div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">PAN Card</div>
-                      <div className="text-xs text-gray-400">KYC verification status</div>
+                  )}
+                  <div className="flex items-center justify-between gap-3 px-4 py-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-tenant-xl bg-tenant-warning/15 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-tenant-warning" /></div>
+                      <div>
+                        <div className="text-sm font-semibold text-tenant-fg">Aadhaar Card</div>
+                        <div className="text-xs text-tenant-muted-subtle">KYC verification status</div>
+                      </div>
                     </div>
+                    <Badge tone={tenant.aadhaar_status === 'verified' ? 'success' : tenant.aadhaar_status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize flex-shrink-0">
+                      {tenant.aadhaar_status}
+                    </Badge>
                   </div>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${tenant.pan_status === 'verified' ? 'bg-green-100 text-green-700' : tenant.pan_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {tenant.pan_status}
-                  </span>
+                  <div className="flex items-center justify-between gap-3 px-4 py-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-tenant-xl bg-tenant-purple/15 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-tenant-purple" /></div>
+                      <div>
+                        <div className="text-sm font-semibold text-tenant-fg">PAN Card</div>
+                        <div className="text-xs text-tenant-muted-subtle">KYC verification status</div>
+                      </div>
+                    </div>
+                    <Badge tone={tenant.pan_status === 'verified' ? 'success' : tenant.pan_status === 'rejected' ? 'danger' : 'warning'} size="sm" className="capitalize flex-shrink-0">
+                      {tenant.pan_status}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-              <p className="text-xs text-gray-400">Document upload isn&apos;t available yet — ask your PG owner if they need physical/digital copies of your KYC documents.</p>
+              </Card>
+              <p className="text-xs text-tenant-muted-subtle">Document upload isn&apos;t available yet — ask your PG owner if they need physical/digital copies of your KYC documents.</p>
             </div>
           )}
 
           {tab === 'messages' && (
             <div className="space-y-5 h-full flex flex-col">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Messages</h1>
-                <p className="text-sm text-gray-500">Chat directly with your PG owner.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Messages</h1>
+                <p className="text-sm text-tenant-muted">Chat directly with your PG owner.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col h-[60vh]">
-                <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              <Card padding="none" className="flex flex-col h-[60vh]">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
                   {messages.length === 0 ? (
-                    <div className="text-center text-sm text-gray-400 py-10">No messages yet — say hello to your owner!</div>
+                    <EmptyState icon={MessageCircle} title="No messages yet" subtitle="Say hello to your owner!" className="py-10" />
                   ) : messages.map(m => (
                     <div key={m.id} className={`flex ${m.sender === 'tenant' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'tenant' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                      <div className={`max-w-[75%] rounded-tenant-2xl px-4 py-2.5 text-sm ${m.sender === 'tenant' ? 'bg-tenant-primary text-tenant-primary-fg' : 'bg-tenant-surface-hover text-tenant-fg'}`}>
                         <div>{m.body}</div>
-                        <div className={`text-[10px] mt-1 ${m.sender === 'tenant' ? 'text-indigo-200' : 'text-gray-400'}`}>
+                        <div className={`text-[10px] mt-1 ${m.sender === 'tenant' ? 'text-tenant-primary-fg/70' : 'text-tenant-muted-subtle'}`}>
                           {new Date(m.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="p-4 border-t border-gray-100 flex gap-2">
+                <div className="p-3.5 border-t border-tenant-border flex gap-2">
                   <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && sendMessage()}
                     placeholder="Type a message…"
-                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
-                  <button onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()}
-                    className="w-11 h-11 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition disabled:opacity-50 flex-shrink-0">
-                    {sendingMsg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </button>
+                    className="flex-1 px-4 py-2.5 bg-tenant-surface border border-tenant-border rounded-tenant-xl text-sm text-tenant-fg placeholder:text-tenant-muted-subtle focus:outline-none focus:border-tenant-primary focus:ring-2 focus:ring-tenant-primary/20" />
+                  <Button size="icon" onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()} loading={sendingMsg} className="flex-shrink-0">
+                    {!sendingMsg && <Send className="w-4 h-4" />}
+                  </Button>
                 </div>
-              </div>
+              </Card>
             </div>
           )}
 
           {tab === 'support' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Support</h1>
-                <p className="text-sm text-gray-500">Get help or reach your PG owner directly.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Support</h1>
+                <p className="text-sm text-tenant-muted">Get help or reach your PG owner directly.</p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <Card padding="lg">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center"><Headset className="w-5 h-5 text-indigo-600" /></div>
+                  <div className="w-12 h-12 rounded-tenant-xl bg-tenant-primary/15 flex items-center justify-center flex-shrink-0"><Headset className="w-5 h-5 text-tenant-primary" /></div>
                   <div>
-                    <div className="font-bold text-gray-900">Contact {tenant.property?.name ?? 'your PG owner'}</div>
-                    <div className="text-xs text-gray-400">Usually responds within a few hours</div>
+                    <div className="font-bold text-tenant-fg">Contact {tenant.property?.name ?? 'your PG owner'}</div>
+                    <div className="text-xs text-tenant-muted-subtle">Usually responds within a few hours</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button onClick={openMessagesTab} className="flex items-center justify-center gap-2 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold transition">
+                  <button onClick={openMessagesTab} className="flex items-center justify-center gap-2 py-3 bg-tenant-primary/10 hover:bg-tenant-primary/15 text-tenant-primary rounded-tenant-xl text-sm font-semibold transition">
                     <MessageCircle className="w-4 h-4" /> Message Owner
                   </button>
-                  <button onClick={() => setComplaintModal(true)} className="flex items-center justify-center gap-2 py-3 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-semibold transition">
+                  <button onClick={() => setComplaintModal(true)} className="flex items-center justify-center gap-2 py-3 bg-tenant-warning/10 hover:bg-tenant-warning/15 text-tenant-warning rounded-tenant-xl text-sm font-semibold transition">
                     <Wrench className="w-4 h-4" /> Raise Maintenance Request
                   </button>
-                  <button onClick={() => setTab('requests')} className="flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition sm:col-span-2">
+                  <button onClick={() => setTab('requests')} className="flex items-center justify-center gap-2 py-3 bg-tenant-surface-hover hover:bg-tenant-border text-tenant-fg rounded-tenant-xl text-sm font-semibold transition sm:col-span-2">
                     <CheckCircle className="w-4 h-4" /> View All My Requests
                   </button>
                 </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
-                <div className="font-bold text-sm text-gray-900">Frequently Asked</div>
+              </Card>
+              <Card padding="lg" className="space-y-4">
+                <div className="font-bold text-sm text-tenant-fg">Frequently Asked</div>
                 {[
                   ['How do I pay rent?', 'Go to Rent & Payments → Pay Rent Now, then confirm via UPI or by marking it paid for your owner to verify.'],
                   ['When is my deposit refunded?', 'Your security deposit is refunded after you vacate, following a room inspection, minus any pending dues or damages.'],
                   ['How do I report a maintenance issue?', 'Use the Maintenance tab or the button above to raise a request — your owner will be notified.'],
                   ['Can I download my agreement anytime?', 'Yes — go to Documents and tap the download icon next to Rent Agreement.'],
                 ].map(([q, a]) => (
-                  <div key={q} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                    <div className="text-sm font-semibold text-gray-800">{q}</div>
-                    <div className="text-xs text-gray-500 mt-1">{a}</div>
+                  <div key={q} className="border-b border-tenant-border pb-3 last:border-0 last:pb-0">
+                    <div className="text-sm font-semibold text-tenant-fg">{q}</div>
+                    <div className="text-xs text-tenant-muted mt-1">{a}</div>
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           )}
 
           {tab === 'notices' && (
             <div className="space-y-5">
               <div>
-                <h1 className="text-xl font-extrabold text-gray-900">Notice Board</h1>
-                <p className="text-sm text-gray-500">Announcements from your PG owner.</p>
+                <h1 className="font-tenant-display text-xl font-extrabold text-tenant-fg">Notice Board</h1>
+                <p className="text-sm text-tenant-muted">Announcements from your PG owner.</p>
               </div>
               {allNotices.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-sm text-gray-400 shadow-sm">
-                  No notices yet
-                </div>
+                <Card className="p-12 text-center">
+                  <EmptyState icon={Megaphone} title="No notices yet" className="py-0" />
+                </Card>
               ) : (
                 <div className="space-y-3">
                   {allNotices.map(n => (
-                    <div key={n.id} className={`bg-white rounded-2xl border shadow-sm p-5 ${!n.isRead ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-gray-100'}`}>
-                      <div className="flex items-start justify-between gap-3 mb-2">
+                    <Card key={n.id} padding="lg" className={!n.isRead ? 'border-tenant-primary/30 ring-1 ring-tenant-primary/15' : ''}>
+                      <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-sm font-bold text-gray-900">{n.title}</h3>
-                          {!n.isRead && <span className="w-2 h-2 rounded-full bg-indigo-600 flex-shrink-0" />}
+                          <h3 className="text-sm font-bold text-tenant-fg">{n.title}</h3>
+                          {!n.isRead && <span className="w-2 h-2 rounded-full bg-tenant-primary flex-shrink-0" />}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            n.priority === 'Urgent' ? 'bg-red-100 text-red-700' : n.priority === 'Important' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
-                          }`}>{n.priority}</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{n.category}</span>
+                          <Badge tone={n.priority === 'Urgent' ? 'danger' : n.priority === 'Important' ? 'warning' : 'neutral'} size="sm">
+                            {n.priority}
+                          </Badge>
+                          <Badge tone="primary" size="sm">{n.category}</Badge>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{n.description}</p>
+                      <p className="text-sm text-tenant-muted whitespace-pre-wrap">{n.description}</p>
                       {n.attachment_url && (
-                        <a href={n.attachment_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline mt-2">
+                        <a href={n.attachment_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-tenant-primary hover:underline mt-2">
                           <Paperclip className="w-3.5 h-3.5" /> {n.attachment_name || 'View attachment'}
                         </a>
                       )}
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-                        <div className="text-xs text-gray-400">
+                      <div className="flex items-center justify-between gap-2 flex-wrap mt-3 pt-3 border-t border-tenant-border">
+                        <div className="text-xs text-tenant-muted-subtle">
                           Published {formatDate(n.publish_date)}{n.expiry_date ? ` · Expires ${formatDate(n.expiry_date)}` : ''}
                           {n.created_by && ` · By ${n.created_by}`}
                         </div>
                         {!n.isRead && (
-                          <button onClick={() => handleMarkNoticeRead(n)} className="text-xs font-semibold text-indigo-600 hover:underline flex-shrink-0">
+                          <button onClick={() => handleMarkNoticeRead(n)} className="text-xs font-semibold text-tenant-primary hover:underline flex-shrink-0">
                             Mark as Read
                           </button>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               )}
