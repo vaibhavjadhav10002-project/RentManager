@@ -66,7 +66,7 @@ export default function MessagesPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-owner-muted-subtle" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tenants…"
-              className="w-full pl-8 pr-3 py-2 bg-owner-surface-hover border border-owner-border rounded-xl text-xs focus:outline-none focus:border-blue-500" />
+              className="w-full pl-8 pr-3 py-2 bg-owner-surface-hover border border-owner-border rounded-xl text-xs focus:outline-none focus:border-owner-primary" />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -76,8 +76,8 @@ export default function MessagesPage() {
             <div className="text-center py-8 text-sm text-owner-muted-subtle">No active tenants</div>
           ) : filteredTenants.map(t => (
             <button key={t.id} onClick={() => openThread(t)}
-              className={`w-full text-left px-4 py-3 border-b border-owner-border hover:bg-owner-surface-hover transition flex items-center gap-3 ${selected?.id === t.id ? 'bg-blue-50' : ''}`}>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+              className={`w-full text-left px-4 py-3 border-b border-owner-border hover:bg-owner-surface-hover transition flex items-center gap-3 ${selected?.id === t.id ? 'bg-owner-primary/10' : ''}`}>
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-owner-primary to-purple-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                 {t.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
@@ -99,7 +99,7 @@ export default function MessagesPage() {
         ) : (
           <>
             <div className="px-5 py-3.5 border-b border-owner-border flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-owner-primary to-purple-600 flex items-center justify-center text-white font-bold text-xs">
                 {selected.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -114,9 +114,9 @@ export default function MessagesPage() {
                 <div className="text-center py-8 text-sm text-owner-muted-subtle">No messages yet — say hello!</div>
               ) : thread.map(m => (
                 <div key={m.id} className={`flex ${m.sender === 'owner' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'owner' ? 'bg-blue-600 text-white' : 'bg-owner-surface border border-owner-border text-owner-fg'}`}>
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'owner' ? 'bg-owner-primary text-white' : 'bg-owner-surface border border-owner-border text-owner-fg'}`}>
                     {m.body}
-                    <div className={`text-[10px] mt-1 ${m.sender === 'owner' ? 'text-blue-200' : 'text-owner-muted-subtle'}`}>{formatDate(m.created_at)}</div>
+                    <div className={`text-[10px] mt-1 ${m.sender === 'owner' ? 'text-white/70' : 'text-owner-muted-subtle'}`}>{formatDate(m.created_at)}</div>
                   </div>
                 </div>
               ))}
@@ -125,9 +125,9 @@ export default function MessagesPage() {
               <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}
                 placeholder="Type a message…"
-                className="flex-1 px-4 py-2.5 bg-owner-surface-hover border border-owner-border rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                className="flex-1 px-4 py-2.5 bg-owner-surface-hover border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" />
               <button onClick={handleSend} disabled={sending || !newMessage.trim()}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-50 transition">
+                className="px-4 py-2.5 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-owner-lg disabled:opacity-50 transition">
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>

@@ -165,7 +165,7 @@ export default function RestorePage() {
       </div>
 
       {/* Choose a source */}
-      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs p-6 space-y-4">
         <div className="text-sm font-bold text-owner-fg">1. Choose a backup</div>
 
         <button onClick={() => fileInputRef.current?.click()}
@@ -180,9 +180,9 @@ export default function RestorePage() {
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {runs.map(r => (
                 <button key={r.id} onClick={() => handleLoadRun(r)}
-                  className="w-full flex items-center justify-between px-3 py-2 border border-owner-border rounded-xl text-xs hover:bg-owner-surface-hover transition">
-                  <span className="text-owner-muted">{new Date(r.started_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span className="text-owner-muted-subtle">{r.record_count} records</span>
+                  className="w-full flex items-center justify-between px-3 py-2 border border-owner-border rounded-owner-md text-xs hover:bg-owner-surface-hover transition">
+                  <span className="text-owner-muted truncate min-w-0">{new Date(r.started_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-owner-muted-subtle shrink-0 whitespace-nowrap ml-2">{r.record_count} records</span>
                 </button>
               ))}
             </div>
@@ -194,7 +194,7 @@ export default function RestorePage() {
 
       {/* Preview */}
       {parsed && (
-        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs p-6 space-y-4">
           <div className="text-sm font-bold text-owner-fg flex items-center gap-2"><FileJson className="w-4 h-4" /> 2. Review before restoring</div>
           <p className="text-xs text-owner-muted">
             Backup taken {new Date(parsed.exported_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -208,9 +208,9 @@ export default function RestorePage() {
               {matchingProperties.map(pb => {
                 const total = Object.entries(pb).filter(([k]) => k !== 'property').reduce((s, [, v]) => s + (Array.isArray(v) ? v.length : 0), 0)
                 return (
-                  <div key={pb.property.id} className="flex items-center justify-between text-xs bg-owner-surface-hover rounded-xl px-3 py-2">
-                    <span className="font-semibold text-owner-fg">{pb.property.name}</span>
-                    <span className="text-owner-muted-subtle">{total} records</span>
+                  <div key={pb.property.id} className="flex items-center justify-between text-xs bg-owner-surface-hover rounded-owner-md px-3 py-2">
+                    <span className="font-semibold text-owner-fg truncate min-w-0">{pb.property.name}</span>
+                    <span className="text-owner-muted-subtle shrink-0 whitespace-nowrap ml-2">{total} records</span>
                   </div>
                 )
               })}
@@ -225,7 +225,7 @@ export default function RestorePage() {
 
           {matchingProperties.length > 0 && (
             <button onClick={handleRestore} disabled={restoring}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
               {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
               {restoring ? 'Restoring…' : 'Restore This Backup'}
             </button>
@@ -235,12 +235,12 @@ export default function RestorePage() {
 
       {/* Results */}
       {results && (
-        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-2">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs p-6 space-y-2">
           <div className="text-sm font-bold text-owner-fg flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Restore Summary</div>
           {results.map(r => (
-            <div key={r.table} className="flex items-center justify-between text-xs">
-              <span className="text-owner-muted capitalize">{r.table.replace('_', ' ')}</span>
-              <span className="text-owner-muted">
+            <div key={r.table} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-owner-muted capitalize truncate min-w-0">{r.table.replace('_', ' ')}</span>
+              <span className="text-owner-muted shrink-0 whitespace-nowrap">
                 {r.upserted} restored{r.failed > 0 && <span className="text-red-500"> · {r.failed} failed</span>}
               </span>
             </div>

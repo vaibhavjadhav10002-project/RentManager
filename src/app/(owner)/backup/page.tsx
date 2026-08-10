@@ -117,9 +117,9 @@ export default function BackupPage() {
         <p className="text-sm text-owner-muted">Download a full copy of your data, any time</p>
       </div>
 
-      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs p-6 space-y-4">
         <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-owner-primary/10 text-owner-primary flex items-center justify-center flex-shrink-0">
             <FileJson className="w-5 h-5" />
           </div>
           <div>
@@ -133,7 +133,7 @@ export default function BackupPage() {
         </div>
 
         <button onClick={runBackup} disabled={exporting}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
           {exporting ? 'Preparing backup…' : 'Download Backup Now'}
         </button>
@@ -148,7 +148,7 @@ export default function BackupPage() {
       </div>
 
       {/* Automatic Backup (Phase 5.13) */}
-      <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm p-6 space-y-4">
+      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs p-6 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
@@ -201,7 +201,7 @@ export default function BackupPage() {
                   {r.status === 'failed' && r.error_message && <span className="text-red-500 truncate max-w-[160px]">· {r.error_message}</span>}
                 </div>
                 {r.status === 'success' && r.file_path && (
-                  <button onClick={() => downloadRun(r.file_path!)} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-semibold flex-shrink-0">
+                  <button onClick={() => downloadRun(r.file_path!)} className="flex items-center gap-1 text-owner-primary hover:text-owner-primary-hover font-semibold flex-shrink-0">
                     <ExternalLink className="w-3 h-3" /> Open
                   </button>
                 )}

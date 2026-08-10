@@ -127,7 +127,7 @@ export default function ArchivePage() {
                   </div>
                 </div>
                 <button onClick={() => handleRestore(item)} disabled={actioningId === item.id}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition disabled:opacity-50 flex-shrink-0">
+                  className="flex items-center gap-1 px-3 py-1.5 bg-owner-primary/10 hover:bg-owner-primary/15 text-owner-primary rounded-owner-md text-xs font-semibold transition disabled:opacity-50 flex-shrink-0">
                   {actioningId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />} Restore
                 </button>
               </div>

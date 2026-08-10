@@ -120,7 +120,7 @@ export default function IncomeReportPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <select value={month} onChange={e => setMonth(e.target.value)}
-          className="px-3 py-2 border border-owner-border rounded-owner-lg text-sm bg-owner-surface focus:outline-none focus:border-blue-500">
+          className="px-3 py-2 border border-owner-border rounded-owner-lg text-sm bg-owner-surface focus:outline-none focus:border-owner-primary">
           <option value="all">All Time</option>
           {monthOptions.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
         </select>

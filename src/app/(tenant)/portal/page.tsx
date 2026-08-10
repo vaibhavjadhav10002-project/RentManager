@@ -1666,8 +1666,11 @@ export default function TenantPortal() {
         </main>
       </div>
 
-      {/* Bottom tab bar — mobile only, sidebar already covers desktop nav */}
-      <nav className="lg:hidden relative tenant-safe-bottom fixed bottom-0 left-0 right-0 z-30 bg-tenant-surface-elevated/95 backdrop-blur-md border-t border-tenant-border">
+      {/* Bottom tab bar — mobile only, sidebar already covers desktop nav.
+          Mirrors OwnerBottomNav.tsx treatment (indicator bar, ripple, icon-pop,
+          elevation shadow, 52dp touch target) so Owner/Tenant nav feel like
+          the same design system, per the UI-consistency pass. */}
+      <nav className="lg:hidden relative tenant-safe-bottom fixed bottom-0 left-0 right-0 z-30 bg-tenant-surface-elevated/95 backdrop-blur-md border-t border-tenant-border shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)]">
         <div className="flex items-stretch justify-around px-1">
           {[
             { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, onClick: () => setTab('dashboard') },
@@ -1679,17 +1682,18 @@ export default function TenantPortal() {
             <div key="spacer" className="flex-1" />
           ) : (
             <button key={item.key} onClick={item.onClick}
-              className="relative flex flex-col items-center justify-center gap-1 flex-1 py-2.5 min-w-0"
+              className="relative flex flex-col items-center justify-center gap-1 flex-1 min-h-[52px] py-2.5 min-w-0 overflow-hidden before:absolute before:inset-0 before:rounded-tenant-lg before:bg-tenant-fg/5 before:scale-0 before:opacity-0 active:before:scale-100 active:before:opacity-100 before:transition before:duration-300"
               aria-current={tab === item.key ? 'page' : undefined}>
-              <span className={`relative flex items-center justify-center h-8 w-11 rounded-tenant-full transition-colors ${tab === item.key ? 'bg-tenant-primary/15' : ''}`}>
-                <item.icon className={`h-[19px] w-[19px] transition-colors ${tab === item.key ? 'text-tenant-primary' : 'text-tenant-muted'}`} />
+              <span className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full bg-tenant-primary transition-all duration-300 ease-out ${tab === item.key ? 'w-6 opacity-100' : 'w-0 opacity-0'}`} aria-hidden="true" />
+              <span className={`relative flex items-center justify-center h-8 w-11 rounded-tenant-full transition-all duration-300 ease-out ${tab === item.key ? 'bg-tenant-primary/15 scale-100' : 'scale-90'}`}>
+                <item.icon className={`transition-all duration-300 ease-out ${tab === item.key ? 'h-5 w-5 text-tenant-primary' : 'h-[19px] w-[19px] text-tenant-muted'}`} />
                 {item.badge ? (
                   <span className="absolute -top-0.5 right-1.5 min-w-[15px] h-[15px] px-0.5 flex items-center justify-center rounded-tenant-full bg-tenant-danger text-white font-bold text-[9px] ring-2 ring-tenant-surface-elevated">
                     {item.badge > 9 ? '9+' : item.badge}
                   </span>
                 ) : null}
               </span>
-              <span className={`text-[10.5px] font-semibold truncate max-w-full ${tab === item.key ? 'text-tenant-primary' : 'text-tenant-muted'}`}>
+              <span className={`text-[10.5px] font-semibold truncate max-w-full transition-colors duration-300 ${tab === item.key ? 'text-tenant-primary' : 'text-tenant-muted'}`}>
                 {item.label}
               </span>
             </button>
@@ -1800,36 +1804,36 @@ export default function TenantPortal() {
       {/* Mark as Paid Modal */}
       {payModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
               <h2 className="text-base font-bold">Pay {payKind === 'rent' ? `Rent — ${oldestUnpaidMonth?.label ?? thisMonth}` : 'Security Deposit'}</h2>
-              <button onClick={() => setPayModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setPayModal(false)} className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+              <div className="bg-tenant-primary/10 rounded-tenant-xl p-3 text-xs text-tenant-primary">
                 Amount: <span className="font-bold">{formatINR(payAmount)}</span>{payKind === 'rent' && lateFee > 0 && <span> (includes {formatINR(lateFee)} late fee)</span>}. This notifies your owner that you&apos;ve paid. No real payment is made here — the owner will verify and approve.
               </div>
               {tenant.property?.upi_id && (
                 <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={payAmount} note={`${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`} />
               )}
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-2">Payment Method</label>
+                <label className="text-xs font-semibold text-tenant-muted block mb-2">Payment Method</label>
                 <div className="flex gap-2">
                   {['upi', 'cash', 'bank_transfer'].map(m => (
                     <button key={m} onClick={() => setMethod(m)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition ${method === m ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      className={`flex-1 py-2 rounded-tenant-xl text-xs font-semibold border transition ${method === m ? 'border-tenant-primary bg-tenant-primary/10 text-tenant-primary' : 'border-tenant-border text-tenant-muted hover:bg-tenant-surface-hover'}`}>
                       {m.replace('_', ' ').toUpperCase()}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Note (optional)</label>
-                <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Paid via GPay this morning" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Note (optional)</label>
+                <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Paid via GPay this morning" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+            <div className="px-5 py-4 border-t border-tenant-border">
+              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit for Approval
               </button>
             </div>
@@ -1840,34 +1844,34 @@ export default function TenantPortal() {
       {/* Complaint Modal */}
       {complaintModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
               <h2 className="text-base font-bold">Raise Maintenance Request</h2>
-              <button onClick={() => setComplaintModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setComplaintModal(false)} className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Issue Type</label>
-                <select value={complaint.issue_type} onChange={e => setComplaint(c => ({ ...c, issue_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Issue Type</label>
+                <select value={complaint.issue_type} onChange={e => setComplaint(c => ({ ...c, issue_type: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary">
                   {['Plumbing', 'Electrical', 'WiFi', 'Cleaning', 'AC', 'Maintenance', 'Other'].map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Priority</label>
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Priority</label>
                 <div className="flex gap-2">
                   {['low', 'medium', 'high'].map(p => (
                     <button key={p} onClick={() => setComplaint(c => ({ ...c, priority: p }))}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition capitalize ${complaint.priority === p ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600'}`}>{p}</button>
+                      className={`flex-1 py-2 rounded-tenant-xl text-xs font-semibold border transition capitalize ${complaint.priority === p ? 'border-tenant-primary bg-tenant-primary/10 text-tenant-primary' : 'border-tenant-border text-tenant-muted'}`}>{p}</button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
-                <textarea rows={3} value={complaint.description} onChange={e => setComplaint(c => ({ ...c, description: e.target.value }))} placeholder="Describe the issue…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Description</label>
+                <textarea rows={3} value={complaint.description} onChange={e => setComplaint(c => ({ ...c, description: e.target.value }))} placeholder="Describe the issue…" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+            <div className="px-5 py-4 border-t border-tenant-border">
+              <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -1878,29 +1882,29 @@ export default function TenantPortal() {
       {/* Leave Request Modal */}
       {leaveModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
               <h2 className="text-base font-bold">Request Temporary Leave</h2>
-              <button onClick={() => setLeaveModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setLeaveModal(false)} aria-label="Close" className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">From</label>
-                  <input type="date" value={leaveForm.start_date} onChange={e => setLeaveForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                  <label className="text-xs font-semibold text-tenant-muted block mb-1">From</label>
+                  <input type="date" value={leaveForm.start_date} onChange={e => setLeaveForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
                 </div>
                 <div className="flex-1">
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">To</label>
-                  <input type="date" value={leaveForm.end_date} onChange={e => setLeaveForm(f => ({ ...f, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                  <label className="text-xs font-semibold text-tenant-muted block mb-1">To</label>
+                  <input type="date" value={leaveForm.end_date} onChange={e => setLeaveForm(f => ({ ...f, end_date: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
-                <textarea rows={3} value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Going home for a family function" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Reason (optional)</label>
+                <textarea rows={3} value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Going home for a family function" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+            <div className="px-5 py-4 border-t border-tenant-border">
+              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingLeave && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -1911,13 +1915,13 @@ export default function TenantPortal() {
       {/* Profile Update Request Modal (Phase 8.7) */}
       {profileUpdateModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg max-h-[85vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between shrink-0">
               <h2 className="text-base font-bold">Request Profile Update</h2>
-              <button onClick={() => setProfileUpdateModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setProfileUpdateModal(false)} aria-label="Close" className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4 overflow-y-auto">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-tenant-muted">
                 Changes here won&apos;t take effect immediately — your owner will review and approve them first.
               </p>
               {[
@@ -1926,24 +1930,24 @@ export default function TenantPortal() {
                 ['emergency_contact', 'Emergency Contact Number'],
               ].map(([key, label]) => (
                 <div key={key}>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">{label}</label>
+                  <label className="text-xs font-semibold text-tenant-muted block mb-1">{label}</label>
                   {key === 'permanent_address' ? (
                     <textarea rows={2} value={(profileUpdateForm as any)[key]} onChange={e => setProfileUpdateForm(f => ({ ...f, [key]: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                      className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
                   ) : (
                     <input value={(profileUpdateForm as any)[key]} onChange={e => setProfileUpdateForm(f => ({ ...f, [key]: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                      className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
                   )}
                 </div>
               ))}
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Reason (optional)</label>
                 <textarea rows={2} value={profileUpdateForm.reason} onChange={e => setProfileUpdateForm(f => ({ ...f, reason: e.target.value }))}
-                  placeholder="e.g. My address changed recently" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                  placeholder="e.g. My address changed recently" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 shrink-0">
-              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+            <div className="px-5 py-4 border-t border-tenant-border shrink-0">
+              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingProfileUpdate && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -1954,26 +1958,26 @@ export default function TenantPortal() {
       {/* Rent Extension Request Modal */}
       {extensionModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
               <h2 className="text-base font-bold">Request Rent Extension</h2>
-              <button onClick={() => setExtensionModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setExtensionModal(false)} aria-label="Close" className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+              <div className="bg-tenant-primary/10 rounded-tenant-xl p-3 text-xs text-tenant-primary">
                 Asking for more time to pay {oldestUnpaidMonth?.label ?? thisMonth} rent. No late fee will apply until the date below, if approved.
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Pay By</label>
-                <input type="date" value={extensionForm.requested_until} onChange={e => setExtensionForm(f => ({ ...f, requested_until: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Pay By</label>
+                <input type="date" value={extensionForm.requested_until} onChange={e => setExtensionForm(f => ({ ...f, requested_until: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
-                <textarea rows={3} value={extensionForm.reason} onChange={e => setExtensionForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Salary credits on the 5th" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Reason (optional)</label>
+                <textarea rows={3} value={extensionForm.reason} onChange={e => setExtensionForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Salary credits on the 5th" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+            <div className="px-5 py-4 border-t border-tenant-border">
+              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingExtension && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -1984,23 +1988,23 @@ export default function TenantPortal() {
       {/* Move-Out Request Modal */}
       {moveOutModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
               <h2 className="text-base font-bold">Request Move-Out</h2>
-              <button onClick={() => setMoveOutModal(false)} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setMoveOutModal(false)} aria-label="Close" className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Intended Move-Out Date</label>
-                <input type="date" value={moveOutForm.requested_date} onChange={e => setMoveOutForm(f => ({ ...f, requested_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Intended Move-Out Date</label>
+                <input type="date" value={moveOutForm.requested_date} onChange={e => setMoveOutForm(f => ({ ...f, requested_date: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Reason (optional)</label>
-                <textarea rows={3} value={moveOutForm.reason} onChange={e => setMoveOutForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Relocating for a new job" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                <label className="text-xs font-semibold text-tenant-muted block mb-1">Reason (optional)</label>
+                <textarea rows={3} value={moveOutForm.reason} onChange={e => setMoveOutForm(f => ({ ...f, reason: e.target.value }))} placeholder="e.g. Relocating for a new job" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+            <div className="px-5 py-4 border-t border-tenant-border">
+              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingMoveOut && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2012,21 +2016,21 @@ export default function TenantPortal() {
       {/* Change Password Modal */}
       {pwModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
               <h2 className="text-base font-bold">Change Password</h2>
-              <button onClick={() => setPwModal(false)} className="text-gray-400 text-xl font-bold">×</button>
+              <button onClick={() => setPwModal(false)} className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
             <div className="p-5 space-y-4">
               {[['New Password', 'newPw'], ['Confirm Password', 'confirm']].map(([l, k]) => (
                 <div key={k}>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">{l}</label>
-                  <input type="password" value={(pwForm as any)[k]} onChange={e => setPwForm(f => ({ ...f, [k]: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500" />
+                  <label className="text-xs font-semibold text-tenant-muted block mb-1">{l}</label>
+                  <input type="password" value={(pwForm as any)[k]} onChange={e => setPwForm(f => ({ ...f, [k]: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
                 </div>
               ))}
             </div>
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button onClick={changePassword} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">Update Password</button>
+            <div className="px-5 py-4 border-t border-tenant-border">
+              <button onClick={changePassword} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold transition">Update Password</button>
             </div>
           </div>
         </div>
@@ -2047,16 +2051,16 @@ function OnboardingReviewScreen({ tenant }: { tenant: any }) {
   const completion = calculateProfileCompletion(tenant)
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 py-10">
+    <div className="min-h-screen flex items-center justify-center bg-tenant-bg px-6 py-10">
       <div className="text-center max-w-sm w-full">
-        <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
-          <Clock className="w-6 h-6 text-indigo-600" />
+        <div className="w-14 h-14 rounded-tenant-2xl bg-tenant-primary/10 flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-6 h-6 text-tenant-primary" />
         </div>
-        <h1 className="text-lg font-extrabold text-gray-900 mb-1.5">Profile Under Review</h1>
-        <p className="text-sm text-gray-500 mb-6">
+        <h1 className="text-lg font-extrabold text-tenant-fg mb-1.5">Profile Under Review</h1>
+        <p className="text-sm text-tenant-muted mb-6">
           Thanks, {tenant.name}! Your details have been submitted. Your owner will review them and activate your account shortly.
         </p>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left shadow-sm">
+        <div className="bg-tenant-surface-elevated rounded-tenant-2xl border border-tenant-border p-5 text-left shadow-tenant-xs">
           <StatusTimeline currentStatus={tenant.onboarding_status} history={history} completionPercent={completion} variant="tenant" />
         </div>
       </div>
