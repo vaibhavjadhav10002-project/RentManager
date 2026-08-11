@@ -80,7 +80,14 @@ export default function JoinPage() {
   useEffect(() => {
     async function loadProperty() {
       const sb = createClient()
-      const { data: prop } = await sb.from('properties').select('id, name, address, upi_id').eq('qr_slug', params.slug).single()
+      // Anonymous visitors (no account yet) can't SELECT the `properties`
+      // table directly — RLS only allows that for super admins. This RPC
+      // is SECURITY DEFINER and returns just the one property matching
+      // this exact slug, so the join link can resolve without opening up
+      // the whole table to anonymous listing. See
+      // supabase/37_fix_qr_join_link_property_lookup.sql.
+      const { data: rows } = await sb.rpc('get_property_by_slug', { slug: params.slug })
+      const prop = rows?.[0] ?? null
       if (!prop) { setLoadingProperty(false); return }
       setProperty(prop)
       const { data: owner } = await sb.rpc('get_property_owner_name', { p_property_id: prop.id })
@@ -94,13 +101,19 @@ export default function JoinPage() {
 
   async function handleGovIdSelect(file: File | null) {
     if (!file) return
+    if (!property) { toast.error('Please wait for the page to finish loading'); return }
     if (file.size > 8 * 1024 * 1024) { toast.error('Photo must be under 8MB'); return }
     setGovIdPreview(URL.createObjectURL(file))
     setGovIdUploading(true)
     try {
       const sb = createClient()
       const ext = file.name.split('.').pop() || 'jpg'
-      const path = `${crypto.randomUUID()}.${ext}`
+      // Prefixed with pending-onboarding/<property_id>/ so the dedicated
+      // anon-upload RLS policy (see supabase/13_pending_onboarding_uploads.sql)
+      // can allow this — the tenant filling this form has no account yet,
+      // so the normal tenant_owns_path()/owns_property_from_path() policies
+      // (which require an authenticated match) can never pass here.
+      const path = `pending-onboarding/${property.id}/${crypto.randomUUID()}.${ext}`
       const { error } = await sb.storage.from('tenant-documents').upload(path, file)
       if (error) throw error
       const { data } = sb.storage.from('tenant-documents').getPublicUrl(path)

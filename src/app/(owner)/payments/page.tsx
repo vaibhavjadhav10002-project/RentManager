@@ -191,17 +191,17 @@ export default function PaymentsPage() {
           <h1 className="text-xl font-extrabold text-owner-fg">Payments</h1>
           <p className="text-sm text-owner-muted">Rent collection &amp; ledger</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <OwnerButton
             onClick={() => { if (pendingRentSorted.length === 0) { toast.error('No pending rent to remind about'); return } setBulkReminderModal(true) }}
-            variant="secondary" icon={<MessageCircle className="w-4 h-4 text-owner-success" />}
+            variant="secondary" icon={<MessageCircle className="w-4 h-4 text-owner-success" />} className="w-full sm:w-auto"
           >
             Remind All
           </OwnerButton>
-          <OwnerButton onClick={() => setBillModal(true)} variant="secondary" icon={<Zap className="w-4 h-4 text-owner-warning" />}>
-            Raise Electricity Bill
+          <OwnerButton onClick={() => setBillModal(true)} variant="secondary" icon={<Zap className="w-4 h-4 text-owner-warning" />} className="w-full sm:w-auto">
+            Electricity Bill
           </OwnerButton>
-          <OwnerButton onClick={() => setRecordModal(true)} icon={<Plus className="w-4 h-4" />}>
+          <OwnerButton onClick={() => setRecordModal(true)} icon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto">
             Record Payment
           </OwnerButton>
         </div>

@@ -790,13 +790,13 @@ export default function TenantPortal() {
 
               {/* Welcome banner */}
               <div className="relative overflow-hidden rounded-tenant-2xl bg-tenant-primary/10 border border-tenant-primary/15 p-5">
-                <div className="relative z-10 max-w-[75%]">
+                <div className="relative z-10 pr-16">
                   <h1 className="font-tenant-display text-lg font-extrabold text-tenant-fg">
                     {greeting}, {tenant.name.split(' ')[0]} 👋
                   </h1>
                   <p className="text-sm text-tenant-muted mt-1">Welcome back! Here&apos;s what&apos;s happening.</p>
                 </div>
-                <Building2 className="absolute -right-4 -bottom-5 w-28 h-28 text-tenant-primary/15 pointer-events-none" strokeWidth={1} />
+                <Building2 className="absolute -right-4 -bottom-5 w-24 h-24 text-tenant-primary/15 pointer-events-none" strokeWidth={1} />
               </div>
 
               {agreementDaysLeft !== null && agreementDaysLeft <= 14 && (agreement.status === 'signed' || agreement.status === 'active') && (

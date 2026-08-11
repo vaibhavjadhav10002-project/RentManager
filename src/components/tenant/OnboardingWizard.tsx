@@ -15,14 +15,16 @@ interface OnboardingWizardProps {
   onComplete: (updated: Tenant) => void
 }
 
-// Reuses the exact same Supabase Storage bucket + upload pattern already
-// used by the QR-join flow's government ID upload (src/app/(auth)/join/
-// [slug]/page.tsx) — same bucket, same path scheme, no new storage
-// infrastructure introduced.
-async function uploadDocument(file: File): Promise<string> {
+// Reuses the same Supabase Storage bucket as the QR-join flow's government ID
+// upload, but with the path convention the existing tenant_documents RLS
+// policies actually expect: <property_id>/<tenant_id>/<filename>. (An
+// earlier version used a flat `<uuid>.<ext>` path here, which silently
+// failed tenant_owns_path()'s check on the 2nd path segment — every KYC
+// upload from this wizard was being rejected by RLS.)
+async function uploadDocument(file: File, tenant: Tenant): Promise<string> {
   const sb = createClient()
   const ext = file.name.split('.').pop() || 'jpg'
-  const path = `${crypto.randomUUID()}.${ext}`
+  const path = `${tenant.property_id}/${tenant.id}/${crypto.randomUUID()}.${ext}`
   const { error } = await sb.storage.from('tenant-documents').upload(path, file)
   if (error) throw error
   const { data } = sb.storage.from('tenant-documents').getPublicUrl(path)
@@ -121,7 +123,7 @@ export default function OnboardingWizard({ tenant, onComplete }: OnboardingWizar
     if (file.size > 8 * 1024 * 1024) { toast.error('File must be under 8MB'); return }
     setUploading(kind)
     try {
-      const url = await uploadDocument(file)
+      const url = await uploadDocument(file, tenant)
       if (kind === 'photo') setPhotoUrl(url)
       else if (kind === 'aadhaar_front') setAadhaarFrontUrl(url)
       else if (kind === 'aadhaar_back') setAadhaarBackUrl(url)
