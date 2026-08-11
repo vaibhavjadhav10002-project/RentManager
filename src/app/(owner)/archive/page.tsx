@@ -95,24 +95,24 @@ export default function ArchivePage() {
 
       <div className="flex flex-wrap gap-1.5">
         <button onClick={() => setFilter('all')}
-          className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           All ({items.length})
         </button>
         {(Object.keys(KIND_META) as Kind[]).map(k => (
           <button key={k} onClick={() => setFilter(k)}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === k ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+            className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === k ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
             {KIND_META[k].label} ({counts[k]})
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <Archive className="w-8 h-8" />
           <div className="text-sm">Nothing archived{filter !== 'all' ? ` in ${KIND_META[filter as Kind].label}` : ''}</div>
         </div>
       ) : (
-        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm divide-y divide-owner-border">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs divide-y divide-owner-border">
           {filtered.map(item => {
             const meta = KIND_META[item.kind]
             return (

@@ -101,11 +101,11 @@ export default function InboxPage() {
         </OwnerCard>
       ) : (
         <>
-          <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg overflow-x-auto sm:w-fit sm:flex-wrap sm:overflow-visible">
+          <div className="flex gap-1.5 flex-wrap">
             {tabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={cn('flex items-center gap-1.5 px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
-                  tab === t.key ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg')}>
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-owner-full text-xs font-semibold transition-colors',
+                  tab === t.key ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg')}>
                 <t.icon className="w-3.5 h-3.5" /> {t.label}
               </button>
             ))}

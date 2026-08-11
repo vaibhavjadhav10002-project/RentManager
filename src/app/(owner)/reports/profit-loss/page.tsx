@@ -132,8 +132,8 @@ export default function ProfitLossReportPage() {
       <div className="flex gap-1.5 flex-wrap">
         {RANGE_OPTIONS.map(r => (
           <button key={r.value} onClick={() => setRangeMonths(r.value)}
-            className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition ${
-              rangeMonths === r.value ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'
+            className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${
+              rangeMonths === r.value ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'
             }`}>
             {r.label}
           </button>

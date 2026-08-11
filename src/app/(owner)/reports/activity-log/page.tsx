@@ -154,12 +154,12 @@ export default function ActivityLogPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-1.5">
         <button onClick={() => setFilter('all')}
-          className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition active:scale-[0.98] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           All ({events.length})
         </button>
         {(Object.keys(KIND_LABEL) as EventKind[]).map(k => (
           <button key={k} onClick={() => setFilter(k)}
-            className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition active:scale-[0.98] ${filter === k ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+            className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === k ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
             {KIND_LABEL[k]} ({counts[k]})
           </button>
         ))}

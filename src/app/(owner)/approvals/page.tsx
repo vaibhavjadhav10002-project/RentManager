@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
+import Image from 'next/image'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant, getRooms, updateTenant, getLeaveRequests, decideLeaveRequest, getRentExtensionRequests, decideRentExtensionRequest, getMoveOutRequests, decideMoveOutRequest, getSubmittedOnboardingProfiles, approveOnboardingProfile, requestOnboardingCorrection, getProfileStatusHistory, getPendingProfileUpdateRequests, decideProfileUpdateRequest } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
@@ -333,11 +334,11 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1.5 p-1 bg-owner-surface-hover rounded-owner-lg overflow-x-auto">
-        {[['payments', 'Payment Claims'], ['tenants', 'New Tenant Requests'], ['reviews', 'Profile Reviews'], ['updates', 'Profile Updates'], ['leave', 'Leave Requests'], ['extensions', 'Rent Extensions'], ['moveout', 'Move-Out Requests']].map(([v, l]) => (
+      <div className="flex gap-1.5 flex-wrap">
+        {[['payments', 'Payments'], ['tenants', 'New Tenants'], ['reviews', 'Reviews'], ['updates', 'Updates'], ['leave', 'Leave'], ['extensions', 'Extensions'], ['moveout', 'Move-Out']].map(([v, label]) => (
           <button key={v} onClick={() => setTab(v as any)}
-            className={`flex items-center gap-2 px-4 h-9 rounded-owner-md text-xs font-semibold transition-all shrink-0 whitespace-nowrap active:scale-[0.97] ${tab === v ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg'}`}>
-            {l}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-owner-full text-xs font-semibold transition-all active:scale-[0.97] ${tab === v ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
+            {label}
             {v === 'payments' && payments.length > 0 && <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{payments.length}</span>}
             {v === 'tenants' && pendingTenants.length > 0 && <span className="bg-purple-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{pendingTenants.length}</span>}
             {v === 'reviews' && submittedProfiles.length > 0 && <span className="bg-teal-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">{submittedProfiles.length}</span>}
@@ -834,8 +835,8 @@ export default function ApprovalsPage() {
                 <div className="grid grid-cols-4 gap-2">
                   {[['Photo', reviewForm.photo_url], ['Aadhaar Front', reviewForm.aadhaar_front_url], ['Aadhaar Back', reviewForm.aadhaar_back_url], ['PAN', reviewForm.pan_url]].map(([label, url]) => (
                     <a key={label} href={url || undefined} target="_blank" rel="noreferrer"
-                      className={`aspect-square rounded-xl border border-owner-border overflow-hidden flex items-center justify-center text-xs text-owner-muted-subtle ${url ? '' : 'bg-owner-surface-hover'}`}>
-                      {url ? <img src={url} alt={label as string} className="w-full h-full object-cover" /> : label}
+                      className={`relative aspect-square rounded-xl border border-owner-border overflow-hidden flex items-center justify-center text-xs text-owner-muted-subtle ${url ? '' : 'bg-owner-surface-hover'}`}>
+                      {url ? <Image src={url} alt={label as string} fill className="object-cover" sizes="120px" /> : label}
                     </a>
                   ))}
                 </div>

@@ -182,7 +182,7 @@ export default function PaymentsPage() {
     setSaving(false)
   }
 
-  const TABS: [Tab, string][] = [['all', 'All'], ['paid', 'Paid'], ['pending', 'Pending'], ['bydue', 'Pending (by due date)'], ['ledger', 'Ledger']]
+  const TABS: [Tab, string][] = [['all', 'All'], ['paid', 'Paid'], ['pending', 'Pending'], ['bydue', 'By Due Date'], ['ledger', 'Ledger']]
 
   return (
     <div className="space-y-5">
@@ -271,12 +271,12 @@ export default function PaymentsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg overflow-x-auto sm:w-fit sm:flex-wrap sm:overflow-visible">
+      <div className="flex gap-1.5 flex-wrap">
         {TABS.map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
             className={cn(
-              'px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
-              tab === v ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg'
+              'px-3 py-1.5 rounded-owner-full text-xs font-semibold transition-colors',
+              tab === v ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'
             )}>
             {l}
           </button>

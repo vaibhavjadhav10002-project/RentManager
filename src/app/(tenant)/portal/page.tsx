@@ -28,7 +28,7 @@ import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
 import OnboardingWizard from '@/components/tenant/OnboardingWizard'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
-import { Card, Badge, Button, SectionHeader, EmptyState, Avatar } from '@/components/tenant/ui'
+import { Card, Badge, Button, SectionHeader, EmptyState, Avatar, ThemeToggle } from '@/components/tenant/ui'
 
 type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices' | 'requests'
 
@@ -1169,6 +1169,12 @@ export default function TenantPortal() {
                     ))}
                   </div>
                 )}
+              </Card>
+
+              <Card padding="lg">
+                <SectionHeader title="Appearance" className="mb-0" />
+                <p className="text-xs text-tenant-muted-subtle -mt-1 mb-3">Theme applies across the whole tenant portal.</p>
+                <ThemeToggle />
               </Card>
             </div>
           )}

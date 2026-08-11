@@ -135,7 +135,7 @@ export default function WaitingListPage() {
 
       {/* Vacancy reference */}
       {vacanciesBySharing.length > 0 && (
-        <div className="bg-owner-primary/10 border border-owner-primary/20 rounded-2xl px-4 py-3 flex flex-wrap items-center gap-2">
+        <div className="bg-owner-primary/10 border border-owner-primary/20 rounded-owner-xl px-4 py-3 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-owner-primary">Currently vacant:</span>
           {vacanciesBySharing.map(([type, count]) => (
             <span key={type} className="text-xs font-semibold px-2.5 py-1 bg-owner-surface rounded-full text-owner-primary">{count} × {type}</span>
@@ -145,11 +145,11 @@ export default function WaitingListPage() {
 
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setStatusFilter('active')}
-          className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${statusFilter === 'active' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${statusFilter === 'active' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           Active
         </button>
         <button onClick={() => setStatusFilter('all')}
-          className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${statusFilter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${statusFilter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           All
         </button>
       </div>
@@ -157,12 +157,12 @@ export default function WaitingListPage() {
       {loading ? (
         <div className="flex items-center justify-center h-48 text-owner-muted-subtle"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <Users2 className="w-8 h-8" />
           <div className="text-sm">Nobody on the waiting list yet</div>
         </div>
       ) : (
-        <div className="bg-owner-surface rounded-2xl border border-owner-border shadow-sm divide-y divide-owner-border">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs divide-y divide-owner-border">
           {filtered.map(e => (
             <div key={e.id} className="flex items-start gap-3 px-5 py-4">
               <div className="flex-1 min-w-0">
@@ -201,7 +201,7 @@ export default function WaitingListPage() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="waitlist-modal-title">
-          <div className="bg-owner-surface rounded-2xl w-full max-w-md shadow-2xl">
+          <div className="bg-owner-surface rounded-owner-xl w-full max-w-md shadow-owner-lg">
             <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
               <h2 id="waitlist-modal-title" className="text-base font-bold">Add to Waiting List</h2>
               <button onClick={() => { setModal(false); resetForm() }} aria-label="Close" className="text-owner-muted-subtle text-xl font-bold">×</button>

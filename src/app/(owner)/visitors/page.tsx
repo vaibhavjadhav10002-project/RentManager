@@ -127,11 +127,11 @@ export default function VisitorsPage() {
 
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFilter('in')}
-          className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition active:scale-[0.98] ${filter === 'in' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === 'in' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           Currently In ({currentlyInCount})
         </button>
         <button onClick={() => setFilter('all')}
-          className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition active:scale-[0.98] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           All History
         </button>
       </div>

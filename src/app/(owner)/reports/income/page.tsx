@@ -127,8 +127,8 @@ export default function IncomeReportPage() {
         <div className="flex gap-1.5 flex-wrap">
           {(['all', 'rent', 'deposit', 'advance'] as const).map(t => (
             <button key={t} onClick={() => setTypeFilter(t)}
-              className={`px-3 py-2 rounded-owner-lg text-sm font-semibold transition ${
-                typeFilter === t ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-muted hover:bg-owner-surface-hover'
+              className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${
+                typeFilter === t ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'
               }`}>
               {t === 'all' ? 'All Types' : TYPE_LABEL[t]}
             </button>

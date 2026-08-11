@@ -49,7 +49,7 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
  */
 export default function OwnerShell(props: { children: React.ReactNode; profile: Profile }) {
   return (
-    <OwnerThemeProvider initialPreference="dark">
+    <OwnerThemeProvider initialPreference="system">
       <OwnerShellInner {...props} />
     </OwnerThemeProvider>
   )
