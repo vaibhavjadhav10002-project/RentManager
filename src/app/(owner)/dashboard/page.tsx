@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useProperty } from '@/components/shared/PropertyContext'
 import {
@@ -17,11 +18,22 @@ import {
   ShieldCheck, BarChart3, Megaphone, Clock, Bell, CalendarClock, Users2, Percent,
 } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line,
-} from 'recharts'
-import { OwnerStatCard, OwnerCard, OwnerChartTooltip, OwnerEmptyState, OwnerCalendar, OwnerBadge, OwnerAvatar, OwnerButton } from '@/components/owner/ui'
+import { OwnerStatCard, OwnerCard, OwnerEmptyState, OwnerCalendar, OwnerBadge, OwnerAvatar, OwnerButton } from '@/components/owner/ui'
+
+// recharts (~100kB) is loaded as its own async chunk instead of being part
+// of Dashboard's main bundle — this is the first page every owner sees
+// after login, so keeping it light matters most here. Each `loading`
+// skeleton mirrors the chart's real layout so there's no visible jump once
+// the chunk arrives (usually well under a second on a warm cache/network).
+const RevenueChartCard = dynamic(() => import('@/components/owner/DashboardCharts').then(m => m.RevenueChartCard), {
+  ssr: false, loading: () => <OwnerCard className="lg:col-span-2 h-[268px] animate-pulse" />,
+})
+const OccupancyDonutCard = dynamic(() => import('@/components/owner/DashboardCharts').then(m => m.OccupancyDonutCard), {
+  ssr: false, loading: () => <OwnerCard className="h-[268px] animate-pulse" />,
+})
+const OccupancyTrendCard = dynamic(() => import('@/components/owner/DashboardCharts').then(m => m.OccupancyTrendCard), {
+  ssr: false, loading: () => <OwnerCard className="lg:col-span-2 h-[248px] animate-pulse" />,
+})
 
 // Static class lookups for the Quick Actions tiles — kept as full literal
 // strings (not built with template interpolation) so Tailwind's static
@@ -518,70 +530,13 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Revenue chart */}
-        <OwnerCard className="lg:col-span-2">
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <div>
-              <div className="font-bold text-sm text-owner-fg">Income vs Expense</div>
-              <div className="text-xs text-owner-muted-subtle mt-0.5">Last 6 months</div>
-            </div>
-            <div className="text-left sm:text-right">
-              <div className="text-xs text-owner-muted-subtle">Net Profit (this month)</div>
-              <div className={cn('text-base font-extrabold owner-numeric', netProfit >= 0 ? 'text-owner-success' : 'text-owner-danger')}>
-                {formatINR(netProfit)}
-              </div>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} barGap={2}>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v / 1000}k`} />
-              <Tooltip content={<OwnerChartTooltip formatter={formatINR} />} cursor={{ fill: 'hsl(var(--owner-surface-hover))' }} />
-              <Bar dataKey="revenue" fill="hsl(var(--owner-primary))" radius={[4, 4, 0, 0]} name="Revenue" />
-              <Bar dataKey="expenses" fill="hsl(var(--owner-accent-purple) / 0.6)" radius={[4, 4, 0, 0]} name="Expenses" />
-              <Bar dataKey="profit" fill="hsl(var(--owner-success))" radius={[4, 4, 0, 0]} name="Profit" />
-            </BarChart>
-          </ResponsiveContainer>
-        </OwnerCard>
-
-        {/* Occupancy donut */}
-        <OwnerCard className="flex flex-col items-center justify-center">
-          <div className="font-bold text-sm text-owner-fg mb-1 self-start">Occupancy</div>
-          <div className="text-xs text-owner-muted-subtle mb-4 self-start">Beds occupied</div>
-          <div className="relative">
-            <PieChart width={140} height={140}>
-              <Pie data={[{ value: occupancyPct }, { value: 100 - occupancyPct }]}
-                cx={65} cy={65} innerRadius={45} outerRadius={65} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                <Cell fill="hsl(var(--owner-primary))" />
-                <Cell fill="hsl(var(--owner-border))" />
-              </Pie>
-            </PieChart>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-2xl font-extrabold text-owner-fg owner-numeric">{occupancyPct}%</div>
-            </div>
-          </div>
-          <div className="text-xs text-owner-muted-subtle mt-1">{stats?.occupiedBeds}/{stats?.totalBeds} beds</div>
-        </OwnerCard>
+        <RevenueChartCard chartData={chartData} netProfit={netProfit} />
+        <OccupancyDonutCard occupancyPct={occupancyPct} occupiedBeds={stats?.occupiedBeds} totalBeds={stats?.totalBeds} />
       </div>
 
       {/* Occupancy Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <OwnerCard className="lg:col-span-2">
-          <div className="font-bold text-sm text-owner-fg mb-1">Occupancy Trend</div>
-          <div className="text-xs text-owner-muted-subtle mb-4">Last 6 months</div>
-          {occupancyTrend.length === 0 || occupancyTrend.every(d => d.occupancyPct === 0) ? (
-            <OwnerEmptyState icon={BedDouble} title="Not enough tenant history yet" className="py-10" />
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={occupancyTrend}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
-                <Tooltip content={<OwnerChartTooltip formatter={(v: number) => `${v}%`} />} />
-                <Line type="monotone" dataKey="occupancyPct" stroke="hsl(var(--owner-primary))" strokeWidth={2.5} dot={{ r: 3 }} name="Occupancy" />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </OwnerCard>
+        <OccupancyTrendCard occupancyTrend={occupancyTrend} />
 
         <OwnerCard>
           <div className="font-bold text-sm text-owner-fg mb-1">By Sharing Type</div>

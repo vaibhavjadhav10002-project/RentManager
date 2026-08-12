@@ -97,7 +97,7 @@ export default function Topbar({ onMenuClick }: Props) {
       {/* Property Switcher */}
       <div className="relative">
         <button onClick={() => setPropOpen(o => !o)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-owner-bg-subtle border border-owner-border rounded-owner-lg hover:bg-owner-surface-hover transition-colors min-w-[160px]">
+          className="flex items-center gap-2 px-3 py-1.5 bg-owner-bg-subtle border border-owner-border rounded-owner-lg hover:bg-owner-surface-hover transition-colors min-w-0 max-w-[45vw] sm:max-w-none sm:min-w-[160px]">
           <Building2 className="w-4 h-4 text-owner-primary shrink-0" />
           <div className="flex-1 text-left min-w-0">
             <div className="text-xs font-bold text-owner-fg leading-tight truncate">

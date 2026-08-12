@@ -1,13 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getFinancialHistory, getDashboardStats, getExpenses, getPayments, getTenants } from '@/lib/supabase/queries'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Download, Loader2, TrendingUp, TrendingDown, Scale, History, ChevronRight, Building2, Users2, Clock } from 'lucide-react'
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { DashboardStats } from '@/types'
+
+const ReportsOverviewChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ReportsOverviewChart), {
+  ssr: false, loading: () => <div className="h-[220px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
+})
 
 // Report modules — each is its own dedicated page (built in its own phase).
 // Kept here so the dashboard always reflects the true set of available reports.
@@ -164,16 +168,7 @@ export default function ReportsPage() {
         {chartData.every(d => d.revenue === 0 && d.expenses === 0) ? (
           <div className="text-center py-12 text-owner-muted-subtle text-sm">No payment or expense records yet for this period</div>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} barGap={2}>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v / 1000}k`} />
-              <Tooltip formatter={(v: number) => formatINR(v)} />
-              <Bar dataKey="revenue" fill="#2563EB" radius={[4, 4, 0, 0]} name="Revenue" />
-              <Bar dataKey="expenses" fill="#EF444466" radius={[4, 4, 0, 0]} name="Expenses" />
-              <Bar dataKey="profit" fill="#10B981" radius={[4, 4, 0, 0]} name="Profit" />
-            </BarChart>
-          </ResponsiveContainer>
+          <ReportsOverviewChart chartData={chartData} />
         )}
       </div>
 

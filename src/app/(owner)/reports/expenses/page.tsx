@@ -1,13 +1,17 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getExpenses } from '@/lib/supabase/queries'
 import { formatINR, formatDate } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { ChevronLeft, Download, Loader2, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Expense } from '@/types'
+
+const ExpensesByCategoryChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ExpensesByCategoryChart), {
+  ssr: false, loading: () => <div className="h-[140px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
+})
 
 // Same categories & colors as the Expenses page, so a category reads identically everywhere in the app.
 const CATEGORIES = ['Electricity', 'Water', 'WiFi', 'Cleaning', 'Maintenance', 'Salary', 'Other']
@@ -148,14 +152,7 @@ export default function ExpenseReportPage() {
           {byCategory.length === 0 ? (
             <div className="text-sm text-owner-muted-subtle py-4 text-center">No expenses match this filter</div>
           ) : (
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={byCategory} layout="vertical" margin={{ left: 0 }}>
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v / 1000}k`} />
-                <YAxis type="category" dataKey="cat" width={80} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v: number) => formatINR(v)} />
-                <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ExpensesByCategoryChart byCategory={byCategory} />
           )}
         </div>
       </div>

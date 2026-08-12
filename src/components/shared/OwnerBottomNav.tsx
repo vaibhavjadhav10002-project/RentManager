@@ -1,5 +1,6 @@
 'use client'
-import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Users, IndianRupee, ShieldCheck, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { OWNER_BOTTOM_NAV_HREFS } from './ownerNav'
@@ -21,10 +22,14 @@ const MORE_KEY = '__more'
  * OwnerMoreSheet, covering every other page via the shared
  * `ownerNav.ts` config. Pure navigation chrome — no new routes, no new
  * business logic, every destination already existed.
+ *
+ * Uses next/link (not router.push in an onClick) so Next.js prefetches
+ * each destination's JS + RSC payload as soon as this bar is on screen —
+ * this is what makes tapping a tab feel instant instead of visibly
+ * loading, since the page is already fetched by the time you tap it.
  */
 export function OwnerBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   const pathname = usePathname()
-  const router = useRouter()
 
   const pinnedMatch = OWNER_BOTTOM_NAV_HREFS.find(href => pathname?.startsWith(href))
   const activeKey = pinnedMatch ?? MORE_KEY
@@ -37,9 +42,10 @@ export function OwnerBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
       {ITEMS.map(({ href, label, icon: Icon }) => {
         const active = href === activeKey
         return (
-          <button
+          <Link
             key={href}
-            onClick={() => router.push(href)}
+            href={href}
+            prefetch
             aria-current={active ? 'page' : undefined}
             className="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-full min-w-0 overflow-hidden before:absolute before:inset-0 before:rounded-full before:bg-owner-fg/5 before:scale-0 before:opacity-0 active:before:scale-100 active:before:opacity-100 before:transition before:duration-300"
           >
@@ -54,7 +60,7 @@ export function OwnerBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
             <span className={cn('text-[10px] font-semibold truncate max-w-full transition-colors', active ? 'text-owner-primary' : 'text-owner-muted')}>
               {label}
             </span>
-          </button>
+          </Link>
         )
       })}
       <button

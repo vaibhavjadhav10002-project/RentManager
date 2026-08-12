@@ -1,13 +1,17 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPayments, getExpenses } from '@/lib/supabase/queries'
 import { formatINR } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { ChevronLeft, Download, Loader2, Scale } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Payment } from '@/types'
+
+const ProfitLossChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ProfitLossChart), {
+  ssr: false, loading: () => <div className="h-[240px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
+})
 
 interface MonthRow { key: string; month: string; income: number; expenses: number; profit: number; margin: number }
 
@@ -167,17 +171,7 @@ export default function ProfitLossReportPage() {
         {visible.every(r => r.income === 0 && r.expenses === 0) ? (
           <div className="text-center py-12 text-owner-muted-subtle text-sm">No income or expense records yet for this period</div>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={visible} barGap={2}>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v / 1000}k`} />
-              <Tooltip formatter={(v: number) => formatINR(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="income" fill="#10B981" radius={[4, 4, 0, 0]} name="Income" />
-              <Bar dataKey="expenses" fill="#EF4444" radius={[4, 4, 0, 0]} name="Expenses" />
-              <Bar dataKey="profit" fill="#2563EB" radius={[4, 4, 0, 0]} name="Net Profit" />
-            </BarChart>
-          </ResponsiveContainer>
+          <ProfitLossChart visible={visible} />
         )}
       </div>
 
