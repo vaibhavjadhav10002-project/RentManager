@@ -19,15 +19,15 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
       {mustChangePw && (
         <ForcePasswordChangeModal userId={profile.id} onDone={() => setMustChangePw(false)} />
       )}
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex overflow-x-hidden">
         <Sidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           userName={profile.full_name}
         />
-        <div className="flex-1 flex flex-col lg:ml-56">
+        <div className="flex-1 flex flex-col lg:ml-56 min-w-0 overflow-x-hidden">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main id="main-content" className="flex-1 p-5 pb-28 lg:p-7 lg:pb-7 animate-fade-in">
+          <main id="main-content" className="flex-1 p-5 pb-28 lg:p-7 lg:pb-7 animate-fade-in overflow-x-hidden">
             {children}
           </main>
         </div>

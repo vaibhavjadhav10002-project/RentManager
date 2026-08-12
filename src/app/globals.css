@@ -43,12 +43,13 @@
   html, body {
     /* Guarantees zero horizontal scroll anywhere in the app, regardless
        of any individual element that might be a few px too wide (e.g. an
-       unwrapped label, a flex-item rounding error). This is the safety
-       net on top of fixing the actual overflow sources — it can only clip
-       accidental overflow, it can never hide intentionally-scrollable
-       content (tab/filter strips use their own local overflow-x-auto). */
+       unwrapped label, a flex-item rounding error). `overflow-x: hidden`
+       (not the newer `clip`) deliberately — `clip` isn't reliably
+       supported on older Android WebView engines and can itself cause
+       broken/partial rendering there. This can only clip accidental
+       overflow, it can never hide intentionally-scrollable content
+       (tab/filter strips use their own local overflow-x-auto). */
     overflow-x: hidden;
-    max-width: 100vw;
   }
   body {
     @apply bg-background text-foreground antialiased;
