@@ -49,18 +49,6 @@ export default function TenantPortal() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [rowMenuOpen, setRowMenuOpen] = useState<string | null>(null)
 
-  // Same reflow-nudge workaround as OwnerShell.tsx — content that loads
-  // asynchronously after first paint (per-tab data) can grow the page's
-  // real height without some Android WebView/Chrome-mobile engines
-  // recalculating the scrollable area until something else forces a
-  // reflow. Re-armed on every tab switch since each tab's data loads at
-  // a different pace.
-  useEffect(() => {
-    const nudge = () => { void document.body.offsetHeight; window.dispatchEvent(new Event('resize')) }
-    const timers = [50, 200, 500, 1000, 2000].map(ms => setTimeout(nudge, ms))
-    return () => timers.forEach(clearTimeout)
-  }, [tab])
-
   const [payModal, setPayModal] = useState(false)
   const [pwModal, setPwModal] = useState(false)
   const [complaintModal, setComplaintModal] = useState(false)
@@ -646,7 +634,7 @@ export default function TenantPortal() {
 
   return (
     <div className={darkMode ? 'dark' : ''}>
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+    <div className="h-[100dvh] overflow-hidden bg-gray-50 dark:bg-gray-900 flex">
       {mustChangePw && (
         <ForcePasswordChangeModal userId={tenant.auth_user_id} onDone={async () => {
           setMustChangePw(false)
@@ -715,7 +703,7 @@ export default function TenantPortal() {
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/30 z-30 lg:hidden" />}
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full">
         <header className="bg-white border-b border-gray-100 px-4 lg:px-8 min-h-16 native-safe-top flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
@@ -794,7 +782,7 @@ export default function TenantPortal() {
           </div>
         </header>
 
-        <main id="main-content" className="flex-1 p-4 pb-24 lg:p-8 max-w-6xl w-full mx-auto">
+        <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-4 pb-24 lg:p-8 max-w-6xl w-full mx-auto">
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
