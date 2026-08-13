@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import { OwnerBottomNav } from './OwnerBottomNav'
@@ -13,6 +14,22 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [mustChangePw, setMustChangePw] = useState(profile.must_change_password)
+  const pathname = usePathname()
+
+  // Works around a page becoming visually "stuck"/unscrollable on some
+  // Android WebView/Chrome-mobile engines: content that finishes loading
+  // asynchronously after first paint (e.g. a data fetch) can grow the
+  // document's real height without the engine recalculating its
+  // scrollable area, until something else forces a reflow (we saw this
+  // happen incidentally when opening the property-switcher dropdown).
+  // Dispatching a resize event is the standard, safe way to nudge that
+  // recalculation without touching layout/CSS. Re-armed on every route
+  // change since each page's content loads at a different pace.
+  useEffect(() => {
+    const nudge = () => window.dispatchEvent(new Event('resize'))
+    const timers = [50, 300, 800].map(ms => setTimeout(nudge, ms))
+    return () => timers.forEach(clearTimeout)
+  }, [pathname])
 
   return (
     <PropertyProvider>

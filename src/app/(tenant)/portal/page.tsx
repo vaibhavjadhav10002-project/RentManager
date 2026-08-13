@@ -49,6 +49,18 @@ export default function TenantPortal() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [rowMenuOpen, setRowMenuOpen] = useState<string | null>(null)
 
+  // Same reflow-nudge workaround as OwnerShell.tsx — content that loads
+  // asynchronously after first paint (per-tab data) can grow the page's
+  // real height without some Android WebView/Chrome-mobile engines
+  // recalculating the scrollable area until something else forces a
+  // reflow. Re-armed on every tab switch since each tab's data loads at
+  // a different pace.
+  useEffect(() => {
+    const nudge = () => window.dispatchEvent(new Event('resize'))
+    const timers = [50, 300, 800].map(ms => setTimeout(nudge, ms))
+    return () => timers.forEach(clearTimeout)
+  }, [tab])
+
   const [payModal, setPayModal] = useState(false)
   const [pwModal, setPwModal] = useState(false)
   const [complaintModal, setComplaintModal] = useState(false)
