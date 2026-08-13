@@ -21,13 +21,16 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
   // asynchronously after first paint (e.g. a data fetch) can grow the
   // document's real height without the engine recalculating its
   // scrollable area, until something else forces a reflow (we saw this
-  // happen incidentally when opening the property-switcher dropdown).
-  // Dispatching a resize event is the standard, safe way to nudge that
-  // recalculation without touching layout/CSS. Re-armed on every route
-  // change since each page's content loads at a different pace.
+  // happen incidentally when opening the property-switcher dropdown,
+  // which mounts new DOM nodes). Reading a layout-dependent property
+  // (offsetHeight) forces the browser to synchronously flush any pending
+  // layout — a standard, side-effect-free way to force that recalc
+  // without a visible flash, more reliable than dispatching a synthetic
+  // resize event. Re-armed on every route change since each page's
+  // content loads at a different pace.
   useEffect(() => {
-    const nudge = () => window.dispatchEvent(new Event('resize'))
-    const timers = [50, 300, 800].map(ms => setTimeout(nudge, ms))
+    const nudge = () => { void document.body.offsetHeight; window.dispatchEvent(new Event('resize')) }
+    const timers = [50, 200, 500, 1000, 2000].map(ms => setTimeout(nudge, ms))
     return () => timers.forEach(clearTimeout)
   }, [pathname])
 

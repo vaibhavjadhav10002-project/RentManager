@@ -71,7 +71,15 @@ export async function bootstrapNative() {
     }
   })
 
+  // NOTE: deliberately 'none', not 'body'. Capacitor's 'body' resize mode
+  // works by applying a height/position constraint to <body> whenever the
+  // keyboard shows — and on some Android WebView versions that constraint
+  // doesn't reliably get cleared afterwards, leaving the whole app
+  // permanently "stuck"/unscrollable until something else forces a
+  // reflow. 'none' lets the keyboard simply overlap content instead
+  // (our forms are in modals/bottom-sheets that already scroll
+  // internally, so nothing actually needs the page to auto-resize).
   try {
-    await Keyboard.setResizeMode({ mode: 'body' as any })
+    await Keyboard.setResizeMode({ mode: 'none' as any })
   } catch {}
 }

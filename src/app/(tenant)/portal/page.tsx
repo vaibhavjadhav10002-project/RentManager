@@ -56,8 +56,8 @@ export default function TenantPortal() {
   // reflow. Re-armed on every tab switch since each tab's data loads at
   // a different pace.
   useEffect(() => {
-    const nudge = () => window.dispatchEvent(new Event('resize'))
-    const timers = [50, 300, 800].map(ms => setTimeout(nudge, ms))
+    const nudge = () => { void document.body.offsetHeight; window.dispatchEvent(new Event('resize')) }
+    const timers = [50, 200, 500, 1000, 2000].map(ms => setTimeout(nudge, ms))
     return () => timers.forEach(clearTimeout)
   }, [tab])
 
