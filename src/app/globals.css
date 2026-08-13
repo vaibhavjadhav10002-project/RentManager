@@ -50,6 +50,12 @@
        overflow, it can never hide intentionally-scrollable content
        (tab/filter strips use their own local overflow-x-auto). */
     overflow-x: hidden;
+    /* Momentum/native-feeling scroll on the document itself, not just
+       nested overflow containers. NOTE: deliberately no `transform`
+       here — that would change the containing block for every
+       `position: fixed` element in the app (Sidebar, bottom nav,
+       modal backdrops), breaking them. */
+    -webkit-overflow-scrolling: touch;
   }
   body {
     @apply bg-background text-foreground antialiased;
