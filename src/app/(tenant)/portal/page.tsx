@@ -1676,7 +1676,7 @@ export default function TenantPortal() {
           Mirrors OwnerBottomNav.tsx treatment (indicator bar, ripple, icon-pop,
           elevation shadow, 52dp touch target) so Owner/Tenant nav feel like
           the same design system, per the UI-consistency pass. */}
-      <nav className="lg:hidden relative tenant-safe-bottom fixed bottom-0 left-0 right-0 z-30 bg-tenant-surface-elevated/95 backdrop-blur-md border-t border-tenant-border shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)]">
+      <nav className="lg:hidden tenant-safe-bottom fixed bottom-0 left-0 right-0 z-30 bg-tenant-surface-elevated/95 backdrop-blur-md border-t border-tenant-border shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)]">
         <div className="flex items-stretch justify-around px-1">
           {[
             { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, onClick: () => setTab('dashboard') },
