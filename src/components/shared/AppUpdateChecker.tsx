@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { isNative, getPlatform } from '@/lib/native/platform'
 import { checkForUpdate, type UpdateCheckResult } from '@/lib/update/check'
+import { downloadUpdateInBackground } from '@/lib/update/download'
 import AppUpdateDialog from './AppUpdateDialog'
 
 /**
@@ -20,7 +21,16 @@ export default function AppUpdateChecker() {
     if (!isNative() || getPlatform() !== 'android') return
     // Fire-and-forget — never awaited by anything that blocks rendering,
     // so a slow/failed check can never delay app startup.
-    checkForUpdate().then(setResult)
+    checkForUpdate().then(res => {
+      setResult(res)
+      if (res.status === 'available') {
+        // Start pulling the APK down in the background the moment we
+        // know one exists, well before the user has tapped anything —
+        // by the time they see this dialog and tap "Update Now", the
+        // file is usually already on-device (see trigger.ts).
+        downloadUpdateInBackground(res.config)
+      }
+    })
   }, [])
 
   if (result.status !== 'available') return null

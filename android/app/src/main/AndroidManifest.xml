@@ -38,4 +38,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lets the app prompt the user to install/replace itself from a
+         locally-downloaded APK (the in-app update flow, ApkInstallerPlugin).
+         Required on Android 8+ to launch the package installer for a file
+         this app itself provides — the user is still shown Android's own
+         one-time "allow this app to install unknown apps" toggle and the
+         final install confirmation screen; this permission does not skip
+         either of those, it only allows requesting them. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

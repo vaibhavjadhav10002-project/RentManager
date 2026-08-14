@@ -14,8 +14,13 @@ public/app-version.json         — editable config, fetched at runtime (no rebu
 src/lib/update/
   types.ts                      — config shape + strict runtime validation
   check.ts                      — fetch (with timeout) → validate → compare → decide
+  download.ts                   — silently downloads the APK to the device in the background as soon as an update is found
   dismissal.ts                  — "Later" persistence (localStorage)
   trigger.ts                    — the one function that actually starts an update
+src/lib/native/
+  apkInstaller.ts                — TS wrapper for the native ApkInstaller Capacitor plugin
+android/app/src/main/java/com/rentivo/app/
+  ApkInstallerPlugin.java        — native plugin: hands a local APK straight to Android's package installer
 src/components/shared/
   AppUpdateChecker.tsx           — mounted in root layout, orchestrates the above
   AppUpdateDialog.tsx            — the premium dialog UI
@@ -28,7 +33,11 @@ Capacitor shell already loads (no CORS setup needed, it's the live
 production site) → validates the shape → compares the installed
 `versionCode` (from `@capacitor/app`'s `App.getInfo()`) against the
 config's `versionCode`/`minimumSupportedVersionCode` → renders
-`AppUpdateDialog` in optional or force mode, or renders nothing.
+`AppUpdateDialog` in optional or force mode, or renders nothing. If an
+update is available, `download.ts`'s `downloadUpdateInBackground()` is
+kicked off immediately (fire-and-forget, silent) so the APK is usually
+already on-device by the time the person taps "Update Now" — see
+"Background download + one-tap install" below.
 
 **Why versionCode, not the "1.2.0" string:** Android's versionCode is a
 plain monotonically-increasing integer designed exactly for this
@@ -36,10 +45,39 @@ comparison — using it avoids semver edge cases (e.g. "1.10.0" sorting
 before "1.9.0" under naive string comparison). The human-readable version
 string is kept only for display in the dialog.
 
+## Background download + one-tap install
+Android will never let a non-Play-Store app install/replace itself
+completely silently — the OS requires an explicit user confirmation on
+the final install screen no matter what, even for an app updating
+itself. That one tap can't be removed. Everything *before* it can be,
+though, and that's what this does:
+
+1. The moment `checkForUpdate()` finds a newer version, `download.ts`
+   fetches the APK and writes it to the app's private cache directory via
+   `@capacitor/filesystem` — silently, no dialog, no browser tab, often
+   finished before the person has even noticed the update dialog.
+2. Tapping "Update Now" calls `trigger.ts`'s `startUpdate()`, which hands
+   that local file straight to `ApkInstallerPlugin.install()` — a small
+   custom native plugin that builds a `FileProvider` URI for the file and
+   fires `Intent.ACTION_VIEW` with the APK mime type, landing directly on
+   Android's install/replace confirmation screen.
+3. If the background download hasn't finished yet (slow network) or
+   fails for any reason, `startUpdate()` falls back to the original
+   behaviour — opening `apkDownloadUrl` in the system browser — so the
+   button can never end up doing nothing.
+
+Requires `android.permission.REQUEST_INSTALL_PACKAGES` in
+`AndroidManifest.xml` (added) and reuses the `FileProvider` already
+configured there for `@capacitor/share`.
+
 ## Files modified
 - `src/app/layout.tsx` — one new import + one new mounted component,
   identical pattern to the existing `PWARegister`/`NativeBootstrap`/
-  `ExploreBadge` lines already there. Nothing else changed.
+  `ExploreBadge` lines already there.
+- `android/app/src/main/java/com/rentivo/app/MainActivity.java` — one line
+  registering `ApkInstallerPlugin`.
+- `android/app/src/main/AndroidManifest.xml` — added the
+  `REQUEST_INSTALL_PACKAGES` permission.
 
 ## Files created
 See the tree above — all new, nothing overlaps with or duplicates
@@ -66,9 +104,11 @@ needs to change:
    `AppUpdate.startFlexibleUpdate()` (optional) /
    `AppUpdate.performImmediateUpdate()` (force), keyed off the same
    `mode` the dialog already computes.
-3. `app-version.json`'s `apkDownloadUrl` becomes unnecessary (Play
-   handles delivery) but can stay for a transition period / any
-   sideload channel kept alongside the Play listing.
+3. `download.ts` and the native `ApkInstallerPlugin` become unnecessary
+   (Play handles both delivery and install) and can be deleted; likewise
+   `app-version.json`'s `apkDownloadUrl` — though both can stay for a
+   transition period / any sideload channel kept alongside the Play
+   listing.
 4. `check.ts`'s comparison logic and `AppUpdateDialog`'s UI need **zero**
    changes — they were written to be update-mechanism-agnostic from the
    start.
