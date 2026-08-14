@@ -137,6 +137,8 @@ export default function TenantsPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteResult, setInviteResult] = useState<{ name: string; phone: string; tempPassword: string } | null>(null)
   const [copiedPw, setCopiedPw] = useState(false)
+  const [appUrl, setAppUrl] = useState('')
+  useEffect(() => { setAppUrl(window.location.origin) }, [])
 
   const effectivePropertyId = activeId === 'all' ? form.property_id : activeId
   useEffect(() => {
@@ -262,6 +264,13 @@ export default function TenantsPage() {
         phone: inviteForm.phone,
       })
       setInviteResult({ name: tenant.name, phone: tenant.phone, tempPassword })
+      // Matches the same auto-open-WhatsApp pattern used when approving a
+      // QR-join tenant (confirmApproveTenant below) — one less manual step
+      // for the owner, and the modal's own "Send via WhatsApp" button below
+      // still works as a fallback/re-send if this gets blocked or dismissed.
+      const loginUrl = `${appUrl}/login`
+      const inviteMsg = `Hi ${tenant.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${loginUrl}\n\nMobile Number: ${tenant.phone}\nTemporary Password: ${tempPassword}\n\nYou'll be asked to set your own password on first login.`
+      window.open(whatsappLink(tenant.phone, inviteMsg), '_blank')
       // Phase 8.6 — onboarding notification. Best-effort: the tenant hasn't
       // logged in yet at this point so there's usually no push subscription
       // to deliver to, but this reuses the exact same fire-and-forget
@@ -605,7 +614,15 @@ export default function TenantsPage() {
                 <p className="text-xs text-owner-muted-subtle">
                   This password won&apos;t be shown again — copy it now, or reset it later from the tenant&apos;s profile.
                 </p>
-                <OwnerButton onClick={closeInviteModal} fullWidth>Done</OwnerButton>
+                <a
+                  href={whatsappLink(inviteResult.phone,
+                    `Hi ${inviteResult.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${appUrl}/login\n\nMobile Number: ${inviteResult.phone}\nTemporary Password: ${inviteResult.tempPassword}\n\nYou'll be asked to set your own password on first login.`)}
+                  target="_blank" rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-owner-lg bg-owner-success/10 hover:bg-owner-success/15 text-owner-success text-sm font-semibold transition"
+                >
+                  <MessageCircle className="w-4 h-4" /> Send via WhatsApp
+                </a>
+                <OwnerButton onClick={closeInviteModal} fullWidth variant="secondary">Done</OwnerButton>
               </div>
             ) : (
               <>

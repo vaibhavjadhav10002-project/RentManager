@@ -77,6 +77,39 @@ export default function JoinPage() {
   const [signature, setSignature] = useState<string | null>(null)
   const [signedName, setSignedName] = useState('')
 
+  // Restore any in-progress draft on mount. Capturing the government-ID
+  // photo opens the native camera, which backgrounds the WebView — on low
+  // battery/low memory Android, the OS can kill that backgrounded WebView
+  // to free resources, so returning from the camera reloads the page from
+  // scratch and wipes all in-memory React state. Persisting to
+  // sessionStorage (survives a reload, cleared when the tab/session ends)
+  // is the standard fix for exactly this. `govIdPreview` is deliberately
+  // NOT restored here — it's a local blob: URL that dies with the old
+  // page anyway — `govIdUrl` (the real uploaded Supabase Storage URL) is
+  // used as its replacement preview source instead.
+  const draftKey = `rentivo_join_draft_${params.slug}`
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(draftKey)
+      if (!saved) return
+      const draft = JSON.parse(saved)
+      if (draft.form) setForm(f => ({ ...f, ...draft.form }))
+      if (typeof draft.step === 'number') setStep(draft.step)
+      if (draft.govIdUrl) { setGovIdUrl(draft.govIdUrl); setGovIdPreview(draft.govIdUrl) }
+      if (typeof draft.accepted === 'boolean') setAccepted(draft.accepted)
+      if (draft.signature) setSignature(draft.signature)
+      if (draft.signedName) setSignedName(draft.signedName)
+    } catch {}
+    // Restore once, on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({ form, step, govIdUrl, accepted, signature, signedName }))
+    } catch {}
+  }, [draftKey, form, step, govIdUrl, accepted, signature, signedName])
+
   useEffect(() => {
     async function loadProperty() {
       const sb = createClient()
@@ -258,6 +291,7 @@ export default function JoinPage() {
       })
 
       setSubmitted(true)
+      try { sessionStorage.removeItem(draftKey) } catch {}
     } catch (e: any) { toast.error(e.message ?? 'Something went wrong') }
     setSaving(false)
   }
