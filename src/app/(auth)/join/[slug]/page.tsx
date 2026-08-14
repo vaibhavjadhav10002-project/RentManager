@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import SignaturePad from '@/components/shared/SignaturePad'
 import { formatINR, formatDate } from '@/lib/utils'
+import { useActiveExperience } from '@/lib/experience/useActiveExperience'
 
 // Defined OUTSIDE the page component — declaring inputs inside the render
 // body causes React to remount them on every keystroke (loses focus after
@@ -19,7 +20,7 @@ function Field({ label, required, hint, className, ...props }: any) {
   return (
     <div>
       <label className="text-xs font-semibold text-gray-600 block mb-1">{label}{required && <span className="text-red-500"> *</span>}</label>
-      <input {...props} className={`w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500 ${className ?? ''}`} />
+      <input {...props} className={`w-full px-3 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-[hsl(var(--join-accent))] ${className ?? ''}`} />
       {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
     </div>
   )
@@ -55,6 +56,15 @@ function ordinal(n: number) {
 
 export default function JoinPage() {
   const params = useParams<{ slug: string }>()
+  const activePack = useActiveExperience()
+  // Default values match the join page's original blue-600/purple-600
+  // look exactly — a pack overrides them via the wrapping div's inline
+  // style below; with no active pack, every `--join-accent`-based class
+  // throughout this file renders pixel-identical to before this change.
+  const joinAccentStyle = {
+    '--join-accent': activePack?.accentPalette?.primary ?? '221 83% 53%',
+    '--join-accent-2': activePack?.accentPalette?.secondary ?? '271 81% 56%',
+  } as React.CSSProperties
   const [loadingProperty, setLoadingProperty] = useState(true)
   const [property, setProperty] = useState<{ id: string; name: string; address: string | null; upi_id: string | null } | null>(null)
   const [ownerName, setOwnerName] = useState('')
@@ -297,8 +307,8 @@ export default function JoinPage() {
   }
 
   if (loadingProperty) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50" style={joinAccentStyle}>
+      <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--join-accent))]" />
     </div>
   )
 
@@ -312,7 +322,7 @@ export default function JoinPage() {
   )
 
   if (submitted) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[hsl(var(--join-accent)/0.08)] to-[hsl(var(--join-accent-2)/0.08)] p-4" style={joinAccentStyle}>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-sm w-full text-center">
         <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-4" />
         <h2 className="text-lg font-extrabold text-gray-900 mb-2">Request Submitted!</h2>
@@ -322,10 +332,10 @@ export default function JoinPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 px-3 py-6 sm:p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--join-accent)/0.08)] to-[hsl(var(--join-accent-2)/0.08)] px-3 py-6 sm:p-4" style={joinAccentStyle}>
       <div className="w-full max-w-2xl mx-auto">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[hsl(var(--join-accent))] to-[hsl(var(--join-accent-2))] flex items-center justify-center shadow-lg mb-3">
             <Building2 className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-lg font-extrabold text-gray-900 text-center">Join {property.name}</h1>
@@ -338,11 +348,11 @@ export default function JoinPage() {
             <div key={s} className="flex-1 flex items-center">
               <div className="flex flex-col items-center flex-shrink-0">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition ${
-                  i < step ? 'bg-green-500 text-white' : i === step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'
+                  i < step ? 'bg-green-500 text-white' : i === step ? 'bg-[hsl(var(--join-accent))] text-white' : 'bg-gray-200 text-gray-400'
                 }`}>
                   {i < step ? <CheckCircle className="w-4 h-4" /> : i + 1}
                 </div>
-                <span className={`text-[10px] mt-1 text-center hidden sm:block ${i === step ? 'text-blue-600 font-semibold' : 'text-gray-400'}`}>{s}</span>
+                <span className={`text-[10px] mt-1 text-center hidden sm:block ${i === step ? 'text-[hsl(var(--join-accent))] font-semibold' : 'text-gray-400'}`}>{s}</span>
               </div>
               {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-1 ${i < step ? 'bg-green-500' : 'bg-gray-200'}`} />}
             </div>
@@ -354,7 +364,7 @@ export default function JoinPage() {
           {/* Step 1: Tenant Info */}
           {step === 0 && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><User className="w-4 h-4 text-blue-600" /> Tenant Information</div>
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><User className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Tenant Information</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-1 sm:col-span-2"><Field label="Full Name" required value={form.name} onChange={(e: any) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your full name" /></div>
                 <Field label="Mobile Number" required type="tel" inputMode="numeric" value={form.phone} onChange={(e: any) => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit mobile" />
@@ -396,7 +406,7 @@ export default function JoinPage() {
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <div className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3"><Home className="w-4 h-4 text-blue-600" /> Property Information</div>
+                <div className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3"><Home className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Property Information</div>
                 <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-2 gap-3 text-sm">
                   <div><div className="text-xs text-gray-400">PG Name</div><div className="font-semibold text-gray-900">{property.name}</div></div>
                   <div><div className="text-xs text-gray-400">Owner / Manager</div><div className="font-semibold text-gray-900">{ownerName}</div></div>
@@ -406,7 +416,7 @@ export default function JoinPage() {
                 <p className="text-[11px] text-gray-400 mt-1.5">Your room and bed will be assigned by the owner when they approve your request.</p>
               </div>
               <div>
-                <div className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3"><FileText className="w-4 h-4 text-blue-600" /> Agreement Details</div>
+                <div className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3"><FileText className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Agreement Details</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Start Date" required type="date" value={form.start_date} onChange={(e: any) => setForm(f => ({ ...f, start_date: e.target.value }))} />
                   <div>
@@ -414,7 +424,7 @@ export default function JoinPage() {
                     <div className="flex gap-2">
                       {['6', '11', '12'].map(m => (
                         <button key={m} type="button" onClick={() => setForm(f => ({ ...f, duration_months: m }))}
-                          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${form.duration_months === m ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-600'}`}>
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${form.duration_months === m ? 'border-[hsl(var(--join-accent))] bg-[hsl(var(--join-accent)/0.1)] text-[hsl(var(--join-accent))]' : 'border-gray-200 text-gray-600'}`}>
                           {m} mo
                         </button>
                       ))}
@@ -430,7 +440,7 @@ export default function JoinPage() {
           {/* Step 3: Financial Details */}
           {step === 2 && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><IndianRupee className="w-4 h-4 text-blue-600" /> Financial Details</div>
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><IndianRupee className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Financial Details</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Monthly Rent (₹)" required type="number" inputMode="numeric" value={form.monthly_rent} onChange={(e: any) => setForm(f => ({ ...f, monthly_rent: e.target.value }))} placeholder="As agreed" />
                 <Field label="Security Deposit (₹)" required type="number" inputMode="numeric" value={form.security_deposit} onChange={(e: any) => setForm(f => ({ ...f, security_deposit: e.target.value }))} placeholder="Refundable amount" />
@@ -451,7 +461,7 @@ export default function JoinPage() {
           {/* Step 4: Terms & Conditions */}
           {step === 3 && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><ShieldCheck className="w-4 h-4 text-blue-600" /> Terms & Conditions</div>
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><ShieldCheck className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Terms & Conditions</div>
               <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-xl p-4 bg-gray-50 space-y-2.5">
                 {TERMS.map((t, i) => (
                   <div key={i} className="flex gap-2 text-sm text-gray-700">
@@ -466,15 +476,15 @@ export default function JoinPage() {
           {/* Step 5: Sign & Submit */}
           {step === 4 && (
             <div className="space-y-5">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><FileText className="w-4 h-4 text-blue-600" /> Digital Acceptance</div>
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><FileText className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Digital Acceptance</div>
 
               <button type="button" onClick={() => setPreviewOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
                 <Eye className="w-4 h-4" /> Preview Full Agreement
               </button>
 
-              <label className="flex items-start gap-2.5 bg-blue-50 rounded-xl p-3 cursor-pointer">
-                <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-0.5 w-4 h-4 accent-blue-600" />
-                <span className="text-xs text-blue-800">I have read, understood, and agree to the PG Agreement & Terms and Conditions.</span>
+              <label className="flex items-start gap-2.5 bg-[hsl(var(--join-accent)/0.08)] rounded-xl p-3 cursor-pointer">
+                <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[hsl(var(--join-accent))]" />
+                <span className="text-xs text-[hsl(var(--join-accent))]">I have read, understood, and agree to the PG Agreement & Terms and Conditions.</span>
               </label>
 
               <div>
@@ -505,13 +515,13 @@ export default function JoinPage() {
               </button>
             )}
             {step < STEPS.length - 1 ? (
-              <button onClick={next} className="flex-1 py-3 sm:py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition">
+              <button onClick={next} className="flex-1 py-3 sm:py-2.5 bg-gradient-to-r from-[hsl(var(--join-accent))] to-[hsl(var(--join-accent-2))] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition">
                 Next <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
               <button onClick={handleComplete} disabled={saving || !accepted || !signature}
                 title={!accepted || !signature ? 'Accept the terms and sign above to continue' : ''}
-                className="flex-1 py-3 sm:py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                className="flex-1 py-3 sm:py-2.5 bg-gradient-to-r from-[hsl(var(--join-accent))] to-[hsl(var(--join-accent-2))] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {saving ? 'Submitting…' : 'Complete Joining'}
               </button>

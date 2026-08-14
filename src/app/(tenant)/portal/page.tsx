@@ -29,6 +29,7 @@ import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeMod
 import OnboardingWizard from '@/components/tenant/OnboardingWizard'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 import { Card, Badge, Button, SectionHeader, EmptyState, Avatar, ThemeToggle } from '@/components/tenant/ui'
+import { useActiveExperience } from '@/lib/experience/useActiveExperience'
 
 type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices' | 'requests'
 
@@ -131,6 +132,9 @@ export default function TenantPortal() {
   const thisMonth = new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })
   const greetingHour = new Date().getHours()
   const greeting = greetingHour < 12 ? 'Good Morning' : greetingHour < 17 ? 'Good Afternoon' : 'Good Evening'
+  const activePack = useActiveExperience()
+  const timeSlot = greetingHour < 12 ? 'morning' : greetingHour < 17 ? 'afternoon' : greetingHour < 21 ? 'evening' : 'night'
+  const packGreetingText = activePack?.greeting ? (activePack.greeting[timeSlot] ?? activePack.greeting.default) : null
   const nextDueDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date(tenant?.joining_date ?? Date.now()).getDate())
   const daysLeft = tenant ? Math.ceil((nextDueDate.getTime() - Date.now()) / 86400000) : 0
   const depositDue = tenant ? tenant.deposit_amount - tenant.deposit_paid : 0
@@ -788,15 +792,31 @@ export default function TenantPortal() {
             <div className="space-y-5">
               <EnableNotificationsBanner />
 
-              {/* Welcome banner */}
-              <div className="relative overflow-hidden rounded-tenant-2xl bg-tenant-primary/10 border border-tenant-primary/15 p-5">
+              {/* Welcome banner — accent colors/greeting swap to the active
+                  Experience Pack (festival/season) when one is live today;
+                  falls back to the existing look/copy otherwise. See
+                  src/lib/experience/ (previously built but never wired to
+                  any screen) and useActiveExperience.ts. */}
+              <div
+                className="relative overflow-hidden rounded-tenant-2xl bg-tenant-primary/10 border border-tenant-primary/15 p-5"
+                style={activePack?.accentPalette?.primary ? {
+                  backgroundColor: `hsl(${activePack.accentPalette.primary} / 0.12)`,
+                  borderColor: `hsl(${activePack.accentPalette.primary} / 0.25)`,
+                } : undefined}
+              >
                 <div className="relative z-10 pr-16">
                   <h1 className="font-tenant-display text-lg font-extrabold text-tenant-fg">
-                    {greeting}, {tenant.name.split(' ')[0]} 👋
+                    {packGreetingText ?? `${greeting}, ${tenant.name.split(' ')[0]}`} 👋
                   </h1>
-                  <p className="text-sm text-tenant-muted mt-1">Welcome back! Here&apos;s what&apos;s happening.</p>
+                  <p className="text-sm text-tenant-muted mt-1">
+                    {activePack ? activePack.name : "Welcome back! Here's what's happening."}
+                  </p>
                 </div>
-                <Building2 className="absolute -right-4 -bottom-5 w-24 h-24 text-tenant-primary/15 pointer-events-none" strokeWidth={1} />
+                <Building2
+                  className="absolute -right-4 -bottom-5 w-24 h-24 text-tenant-primary/15 pointer-events-none"
+                  strokeWidth={1}
+                  style={activePack?.accentPalette?.primary ? { color: `hsl(${activePack.accentPalette.primary} / 0.18)` } : undefined}
+                />
               </div>
 
               {agreementDaysLeft !== null && agreementDaysLeft <= 14 && (agreement.status === 'signed' || agreement.status === 'active') && (

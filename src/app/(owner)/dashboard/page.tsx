@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
 import { OwnerStatCard, OwnerCard, OwnerEmptyState, OwnerCalendar, OwnerBadge, OwnerAvatar, OwnerButton } from '@/components/owner/ui'
+import { useActiveExperience } from '@/lib/experience/useActiveExperience'
 
 // recharts (~100kB) is loaded as its own async chunk instead of being part
 // of Dashboard's main bundle — this is the first page every owner sees
@@ -61,9 +62,19 @@ function greeting() {
   return 'Good Evening'
 }
 
+function greetingTimeSlot(): 'morning' | 'afternoon' | 'evening' | 'night' {
+  const h = new Date().getHours()
+  if (h < 12) return 'morning'
+  if (h < 17) return 'afternoon'
+  if (h < 21) return 'evening'
+  return 'night'
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { activeId, active, properties } = useProperty()
+  const activePack = useActiveExperience()
+  const packGreetingText = activePack?.greeting ? (activePack.greeting[greetingTimeSlot()] ?? activePack.greeting.default) : null
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number; remainingDue: number })[]>([])
@@ -356,15 +367,21 @@ export default function DashboardPage() {
       {/* Hero card — greeting + at-a-glance occupancy, built entirely from
           the `stats` object already fetched below (no new data/queries) */}
       {stats && (
-        <div className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-indigo-600 p-5 text-white shadow-owner-md relative overflow-hidden">
+        <div
+          className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-indigo-600 p-5 text-white shadow-owner-md relative overflow-hidden"
+          style={activePack?.accentPalette?.primary ? {
+            backgroundImage: `linear-gradient(135deg, hsl(${activePack.accentPalette.primary}), hsl(${activePack.accentPalette.secondary ?? activePack.accentPalette.primary}))`,
+          } : undefined}
+        >
           <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" aria-hidden="true" />
           <div className="absolute -right-2 -bottom-10 w-24 h-24 rounded-full bg-white/10" aria-hidden="true" />
           <div className="relative">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-base font-bold">{greeting()} 👋</div>
+                <div className="text-base font-bold">{packGreetingText ?? greeting()} 👋</div>
                 <div className="text-xs text-white/80 mt-0.5">
                   {activeId === 'all' ? `Across all ${properties.length} properties` : active?.name}
+                  {activePack ? ` · ${activePack.name}` : ''}
                 </div>
               </div>
               <div className="text-right shrink-0">
