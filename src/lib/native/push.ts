@@ -22,6 +22,25 @@ export async function registerNativePush(): Promise<boolean> {
   const permission = await PushNotifications.requestPermissions()
   if (permission.receive !== 'granted') return false
 
+  // Android 8+ requires a notification channel; if the app never creates
+  // one, incoming pushes fall back to Android's own default channel
+  // (importance: DEFAULT) — delivered silently into the shade instead of
+  // popping up as a heads-up banner like WhatsApp. `importance: 5` is
+  // IMPORTANCE_HIGH, the setting that actually enables that heads-up
+  // behavior. Must match FCM_ANDROID_CHANNEL_ID in src/lib/fcm.ts exactly,
+  // or the server's channelId won't route to this channel.
+  if (getPlatform() === 'android') {
+    await PushNotifications.createChannel({
+      id: 'rentivo_default',
+      name: 'Rentivo Notifications',
+      description: 'Payment reminders, approvals, messages, and other updates from your PG',
+      importance: 5,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+    })
+  }
+
   return new Promise((resolve) => {
     PushNotifications.addListener('registration', async (token) => {
       const sb = createClient()

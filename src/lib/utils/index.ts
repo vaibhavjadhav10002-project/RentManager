@@ -290,7 +290,7 @@ export const DEFAULT_MOVE_OUT_CHECKLIST: string[] = [
 // current-month-only view instead, which meant a backlog month could be
 // paid up-to-date on one screen and still show ₹0 pending on the other.
 // Both sides must now call this same function so they can never disagree.
-export interface LedgerPayment { for_month: string; type: string; approval_status: string; amount_received: number; payment_date?: string }
+export interface LedgerPayment { for_month: string | null; type: string; approval_status: string; amount_received: number; payment_date?: string }
 export interface LedgerTenant { joining_date: string; leaving_date?: string | null; monthly_rent: number }
 
 export function buildMonthlyLedger(tenant: LedgerTenant, payments: LedgerPayment[], approvedLeaves: ApprovedLeave[]): LedgerMonth[] {

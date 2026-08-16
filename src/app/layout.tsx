@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-const inter = { className: '' } as any;// import { Inter } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'sonner'
 import PWARegister from '@/components/shared/PWARegister'
@@ -9,7 +9,7 @@ import ExploreBadge from '@/components/shared/ExploreBadge'
 import ExploreLockSheet from '@/components/shared/ExploreLockSheet'
 import AppUpdateChecker from '@/components/shared/AppUpdateChecker'
 
-
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Rentivo — Smart PG & Property Management',
