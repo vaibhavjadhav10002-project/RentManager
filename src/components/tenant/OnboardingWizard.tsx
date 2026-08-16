@@ -231,7 +231,7 @@ export default function OnboardingWizard({ tenant, onComplete }: OnboardingWizar
                     ? "It's downloading in the background — keep filling in your details below."
                     : 'Download starts automatically. Manage your rent, leave, and documents from the app.'}
                 </p>
-                {apkGate.checked && !apkGate.apkUrl && <p className="text-xs text-tenant-muted-subtle mt-1">Download link isn't available right now — you can still complete your profile here.</p>}
+                {apkGate.checked && !apkGate.apkUrl && <p className="text-xs text-tenant-muted-subtle mt-1">Download link isn&apos;t available right now — you can still complete your profile here.</p>}
                 {apkGate.apkUrl && (
                   <button type="button" onClick={apkGate.triggerDownload} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-tenant-primary">
                     <Download className="w-3.5 h-3.5" /> {apkGate.triggered ? 'Download again' : 'Download now'}

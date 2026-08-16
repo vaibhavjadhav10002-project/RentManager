@@ -489,7 +489,7 @@ export default function JoinPage() {
                     <p className="text-[11px] text-gray-500 mt-0.5">
                       {apkGate.triggered ? "It's downloading in the background." : 'Download starts automatically — manage your rent and requests from the app.'}
                     </p>
-                    {apkGate.checked && !apkGate.apkUrl && <p className="text-[11px] text-gray-400 mt-1">Download link isn't available right now — you can still complete joining here.</p>}
+                    {apkGate.checked && !apkGate.apkUrl && <p className="text-[11px] text-gray-400 mt-1">Download link isn&apos;t available right now — you can still complete joining here.</p>}
                     {apkGate.apkUrl && (
                       <button type="button" onClick={apkGate.triggerDownload} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[hsl(var(--join-accent))]">
                         <Download className="w-3 h-3" /> {apkGate.triggered ? 'Download again' : 'Download now'}
