@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getTenants, getAllTenants, getMessagesForTenant, sendMessageAsOwner, markMessagesReadByOwner } from '@/lib/supabase/queries'
-import { formatDate } from '@/lib/utils'
+import { formatDate, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Send, Loader2, MessageCircle, Search } from 'lucide-react'
 import type { Tenant } from '@/types'
@@ -51,7 +51,7 @@ export default function MessagesPage() {
       const msg = await sendMessageAsOwner(selected.id, selected.property_id, newMessage.trim())
       setThread(prev => [...prev, msg])
       setNewMessage('')
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSending(false)
   }
 

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { friendlyErrorMessage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { updateProperty, addCollector, deleteCollector, getCollectors } from '@/lib/supabase/queries'
 import { useProperty } from '@/components/shared/PropertyContext'
@@ -79,7 +80,7 @@ export default function SettingsPage() {
         late_fee_grace_days: Number(pgForm.late_fee_grace_days || 0),
       } as any)
       toast.success('PG details saved!'); refresh()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -90,7 +91,7 @@ export default function SettingsPage() {
       toast.success('Collector added!')
       setNewCollector('')
       getCollectors(active.id).then(setCollectors)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleDeleteCollector(id: string) {
@@ -100,7 +101,7 @@ export default function SettingsPage() {
       await deleteCollector(id)
       toast.success('Collector removed')
       getCollectors(active.id).then(setCollectors)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function changePassword() {
@@ -109,7 +110,7 @@ export default function SettingsPage() {
     setPwSaving(true)
     const sb = createClient()
     const { error } = await sb.auth.updateUser({ password: pwForm.newPw })
-    if (error) { toast.error(error.message); setPwSaving(false); return }
+    if (error) { toast.error(friendlyErrorMessage(error)); setPwSaving(false); return }
     if (profile?.id) await sb.from('profiles').update({ must_change_password: false }).eq('id', profile.id)
     toast.success('Password updated!')
     setPwForm({ current: '', newPw: '', confirm: '' })

@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getTenants, getMessageTemplates, ensureDefaultTemplates, addMessageTemplate, updateMessageTemplate, deleteMessageTemplate, getCommunicationSettings, upsertCommunicationSettings, getPayments } from '@/lib/supabase/queries'
 import { CommunicationService, ReminderEngine, extractVariables, isFullyRendered, STANDARD_VARIABLES, type ReminderCandidate } from '@/lib/communication'
-import { formatINR, formatDate, cn } from '@/lib/utils'
+import { formatINR, formatDate, cn, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Inbox as InboxIcon, MessageCircle, Bell, FileText, History as HistoryIcon, Plus, Pencil, Trash2, X, Settings2, Sparkles, Search, ExternalLink, CheckCheck, RotateCcw, AlertTriangle } from 'lucide-react'
 import type { MessageTemplate, TemplateCategory, TemplateVariables, CommunicationLogEntry, CommunicationStatus, CommunicationQueueItem } from '@/types'
@@ -339,7 +339,7 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
       else toast.error(`Couldn't queue a reminder for ${tenant.name} — no phone on file`)
       onSent()
     } catch (e: any) {
-      toast.error(e.message)
+      toast.error(friendlyErrorMessage(e))
     }
     setSendingId(null)
   }
@@ -359,7 +359,7 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
       else toast.error('Still no phone number on file for this tenant')
       onSent()
     } catch (e: any) {
-      toast.error(e.message)
+      toast.error(friendlyErrorMessage(e))
     }
     setSendingId(null)
   }
@@ -440,7 +440,7 @@ function TemplatesTab({ templates, onEdit, onReload }: { templates: MessageTempl
     if (t.is_system_default) { toast.error("Default templates can't be deleted — edit or duplicate instead"); return }
     if (!confirm(`Delete "${t.name}"?`)) return
     try { await deleteMessageTemplate(t.id); toast.success('Template deleted'); onReload() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   return (
@@ -500,7 +500,7 @@ function TemplateModal({ propertyId, existing, onClose, onSaved }: { propertyId:
         toast.success('Template created')
       }
       onSaved()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -628,7 +628,7 @@ function SettingsModal({ propertyId, onClose, onSaved }: { propertyId: string; o
       toast.success('Communication settings saved')
       onSaved()
       onClose()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 

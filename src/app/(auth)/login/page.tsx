@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
+import { friendlyErrorMessage } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -29,7 +30,7 @@ function LoginForm() {
     const email = isEmail ? username.trim() : `${username.replace(/\D/g, '')}@pgmanager.local`
 
     const { data, error } = await sb.auth.signInWithPassword({ email, password })
-    if (error) { toast.error(error.message); setLoading(false); return }
+    if (error) { toast.error(friendlyErrorMessage(error)); setLoading(false); return }
 
     const { data: profile } = await sb
       .from('profiles').select('role').eq('id', data.user.id).single()

@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants, getElectricityBills, addElectricityBill, approveBill, deleteElectricityBill, getLeaveRequests, getRentExtensionRequests } from '@/lib/supabase/queries'
 import { generateReceiptPDF } from '@/lib/pdf'
-import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays, cn, calculateLeaveRentAdjustment, getApprovedExtensionFor } from '@/lib/utils'
+import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays, cn, getApprovedExtensionFor, getRentOutstandingSummary, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Check, MessageCircle, Phone, FileText, Zap, Trash2, X, Wallet, ChevronRight, Loader2 } from 'lucide-react'
 import type { Payment, Collector, Tenant, ElectricityBill } from '@/types'
@@ -69,40 +69,45 @@ export default function PaymentsPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Pending rent sorted by due date — accounts for partial payments and
-  // only counts actual rent payments (not deposit/advance) toward "paid"
+  // Pending rent sorted by due date — uses the same full oldest-first
+  // ledger (shared with the Tenant Portal via getRentOutstandingSummary)
+  // rather than only checking this calendar month, so a tenant who skipped
+  // an older month still shows up here even if a later month is paid.
   const today = new Date()
   const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-  const rentPaidThisMonthByTenant = new Map<string, number>()
-  payments.forEach(p => {
-    if (p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent') {
-      rentPaidThisMonthByTenant.set(p.tenant_id, (rentPaidThisMonthByTenant.get(p.tenant_id) ?? 0) + p.amount_received)
-    }
-  })
-  const effectiveRentFor = (t: Tenant) => {
-    const tenantLeaves = approvedLeaves.filter(l => l.tenant_id === t.id)
-    const adjustment = calculateLeaveRentAdjustment(thisMonth, t.monthly_rent, tenantLeaves)
-    return { rent: t.monthly_rent - adjustment, adjustment }
-  }
+  // Memoized: this walks every tenant's full oldest-first ledger
+  // (including the overlapping-leave interval merge per month) — without
+  // memoization it would re-run for every tenant on every re-render of
+  // this page (opening a modal, switching tabs, typing in the search
+  // box), not just when the underlying tenants/payments/leaves actually
+  // change.
+  const outstandingByTenant = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof getRentOutstandingSummary>>()
+    tenants.forEach(t => {
+      const tenantPayments = payments.filter(p => p.tenant_id === t.id)
+      const tenantLeaves = approvedLeaves.filter(l => l.tenant_id === t.id)
+      map.set(t.id, getRentOutstandingSummary(t, tenantPayments, tenantLeaves))
+    })
+    return map
+  }, [tenants, payments, approvedLeaves])
   const paidTenantIds = new Set(
-    [...rentPaidThisMonthByTenant.entries()].filter(([tid, amt]) => {
-      const t = tenants.find(x => x.id === tid)
-      return t && amt >= effectiveRentFor(t).rent
-    }).map(([tid]) => tid)
+    tenants.filter(t => (outstandingByTenant.get(t.id)?.totalPending ?? 0) <= 0).map(t => t.id)
   )
   const pendingRentSorted = tenants
-    .filter(t => t.status === 'active' && (rentPaidThisMonthByTenant.get(t.id) ?? 0) < effectiveRentFor(t).rent)
+    .filter(t => t.status === 'active' && (outstandingByTenant.get(t.id)?.totalPending ?? 0) > 0)
     .map(t => {
-      const { rent, adjustment } = effectiveRentFor(t)
+      const summary = outstandingByTenant.get(t.id)!
+      const oldest = summary.oldestUnpaidMonth
       const tenantExtensions = approvedExtensions.filter(x => x.tenant_id === t.id)
-      const activeExtension = getApprovedExtensionFor(thisMonth, tenantExtensions)
+      const activeExtension = oldest ? getApprovedExtensionFor(oldest.label, tenantExtensions) : null
       return {
         ...t,
         dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
         overdueDays: getOverdueDays(t.joining_date, today),
-        remainingDue: rent - (rentPaidThisMonthByTenant.get(t.id) ?? 0),
-        leaveAdjustment: adjustment,
-        effectiveRent: rent,
+        oldestUnpaidMonthLabel: oldest?.label ?? thisMonth,
+        remainingDue: summary.totalPending,
+        leaveAdjustment: oldest?.adjustment ?? 0,
+        effectiveRent: oldest?.amount ?? t.monthly_rent,
         activeExtension,
       }
     })
@@ -139,19 +144,19 @@ export default function PaymentsPage() {
       setBillModal(false)
       setBillForm({ tenant_id: '', for_month: '', amount: '', due_date: '' })
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setBillSaving(false)
   }
 
   async function handleApproveBill(id: string) {
     try { await approveBill(id); toast.success('Bill marked paid'); load() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleDeleteBill(id: string) {
     if (!confirm('Delete this bill?')) return
     try { await deleteElectricityBill(id); toast.success('Bill deleted'); load() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleRecord() {
@@ -178,7 +183,7 @@ export default function PaymentsPage() {
       toast.success('Payment recorded!')
       setRecordModal(false)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -318,7 +323,7 @@ export default function PaymentsPage() {
                           <Phone className="w-3.5 h-3.5 text-owner-info" />
                         </a>
                         <OwnerButton
-                          onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
+                          onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: t.oldestUnpaidMonthLabel })); setRecordModal(true) }}
                           size="sm" icon={<Check className="w-3.5 h-3.5" />}
                         >
                           Record
@@ -365,7 +370,7 @@ export default function PaymentsPage() {
                         </OwnerTableCell>
                         <OwnerTableCell>
                           <OwnerButton
-                            onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
+                            onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: t.oldestUnpaidMonthLabel })); setRecordModal(true) }}
                             size="sm" icon={<Check className="w-3.5 h-3.5" />}
                           >
                             Record

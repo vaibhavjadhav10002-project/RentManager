@@ -147,6 +147,10 @@ export interface Payment {
   for_month: string | null
   total_due: number
   amount_received: number
+  // Portion of amount_received that is a late fee rather than rent — kept
+  // as a separate field so income reports can distinguish the two even
+  // when they were collected together in one payment. Defaults to 0.
+  late_fee_amount: number
   method: PaymentMethod | null
   collected_by: string | null
   approval_status: PaymentApprovalStatus

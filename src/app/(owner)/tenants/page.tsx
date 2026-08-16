@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms, getPaymentsForTenant, setTenantLeaving, markTenantLeft, getMoveOutChecklist, startMoveOutChecklist, updateMoveOutChecklist, inviteTenant } from '@/lib/supabase/queries'
-import { formatINR, formatDate, whatsappLink, rentReminderMsg, cn } from '@/lib/utils'
+import { formatINR, formatDate, whatsappLink, rentReminderMsg, cn, computeJoiningPaymentStatus, friendlyErrorMessage } from '@/lib/utils'
 import { generateReceiptPDF } from '@/lib/pdf'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
@@ -95,12 +95,22 @@ export default function TenantsPage() {
     if (!editForm.monthly_rent || Number(editForm.monthly_rent) <= 0) { toast.error('Enter a valid monthly rent'); return }
     const refundAmt = Number(editForm.deposit_refunded || 0)
     const depositPaidAmt = Number(editForm.deposit_paid || 0)
+    const deductionItems = editForm.deposit_deduction_items
+      .filter(it => it.label.trim())
+      .map(it => ({ label: it.label.trim(), amount: Number(it.amount) || 0 }))
+    const deductionTotal = deductionItems.reduce((s, it) => s + it.amount, 0)
     if (refundAmt > depositPaidAmt) { toast.error('Refund amount cannot exceed deposit paid'); return }
+    // Refund + deductions together can never exceed the deposit actually
+    // held, even if the refund field was typed in manually rather than
+    // taken from the auto-suggested value. Also enforced at the database
+    // level (trg_prevent_deposit_over_settlement) as a second line of
+    // defense.
+    if (refundAmt + deductionTotal > depositPaidAmt) {
+      toast.error(`Refund (${formatINR(refundAmt)}) + deductions (${formatINR(deductionTotal)}) exceed deposit paid (${formatINR(depositPaidAmt)})`)
+      return
+    }
     setEditSaving(true)
     try {
-      const deductionItems = editForm.deposit_deduction_items
-        .filter(it => it.label.trim())
-        .map(it => ({ label: it.label.trim(), amount: Number(it.amount) || 0 }))
       await updateTenant(editTenant.id, {
         name: editForm.name.trim(),
         // Phone is intentionally NOT editable here once a login exists —
@@ -139,6 +149,20 @@ export default function TenantsPage() {
   const [copiedPw, setCopiedPw] = useState(false)
   const [appUrl, setAppUrl] = useState('')
   useEffect(() => { setAppUrl(window.location.origin) }, [])
+  // Same /app-version.json the tenant-side download gate reads from —
+  // included in the WhatsApp invite text so the tenant gets the app link
+  // even before they open the onboarding page (see useApkDownloadGate for
+  // the auto-download-on-page-load half of this feature).
+  const [apkUrl, setApkUrl] = useState('')
+  useEffect(() => {
+    fetch('/app-version.json', { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        const url = json?.apkDownloadUrl
+        if (typeof url === 'string' && url && !url.includes('REPLACE-WITH')) setApkUrl(url)
+      })
+      .catch(() => {})
+  }, [])
 
   const effectivePropertyId = activeId === 'all' ? form.property_id : activeId
   useEffect(() => {
@@ -178,7 +202,7 @@ export default function TenantsPage() {
       toast.success(`${noticeModal.name} marked as leaving on ${leavingDate}`)
       setNoticeModal(null); setLeavingDate('')
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleMarkLeft(tenantId: string, name: string) {
@@ -187,7 +211,7 @@ export default function TenantsPage() {
       await markTenantLeft(tenantId)
       toast.success(`${name} marked as left`)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function openChecklist(t: Tenant) {
@@ -197,7 +221,7 @@ export default function TenantsPage() {
       const existing = await getMoveOutChecklist(t.id)
       const c = existing || await startMoveOutChecklist(t.id, t.property_id)
       setChecklist(c)
-    } catch (e: any) { toast.error(e.message); setChecklistTenant(null) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)); setChecklistTenant(null) }
     setChecklistLoading(false)
   }
 
@@ -209,7 +233,7 @@ export default function TenantsPage() {
     try {
       const updated = await updateMoveOutChecklist(checklist.id, items)
       setChecklist(updated)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleAdd() {
@@ -245,7 +269,7 @@ export default function TenantsPage() {
       setModalOpen(false)
       setForm({ property_id: '', room_id: '', bed_label: '', name: '', phone: '', email: '', emergency_contact: '', date_of_birth: '', joining_date: '', monthly_rent: '', deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '' })
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -269,7 +293,8 @@ export default function TenantsPage() {
       // for the owner, and the modal's own "Send via WhatsApp" button below
       // still works as a fallback/re-send if this gets blocked or dismissed.
       const loginUrl = `${appUrl}/login`
-      const inviteMsg = `Hi ${tenant.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${loginUrl}\n\nMobile Number: ${tenant.phone}\nTemporary Password: ${tempPassword}\n\nYou'll be asked to set your own password on first login.`
+      const apkLine = apkUrl ? `\n\n📱 Download the Rentivo app:\n${apkUrl}` : ''
+      const inviteMsg = `Hi ${tenant.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${loginUrl}${apkLine}\n\nMobile Number: ${tenant.phone}\nTemporary Password: ${tempPassword}\n\nYou'll be asked to set your own password on first login.`
       window.open(whatsappLink(tenant.phone, inviteMsg), '_blank')
       // Phase 8.6 — onboarding notification. Best-effort: the tenant hasn't
       // logged in yet at this point so there's usually no push subscription
@@ -285,7 +310,7 @@ export default function TenantsPage() {
         })
       }
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setInviting(false)
   }
 
@@ -616,7 +641,7 @@ export default function TenantsPage() {
                 </p>
                 <a
                   href={whatsappLink(inviteResult.phone,
-                    `Hi ${inviteResult.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${appUrl}/login\n\nMobile Number: ${inviteResult.phone}\nTemporary Password: ${inviteResult.tempPassword}\n\nYou'll be asked to set your own password on first login.`)}
+                    `Hi ${inviteResult.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${appUrl}/login${apkUrl ? `\n\n📱 Download the Rentivo app:\n${apkUrl}` : ''}\n\nMobile Number: ${inviteResult.phone}\nTemporary Password: ${inviteResult.tempPassword}\n\nYou'll be asked to set your own password on first login.`)}
                   target="_blank" rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-owner-lg bg-owner-success/10 hover:bg-owner-success/15 text-owner-success text-sm font-semibold transition"
                 >
@@ -696,6 +721,24 @@ export default function TenantsPage() {
                 <OwnerBadge tone={KYC_TONE[viewTenant.aadhaar_status]} className="capitalize">Aadhaar: {viewTenant.aadhaar_status}</OwnerBadge>
                 <OwnerBadge tone={KYC_TONE[viewTenant.pan_status]} className="capitalize">PAN: {viewTenant.pan_status}</OwnerBadge>
               </div>
+
+              {(() => {
+                const js = computeJoiningPaymentStatus(viewTenant)
+                if (js.totalOutstanding <= 0) return null
+                return (
+                  <div className={cn('rounded-xl p-3 border', js.status === 'overdue' ? 'bg-owner-danger-subtle border-owner-danger/20' : 'bg-owner-warning-subtle border-owner-warning/20')}>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold uppercase tracking-wide text-owner-muted">Joining Payment</div>
+                      <OwnerBadge tone={js.status === 'overdue' ? 'danger' : 'warning'} className="capitalize">{js.status}</OwnerBadge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                      <div>Deposit: {formatINR(js.depositPaid)} / {formatINR(js.depositRequired)}{js.depositOutstanding > 0 && <span className="block text-owner-warning font-semibold">{formatINR(js.depositOutstanding)} outstanding</span>}</div>
+                      <div>Joining Rent: {formatINR(js.rentPaid)} / {formatINR(js.rentRequired)}{js.rentOutstanding > 0 && <span className="block text-owner-warning font-semibold">{formatINR(js.rentOutstanding)} outstanding</span>}</div>
+                    </div>
+                    <div className="text-xs text-owner-muted mt-2">Total outstanding: <span className="font-bold text-owner-fg">{formatINR(js.totalOutstanding)}</span> · Deadline: {formatDate(js.deadline)}</div>
+                  </div>
+                )
+              })()}
 
               <div>
                 <div className="text-xs font-bold text-owner-muted uppercase tracking-wide mb-2">Rent History</div>

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getRooms, addRoom, updateRoom, deleteRoom } from '@/lib/supabase/queries'
-import { formatINR } from '@/lib/utils'
+import { formatINR, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Trash2, Pencil, BedDouble, X, ChevronRight } from 'lucide-react'
 import type { Room } from '@/types'
@@ -93,7 +93,7 @@ export default function RoomsPage() {
       load()
     } catch (e: any) {
       if (e.code === '23505') toast.error('A room with this number already exists in this property')
-      else toast.error(e.message)
+      else toast.error(friendlyErrorMessage(e))
     }
     setSaving(false)
   }
@@ -101,7 +101,7 @@ export default function RoomsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this room?')) return
     try { await deleteRoom(id); toast.success('Room deleted'); load() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   return (

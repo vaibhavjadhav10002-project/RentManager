@@ -67,8 +67,12 @@ export default function IncomeReportPage() {
   const totals = useMemo(() => {
     const byType: Record<PaymentType, number> = { rent: 0, deposit: 0, advance: 0 }
     let total = 0
-    filtered.forEach(p => { byType[p.type] += p.amount_received; total += p.amount_received })
-    return { byType, total, count: filtered.length }
+    let lateFees = 0
+    filtered.forEach(p => { byType[p.type] += p.amount_received; total += p.amount_received; lateFees += p.late_fee_amount || 0 })
+    // "Rent" here means actual rent collected, with the late-fee portion
+    // (if any was folded into the same payment) broken out separately —
+    // late fees shouldn't inflate the rent-revenue figure.
+    return { byType, total, count: filtered.length, lateFees, rentExclLateFee: byType.rent - lateFees }
   }, [filtered])
 
   async function exportExcel() {
@@ -83,6 +87,7 @@ export default function IncomeReportPage() {
           Date: p.payment_date, Tenant: p.tenant?.name ?? '—', Room: p.tenant?.room?.room_number ?? '—',
           Type: TYPE_LABEL[p.type], Month: p.for_month ?? '—', Method: p.method ?? '—',
           Reference: p.reference_number ?? '—', 'Amount Received': p.amount_received,
+          'Late Fee Included': p.late_fee_amount || 0,
         }))
       ), 'Income')
       const propLabel = activeId === 'all' ? 'All-Properties' : (active?.name ?? 'Property').replace(/\s+/g, '-')
@@ -145,7 +150,8 @@ export default function IncomeReportPage() {
         </div>
         <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
           <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Rent</div>
-          <div className="text-2xl font-extrabold mt-1 text-blue-600">{formatINR(totals.byType.rent)}</div>
+          <div className="text-2xl font-extrabold mt-1 text-blue-600">{formatINR(totals.rentExclLateFee)}</div>
+          {totals.lateFees > 0 && <div className="text-xs text-owner-muted-subtle mt-0.5">+ {formatINR(totals.lateFees)} late fees</div>}
         </div>
         <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
           <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Deposit</div>

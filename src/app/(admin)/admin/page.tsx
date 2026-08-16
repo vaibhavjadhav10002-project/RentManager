@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { friendlyErrorMessage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Plus, Loader2, Building2, Users, UserCheck } from 'lucide-react'
@@ -18,13 +19,19 @@ export default function AdminPage() {
     setLoading(true)
     const sb = createClient()
     const { data: { user } } = await sb.auth.getUser()
+    // The owners list doesn't depend on the current admin's own profile at
+    // all (it queries by role, not by user.id) — fetching both in
+    // parallel instead of one-after-the-other saves a round-trip on every
+    // load of this page.
+    const [meResult, ownersResult] = await Promise.all([
+      user ? sb.from('profiles').select('must_change_password').eq('id', user.id).single() : Promise.resolve({ data: null }),
+      sb.from('profiles').select('*, properties(id, name)').eq('role', 'pg_owner').order('created_at', { ascending: false }),
+    ])
     if (user) {
       setMyId(user.id)
-      const { data: me } = await sb.from('profiles').select('must_change_password').eq('id', user.id).single()
-      setMustChangePw(!!me?.must_change_password)
+      setMustChangePw(!!meResult.data?.must_change_password)
     }
-    const { data } = await sb.from('profiles').select('*, properties(id, name)').eq('role', 'pg_owner').order('created_at', { ascending: false })
-    setOwners(data ?? [])
+    setOwners(ownersResult.data ?? [])
     setLoading(false)
   }
 
@@ -47,7 +54,7 @@ export default function AdminPage() {
       setModal(false)
       setForm({ full_name: '', email: '', phone: '', password: '' })
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 

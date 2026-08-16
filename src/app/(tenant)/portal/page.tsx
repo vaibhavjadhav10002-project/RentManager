@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, formatDate, applyAdvanceBalance, calculateLateFee, calculateLeaveRentAdjustment, getApprovedExtensionFor } from '@/lib/utils'
+import { formatINR, formatDate, calculateLateFee, getApprovedExtensionFor, getRentOutstandingSummary, computeEligibleMoveOutDate, computeJoiningPaymentStatus, parseDateOnly, friendlyErrorMessage } from '@/lib/utils'
 import UpiPayButtons from '@/components/shared/UpiPayButtons'
 import { generateAgreementPDF, generateReceiptPDF, generateFullAgreementPDF } from '@/lib/pdf'
 import {
@@ -94,17 +94,27 @@ export default function TenantPortal() {
       const { data: { user } } = await sb.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: prof } = await sb.from('profiles').select('must_change_password').eq('id', user.id).single()
+      // Neither of these depends on the other's result (both only need
+      // user.id) — running them in parallel instead of sequentially saves
+      // a full network round-trip on every single portal load, which
+      // matters most on the slower mobile connections this app is
+      // actually used on.
+      const [{ data: prof }, { data: t }] = await Promise.all([
+        sb.from('profiles').select('must_change_password').eq('id', user.id).single(),
+        sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id, late_fee_per_day, late_fee_grace_days, owner_id)').eq('auth_user_id', user.id).single(),
+      ])
       setMustChangePw(!!prof?.must_change_password)
 
-      const { data: t } = await sb.from('tenants').select('*, room:rooms(*), property:properties(name, address, upi_id, late_fee_per_day, late_fee_grace_days, owner_id)').eq('auth_user_id', user.id).single()
       if (!t) { router.push('/login'); return }
       setTenant(t)
 
-      const { data: p } = await sb.from('payments').select('*').eq('tenant_id', t.id).order('payment_date', { ascending: false })
+      // Same reasoning — payments and complaints only need t.id, not each
+      // other, so they run in parallel too.
+      const [{ data: p }, { data: c }] = await Promise.all([
+        sb.from('payments').select('*').eq('tenant_id', t.id).order('payment_date', { ascending: false }),
+        sb.from('complaints').select('*').eq('tenant_id', t.id).order('created_at', { ascending: false }),
+      ])
       setPayments(p ?? [])
-
-      const { data: c } = await sb.from('complaints').select('*').eq('tenant_id', t.id).order('created_at', { ascending: false })
       setComplaints(c ?? [])
 
       getTenantLeaveRequests(t.id).then(setLeaveRequests).catch(() => setLeaveRequests([]))
@@ -138,41 +148,28 @@ export default function TenantPortal() {
   const nextDueDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date(tenant?.joining_date ?? Date.now()).getDate())
   const daysLeft = tenant ? Math.ceil((nextDueDate.getTime() - Date.now()) / 86400000) : 0
   const depositDue = tenant ? tenant.deposit_amount - tenant.deposit_paid : 0
+  const joiningStatus = tenant ? computeJoiningPaymentStatus(tenant) : null
   const openComplaints = complaints.filter(c => c.status !== 'resolved').length
   const unreadMessages = messages.filter(m => m.sender === 'owner' && !m.read_by_tenant).length
 
-  const monthlyLedger = (() => {
-    if (!tenant?.joining_date) return []
-    const months: { label: string; status: 'paid' | 'pending' | 'partial'; amount: number; paid: number; paidOn?: string; adjustment: number }[] = []
-    const start = new Date(tenant.joining_date)
-    const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-    const today = new Date()
-    const end = tenant.leaving_date && new Date(tenant.leaving_date) < today ? new Date(tenant.leaving_date) : today
+  // Single authoritative ledger calculation (shared with the Owner
+  // Dashboard/Payments pages via getRentOutstandingSummary) — walks every
+  // month since joining, not just the current one, and applies advance
+  // balance oldest-first, so the two sides of the app can never disagree
+  // on what's actually still owed.
+  //
+  // Memoized: this component has 50+ pieces of state (every form field,
+  // every modal open/close, every tab switch), so without this the full
+  // month-by-month ledger walk — including the overlapping-leave interval
+  // merge — would re-run from scratch on every single re-render, even
+  // ones caused by typing in an unrelated field. Only recomputes when the
+  // actual underlying data (tenant, payments, leaveRequests) changes.
+  const { months: ledgerAfterAdvance, remainingAdvance, oldestUnpaidMonth, totalPending: totalRentPending } = useMemo(() => {
+    if (!tenant) return { months: [], remainingAdvance: 0, oldestUnpaidMonth: null, totalPending: 0 }
     const approvedLeaves = leaveRequests.filter(l => l.status === 'approved')
-    while (cursor <= end) {
-      const label = cursor.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-      const monthPayments = payments.filter(p => p.for_month === label && p.type === 'rent' && p.approval_status === 'approved')
-      const totalPaid = monthPayments.reduce((s, p) => s + p.amount_received, 0)
-      const adjustment = calculateLeaveRentAdjustment(label, tenant.monthly_rent, approvedLeaves)
-      const amount = tenant.monthly_rent - adjustment
-      const status = totalPaid >= amount ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
-      months.push({ label, status, amount, paid: totalPaid, paidOn: monthPayments[0]?.payment_date, adjustment })
-      cursor.setMonth(cursor.getMonth() + 1)
-    }
-    return months
-  })()
+    return getRentOutstandingSummary(tenant, payments, approvedLeaves)
+  }, [tenant, payments, leaveRequests])
 
-  // Advance payments (type='advance', approved) auto-apply to the oldest
-  // unpaid months first — same shared logic the owner side uses, so the
-  // two views can never disagree.
-  const advanceBalance = payments.filter(p => p.type === 'advance' && p.approval_status === 'approved').reduce((s, p) => s + p.amount_received, 0)
-  const { months: ledgerAfterAdvance, remainingAdvance } = applyAdvanceBalance(monthlyLedger, advanceBalance)
-
-  // Oldest unpaid/partial month first — this is what "Pay Now" targets, so
-  // a partial payment made at joining (or any earlier missed month) is
-  // exactly as visible and payable as the current month's rent.
-  const oldestUnpaidMonth = [...ledgerAfterAdvance].find(m => m.status !== 'paid')
-  const totalRentPending = ledgerAfterAdvance.reduce((s, m) => s + Math.max(0, m.amount - m.paid), 0)
   const thisMonthPaid = totalRentPending <= 0
   const ledgerDisplay = [...ledgerAfterAdvance].reverse()
   const referenceMonth = oldestUnpaidMonth ?? ledgerAfterAdvance[ledgerAfterAdvance.length - 1]
@@ -231,10 +228,10 @@ export default function TenantPortal() {
     const feePerDay = tenant.property.late_fee_per_day ?? 0
     if (!feePerDay) return 0
     const monthDate = new Date(`1 ${oldestUnpaidMonth.label}`)
-    const dueDay = new Date(tenant.joining_date).getDate()
+    const dueDay = parseDateOnly(tenant.joining_date).getDate()
     let dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay)
     if (activeExtension) {
-      const extendedDate = new Date(activeExtension.requested_until)
+      const extendedDate = parseDateOnly(activeExtension.requested_until)
       if (extendedDate > dueDate) dueDate = extendedDate
     }
     const overdue = Math.max(0, Math.floor((Date.now() - dueDate.getTime()) / 86400000))
@@ -288,6 +285,10 @@ export default function TenantPortal() {
         tenant_id: tenant.id, property_id: tenant.property_id,
         type: payKind, for_month: payKind === 'rent' ? (oldestUnpaidMonth?.label ?? thisMonth) : null,
         total_due: payAmount, amount_received: payAmount,
+        // late_fee_amount keeps the fee separately identifiable from rent
+        // for income reporting, even though it's still collected as one
+        // combined payment for the tenant's convenience.
+        late_fee_amount: payKind === 'rent' ? lateFee : 0,
         method, tenant_note: note, submitted_by_tenant: true,
         approval_status: 'pending_approval', payment_date: new Date().toISOString().slice(0, 10),
       })
@@ -295,7 +296,7 @@ export default function TenantPortal() {
       if (payKind === 'rent') setClaimed(true)
       else setDepositClaimed(true)
       setPayModal(false)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -304,7 +305,7 @@ export default function TenantPortal() {
       await claimBillPaid(billId)
       setBills(prev => prev.map(b => b.id === billId ? { ...b, status: 'pending_approval' } : b))
       toast.success('Marked as paid — waiting for owner approval')
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   const pendingBillsList = bills.filter(b => b.status === 'pending')
@@ -337,6 +338,7 @@ export default function TenantPortal() {
           tenant_id: tenant.id, property_id: tenant.property_id, type: 'rent',
           for_month: oldestUnpaidMonth?.label ?? thisMonth,
           total_due: payAmountFor('rent'), amount_received: payAmountFor('rent'),
+          late_fee_amount: lateFee,
           submitted_by_tenant: true, approval_status: 'pending_approval',
           payment_date: new Date().toISOString().slice(0, 10),
         })
@@ -356,7 +358,7 @@ export default function TenantPortal() {
       }
       setBills(prev => prev.map(b => b.status === 'pending' ? { ...b, status: 'pending_approval' } : b))
       toast.success('All pending payments marked as paid — waiting for owner approval')
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -369,7 +371,7 @@ export default function TenantPortal() {
       setComplaints(prev => [data, ...prev])
       toast.success('Request submitted!'); setComplaintModal(false)
       setComplaint({ issue_type: 'Plumbing', description: '', priority: 'medium' })
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -393,7 +395,7 @@ export default function TenantPortal() {
           url: '/approvals', tag: 'leave-request',
         })
       }
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSavingLeave(false)
   }
 
@@ -419,7 +421,7 @@ export default function TenantPortal() {
           url: '/approvals', tag: 'profile-update-request',
         })
       }
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSavingProfileUpdate(false)
   }
 
@@ -443,12 +445,21 @@ export default function TenantPortal() {
           url: '/approvals', tag: 'rent-extension',
         })
       }
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSavingExtension(false)
   }
 
   async function submitMoveOutRequest() {
     if (!moveOutForm.requested_date) { toast.error('Select a date'); return }
+    // Notice period is rent-cycle based (see computeEligibleMoveOutDate) —
+    // the same authoritative calculation the Owner side uses, so a
+    // request can never be approved for a date the cycle rule doesn't
+    // actually allow.
+    const eligibleFrom = computeEligibleMoveOutDate(tenant.joining_date, new Date().toISOString().slice(0, 10))
+    if (parseDateOnly(moveOutForm.requested_date) < eligibleFrom) {
+      toast.error(`Based on your rent cycle, the earliest eligible move-out date is ${formatDate(eligibleFrom)}`)
+      return
+    }
     setSavingMoveOut(true)
     try {
       const data = await addMoveOutRequest({
@@ -466,7 +477,7 @@ export default function TenantPortal() {
           url: '/approvals', tag: 'move-out-request',
         })
       }
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSavingMoveOut(false)
   }
 
@@ -475,7 +486,7 @@ export default function TenantPortal() {
     if (pwForm.newPw.length < 6) { toast.error('Min 6 characters'); return }
     const sb = createClient()
     const { error } = await sb.auth.updateUser({ password: pwForm.newPw })
-    if (error) { toast.error(error.message); return }
+    if (error) { toast.error(friendlyErrorMessage(error)); return }
     if (tenant?.auth_user_id) await sb.from('profiles').update({ must_change_password: false }).eq('id', tenant.auth_user_id)
     setMustChangePw(false)
     toast.success('Password updated!'); setPwModal(false); setPwForm({ newPw: '', confirm: '' })
@@ -540,7 +551,7 @@ export default function TenantPortal() {
     try {
       await markNoticeRead(notice.id, tenant.id)
       setAllNotices(prev => prev.map(n => n.id === notice.id ? { ...n, isRead: true } : n))
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function closeNoticeModal() {
@@ -567,7 +578,7 @@ export default function TenantPortal() {
       const msg = await sendMessageAsTenant(tenant.id, tenant.property_id, newMessage.trim())
       setMessages(prev => [...prev, msg])
       setNewMessage('')
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSendingMsg(false)
   }
 
@@ -818,6 +829,24 @@ export default function TenantPortal() {
                   style={activePack?.accentPalette?.primary ? { color: `hsl(${activePack.accentPalette.primary} / 0.18)` } : undefined}
                 />
               </div>
+
+              {joiningStatus && joiningStatus.totalOutstanding > 0 && (
+                <Card variant="default" className={joiningStatus.status === 'overdue' ? 'bg-tenant-danger-subtle border-tenant-danger/20' : 'bg-tenant-warning-subtle border-tenant-warning/20'}>
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl">🏠</span>
+                    <div className="flex-1">
+                      <div className={`text-sm font-bold ${joiningStatus.status === 'overdue' ? 'text-tenant-danger' : 'text-tenant-warning'}`}>
+                        Joining Payment {joiningStatus.status === 'overdue' ? 'Overdue' : 'Due'}: {formatINR(joiningStatus.totalOutstanding)}
+                      </div>
+                      <div className={`text-xs mt-1 space-y-0.5 ${joiningStatus.status === 'overdue' ? 'text-tenant-danger/80' : 'text-tenant-warning/80'}`}>
+                        {joiningStatus.depositOutstanding > 0 && <div>Deposit: {formatINR(joiningStatus.depositPaid)} / {formatINR(joiningStatus.depositRequired)} — {formatINR(joiningStatus.depositOutstanding)} remaining</div>}
+                        {joiningStatus.rentOutstanding > 0 && <div>Joining rent: {formatINR(joiningStatus.rentPaid)} / {formatINR(joiningStatus.rentRequired)} — {formatINR(joiningStatus.rentOutstanding)} remaining</div>}
+                        <div>Pay by {formatDate(joiningStatus.deadline)}{joiningStatus.status === 'overdue' ? ' — deadline has passed' : ''}</div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
 
               {agreementDaysLeft !== null && agreementDaysLeft <= 14 && (agreement.status === 'signed' || agreement.status === 'active') && (
                 <Card variant="default" className={agreementDaysLeft < 0 ? 'bg-tenant-danger-subtle border-tenant-danger/20' : 'bg-tenant-warning-subtle border-tenant-warning/20'}>
@@ -1246,7 +1275,7 @@ export default function TenantPortal() {
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-tenant-fg">{m.label}</div>
                         <div className="text-xs text-tenant-muted-subtle">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : 'Not yet paid'}</div>
-                        {m.adjustment > 0 && <div className="text-xs text-tenant-primary mt-0.5">Leave adjustment: − {formatINR(m.adjustment)}</div>}
+                        {(m.adjustment ?? 0) > 0 && <div className="text-xs text-tenant-primary mt-0.5">Leave adjustment: − {formatINR(m.adjustment ?? 0)}</div>}
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-bold text-tenant-fg tenant-numeric">{formatINR(m.amount)}</div>
@@ -2022,7 +2051,8 @@ export default function TenantPortal() {
             <div className="p-5 space-y-4">
               <div>
                 <label className="text-xs font-semibold text-tenant-muted block mb-1">Intended Move-Out Date</label>
-                <input type="date" value={moveOutForm.requested_date} onChange={e => setMoveOutForm(f => ({ ...f, requested_date: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
+                <input type="date" min={tenant ? computeEligibleMoveOutDate(tenant.joining_date, new Date().toISOString().slice(0, 10)).toISOString().slice(0, 10) : undefined} value={moveOutForm.requested_date} onChange={e => setMoveOutForm(f => ({ ...f, requested_date: e.target.value }))} className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary" />
+                {tenant && <p className="text-xs text-tenant-muted-subtle mt-1">Based on your rent cycle and notice period, the earliest eligible date is {formatDate(computeEligibleMoveOutDate(tenant.joining_date, new Date().toISOString().slice(0, 10)))}.</p>}
               </div>
               <div>
                 <label className="text-xs font-semibold text-tenant-muted block mb-1">Reason (optional)</label>

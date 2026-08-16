@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getComplaints, addComplaint, resolveComplaint } from '@/lib/supabase/queries'
-import { formatDate, cn } from '@/lib/utils'
+import { formatDate, cn, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Check, X, MessageSquareWarning, ChevronRight } from 'lucide-react'
 import { sendPushNotification } from '@/lib/push'
@@ -51,7 +51,7 @@ export default function ComplaintsPage() {
     try {
       await addComplaint({ property_id: propertyId, issue_type: form.issue_type, description: form.description, priority: form.priority as any, assigned_to: form.assigned_to })
       toast.success('Complaint added!'); setModal(false); load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 

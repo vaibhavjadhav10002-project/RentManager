@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getExpenses, addExpense, deleteExpense } from '@/lib/supabase/queries'
-import { formatINR, formatDate, cn } from '@/lib/utils'
+import { formatINR, formatDate, cn, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Trash2, Receipt, X } from 'lucide-react'
 import {
@@ -53,7 +53,7 @@ export default function ExpensesPage() {
     try {
       await addExpense({ property_id: propertyId, category: form.category, amount: Number(form.amount), notes: form.notes, expense_date: form.expense_date })
       toast.success('Expense added!'); setModal(false); load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 

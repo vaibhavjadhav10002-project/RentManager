@@ -6,11 +6,12 @@ import { generateFullAgreementPDF } from '@/lib/pdf'
 import { toast } from 'sonner'
 import {
   Building2, CheckCircle, Loader2, ChevronLeft, ChevronRight, Download,
-  Printer, Eye, User, Home, FileText, IndianRupee, ShieldCheck, X, Image as ImageIcon, Camera,
+  Printer, Eye, User, Home, FileText, IndianRupee, ShieldCheck, X, Image as ImageIcon, Camera, Smartphone, Check,
 } from 'lucide-react'
 import SignaturePad from '@/components/shared/SignaturePad'
 import { formatINR, formatDate } from '@/lib/utils'
 import { useActiveExperience } from '@/lib/experience/useActiveExperience'
+import { useApkDownloadGate } from '@/lib/apk/useApkDownloadGate'
 
 // Defined OUTSIDE the page component — declaring inputs inside the render
 // body causes React to remount them on every keystroke (loses focus after
@@ -57,6 +58,7 @@ function ordinal(n: number) {
 export default function JoinPage() {
   const params = useParams<{ slug: string }>()
   const activePack = useActiveExperience()
+  const apkGate = useApkDownloadGate()
   // Default values match the join page's original blue-600/purple-600
   // look exactly — a pack overrides them via the wrapping div's inline
   // style below; with no active pack, every `--join-accent`-based class
@@ -243,6 +245,7 @@ export default function JoinPage() {
     if (!signature) { toast.error('Please sign the agreement'); return }
     if (!signedName.trim()) { toast.error('Enter your name to confirm your signature'); return }
     if (!property) { toast.error('Invalid join link'); return }
+    if (!apkGate.satisfied) { toast.error('Please download the Rentivo app above to continue'); return }
     setSaving(true)
     try {
       const sb = createClient()
@@ -478,6 +481,24 @@ export default function JoinPage() {
             <div className="space-y-5">
               <div className="flex items-center gap-2 text-sm font-bold text-gray-900"><FileText className="w-4 h-4 text-[hsl(var(--join-accent))]" /> Digital Acceptance</div>
 
+              {apkGate.isAndroidWeb && (
+                <div className={`rounded-xl p-3 flex gap-2.5 items-start ${apkGate.triggered ? 'bg-green-50' : 'bg-[hsl(var(--join-accent)/0.08)]'}`}>
+                  {apkGate.triggered ? <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" /> : <Smartphone className="w-4 h-4 text-[hsl(var(--join-accent))] shrink-0 mt-0.5" />}
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-gray-900">{apkGate.triggered ? 'Rentivo app download started' : 'Get the Rentivo app'}</div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {apkGate.triggered ? "It's downloading in the background." : 'Download starts automatically — manage your rent and requests from the app.'}
+                    </p>
+                    {apkGate.checked && !apkGate.apkUrl && <p className="text-[11px] text-gray-400 mt-1">Download link isn't available right now — you can still complete joining here.</p>}
+                    {apkGate.apkUrl && (
+                      <button type="button" onClick={apkGate.triggerDownload} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[hsl(var(--join-accent))]">
+                        <Download className="w-3 h-3" /> {apkGate.triggered ? 'Download again' : 'Download now'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <button type="button" onClick={() => setPreviewOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
                 <Eye className="w-4 h-4" /> Preview Full Agreement
               </button>
@@ -519,11 +540,11 @@ export default function JoinPage() {
                 Next <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
-              <button onClick={handleComplete} disabled={saving || !accepted || !signature}
-                title={!accepted || !signature ? 'Accept the terms and sign above to continue' : ''}
+              <button onClick={handleComplete} disabled={saving || !accepted || !signature || !apkGate.satisfied}
+                title={!accepted || !signature ? 'Accept the terms and sign above to continue' : !apkGate.satisfied ? 'Download the Rentivo app above to continue' : ''}
                 className="flex-1 py-3 sm:py-2.5 bg-gradient-to-r from-[hsl(var(--join-accent))] to-[hsl(var(--join-accent-2))] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {saving ? 'Submitting…' : 'Complete Joining'}
+                {saving ? 'Submitting…' : !apkGate.satisfied ? 'Download the app to continue' : 'Complete Joining'}
               </button>
             )}
           </div>

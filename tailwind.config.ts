@@ -113,39 +113,65 @@ const config: Config = {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        // Flutter/Material-3-style soft, heavily-rounded look, applied at
+        // the token level so every screen picks it up automatically —
+        // overrides Tailwind's own defaults for these keys (xl/2xl/3xl),
+        // so plain `rounded-xl`/`rounded-2xl`/`rounded-3xl` classes used
+        // anywhere in the app (not just the tenant-*/owner-* namespaced
+        // scales below) get the same rounder treatment with zero
+        // per-page changes.
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '2rem',
         // ── Tenant Mobile UI radius scale (namespaced so the Owner/Admin
         // dashboards, which use the default shadcn radius keys above, are
         // never affected) ──────────────────────────────────────────────
-        'tenant-xs': '8px',
-        'tenant-sm': '10px',
-        'tenant-md': '12px',
-        'tenant-lg': '16px',
-        'tenant-xl': '20px',
-        'tenant-2xl': '24px',
-        'tenant-3xl': '28px',
+        'tenant-xs': '12px',
+        'tenant-sm': '14px',
+        'tenant-md': '16px',
+        'tenant-lg': '20px',
+        'tenant-xl': '26px',
+        'tenant-2xl': '30px',
+        'tenant-3xl': '36px',
         'tenant-full': '9999px',
         // ── Owner Dashboard radius scale — tighter than the tenant mobile
         // scale (desktop SaaS density, not native-app card sizing) ──────
-        'owner-xs': '6px',
-        'owner-sm': '8px',
-        'owner-md': '10px',
-        'owner-lg': '12px',
-        'owner-xl': '16px',
-        'owner-2xl': '20px',
+        'owner-xs': '10px',
+        'owner-sm': '12px',
+        'owner-md': '14px',
+        'owner-lg': '18px',
+        'owner-xl': '22px',
+        'owner-2xl': '28px',
         'owner-full': '9999px',
       },
       boxShadow: {
-        'tenant-xs': '0 1px 2px 0 hsl(var(--tenant-shadow-color) / 0.25)',
-        'tenant-sm': '0 2px 8px -2px hsl(var(--tenant-shadow-color) / 0.3)',
-        'tenant-md': '0 6px 20px -6px hsl(var(--tenant-shadow-color) / 0.35)',
-        'tenant-lg': '0 16px 40px -12px hsl(var(--tenant-shadow-color) / 0.45)',
-        'tenant-glow': '0 8px 24px -6px hsl(var(--tenant-glow) / 0.5)',
-        'tenant-glow-lg': '0 14px 36px -8px hsl(var(--tenant-glow) / 0.55)',
-        'owner-xs': '0 1px 2px 0 hsl(var(--owner-shadow-color) / 0.2)',
-        'owner-sm': '0 2px 6px -2px hsl(var(--owner-shadow-color) / 0.25)',
-        'owner-md': '0 8px 24px -8px hsl(var(--owner-shadow-color) / 0.3)',
-        'owner-lg': '0 20px 48px -16px hsl(var(--owner-shadow-color) / 0.4)',
-        'owner-glow': '0 6px 20px -4px hsl(var(--owner-glow) / 0.4)',
+        // Same soft/diffuse/low-opacity treatment, applied to Tailwind's
+        // own default shadow keys too — covers every plain `shadow-*`
+        // class used outside the tenant-*/owner-* namespaced tokens
+        // above (Admin panel, Auth screens, the QR join form), so the
+        // softer look is consistent across the whole app, not just the
+        // two main shells.
+        sm: '0 1px 3px 0 rgb(0 0 0 / 0.06)',
+        DEFAULT: '0 2px 8px -2px rgb(0 0 0 / 0.07)',
+        md: '0 4px 16px -4px rgb(0 0 0 / 0.08)',
+        lg: '0 12px 32px -10px rgb(0 0 0 / 0.10)',
+        xl: '0 20px 48px -14px rgb(0 0 0 / 0.12)',
+        '2xl': '0 28px 64px -20px rgb(0 0 0 / 0.16)',
+        // Soft, diffuse, low-opacity elevation — larger blur radius and
+        // much lower opacity than before, so cards read as gently
+        // "floating" rather than hard-edged. Matches Flutter/Material 3's
+        // minimal-flat elevation style rather than a sharp drop-shadow.
+        'tenant-xs': '0 1px 3px 0 hsl(var(--tenant-shadow-color) / 0.08)',
+        'tenant-sm': '0 2px 10px -2px hsl(var(--tenant-shadow-color) / 0.10)',
+        'tenant-md': '0 6px 24px -6px hsl(var(--tenant-shadow-color) / 0.12)',
+        'tenant-lg': '0 16px 48px -14px hsl(var(--tenant-shadow-color) / 0.16)',
+        'tenant-glow': '0 8px 28px -6px hsl(var(--tenant-glow) / 0.35)',
+        'tenant-glow-lg': '0 14px 40px -8px hsl(var(--tenant-glow) / 0.4)',
+        'owner-xs': '0 1px 3px 0 hsl(var(--owner-shadow-color) / 0.06)',
+        'owner-sm': '0 2px 10px -2px hsl(var(--owner-shadow-color) / 0.08)',
+        'owner-md': '0 8px 28px -8px hsl(var(--owner-shadow-color) / 0.10)',
+        'owner-lg': '0 20px 52px -18px hsl(var(--owner-shadow-color) / 0.13)',
+        'owner-glow': '0 6px 22px -4px hsl(var(--owner-glow) / 0.28)',
       },
       fontFamily: {
         'tenant-display': ['var(--font-tenant-display)', 'Inter', 'sans-serif'],

@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPendingApprovals, approvePayment, rejectPayment, approveTenant, deleteTenant, getRooms, updateTenant, getLeaveRequests, decideLeaveRequest, getRentExtensionRequests, decideRentExtensionRequest, getMoveOutRequests, decideMoveOutRequest, getSubmittedOnboardingProfiles, approveOnboardingProfile, requestOnboardingCorrection, getProfileStatusHistory, getPendingProfileUpdateRequests, decideProfileUpdateRequest } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, formatDate, whatsappLink } from '@/lib/utils'
+import { formatINR, formatDate, whatsappLink, friendlyErrorMessage } from '@/lib/utils'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
 import { Check, X, QrCode, Copy, Loader2, Link2, ChevronRight } from 'lucide-react'
@@ -46,6 +46,18 @@ export default function ApprovalsPage() {
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [appUrl, setAppUrl] = useState('')
   useEffect(() => { setAppUrl(window.location.origin) }, [])
+  // Same /app-version.json the tenant-side download gate reads from —
+  // included in the WhatsApp welcome text below (see useApkDownloadGate).
+  const [apkUrl, setApkUrl] = useState('')
+  useEffect(() => {
+    fetch('/app-version.json', { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        const url = json?.apkDownloadUrl
+        if (typeof url === 'string' && url && !url.includes('REPLACE-WITH')) setApkUrl(url)
+      })
+      .catch(() => {})
+  }, [])
 
   // List → Detail pattern (premium redesign): tapping a Payment Claim,
   // Leave Request, Rent Extension, or Move-Out row opens this bottom
@@ -87,18 +99,18 @@ export default function ApprovalsPage() {
 
   async function handleApprovePayment(id: string) {
     try { await approvePayment(id); toast.success('Payment approved!'); load() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleRejectPayment(id: string) {
     try { await rejectPayment(id); toast.error('Payment rejected'); load() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleRejectTenant(id: string, name: string) {
     if (!confirm(`Reject ${name}'s request? This cannot be undone.`)) return
     try { await deleteTenant(id); toast.error('Tenant request rejected'); load() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleDecideLeave(l: any, status: 'approved' | 'rejected') {
@@ -115,7 +127,7 @@ export default function ApprovalsPage() {
         })
       }
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setDecidingLeaveId(null)
   }
 
@@ -133,7 +145,7 @@ export default function ApprovalsPage() {
         })
       }
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setDecidingExtensionId(null)
   }
 
@@ -153,7 +165,7 @@ export default function ApprovalsPage() {
         })
       }
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setDecidingMoveOutId(null)
   }
 
@@ -183,9 +195,10 @@ export default function ApprovalsPage() {
       setApproveModal(null)
       load()
       const loginUrl = `${appUrl}/login`
-      const msg = `Welcome to ${t.property?.name ?? 'the PG'}! 🎉\n\nYour login is ready:\nLogin: ${loginUrl}\nUsername: ${t.phone}\nPassword: ${defaultPassword}\n\nPlease change your password after your first login.`
+      const apkLine = apkUrl ? `\n\n📱 Download the Rentivo app:\n${apkUrl}` : ''
+      const msg = `Welcome to ${t.property?.name ?? 'the PG'}! 🎉\n\nYour login is ready:\nLogin: ${loginUrl}\nUsername: ${t.phone}\nPassword: ${defaultPassword}${apkLine}\n\nPlease change your password after your first login.`
       window.open(whatsappLink(t.phone, msg), '_blank')
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setApprovingId(null)
   }
 
@@ -242,7 +255,7 @@ export default function ApprovalsPage() {
       toast.success(`${reviewModal.name} approved and activated!`)
       setReviewModal(null)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setReviewSaving(false)
   }
 
@@ -255,7 +268,7 @@ export default function ApprovalsPage() {
       toast.error('Profile rejected')
       setReviewModal(null)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setReviewSaving(false)
   }
 
@@ -277,7 +290,7 @@ export default function ApprovalsPage() {
       toast.success('Sent back to tenant for correction')
       setReviewModal(null)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setReviewSaving(false)
   }
 
@@ -295,7 +308,7 @@ export default function ApprovalsPage() {
         })
       }
       setProfileUpdateRequests(prev => prev.filter(r => r.id !== req.id))
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setDecidingUpdateId(null)
   }
 
@@ -316,7 +329,7 @@ export default function ApprovalsPage() {
       setProfileUpdateRequests(prev => prev.filter(r => r.id !== updateRejectModal.id))
       setUpdateRejectModal(null)
       setUpdateOwnerNote('')
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setDecidingUpdateId(null)
   }
 

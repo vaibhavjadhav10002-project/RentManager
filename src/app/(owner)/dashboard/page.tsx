@@ -11,7 +11,7 @@ import {
 } from '@/lib/supabase/queries'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
-import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg, cn } from '@/lib/utils'
+import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg, cn, parseDateOnly, friendlyErrorMessage } from '@/lib/utils'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 import {
   BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home, UserPlus, Receipt, Wrench,
@@ -220,9 +220,9 @@ export default function DashboardPage() {
         const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
         const occupied = tenants.filter(t => {
           if (t.status === 'pending_approval') return false
-          const joined = new Date(t.joining_date)
+          const joined = parseDateOnly(t.joining_date)
           if (joined > monthEnd) return false
-          if (t.leaving_date && new Date(t.leaving_date) < monthStart) return false
+          if (t.leaving_date && parseDateOnly(t.leaving_date) < monthStart) return false
           return true
         }).length
         trend.push({
@@ -318,7 +318,7 @@ export default function DashboardPage() {
         })
       }
       setRenewModal(null)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setRenewing(false)
   }
 

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getNoticesForProperty, addNotice, deleteNotice } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
-import { formatDate } from '@/lib/utils'
+import { formatDate, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Loader2, Megaphone, Trash2, Paperclip, X, Building2 } from 'lucide-react'
 import { sendPushNotification } from '@/lib/push'
@@ -92,7 +92,7 @@ export default function NoticesPage() {
       setForm({ title: '', description: '', category: 'General', priority: 'Normal', publish_date: new Date().toISOString().slice(0, 10), expiry_date: '' })
       setAttachment(null)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -102,7 +102,7 @@ export default function NoticesPage() {
       await deleteNotice(id)
       toast.success('Notice deleted')
       setNotices(prev => prev.filter(n => n.id !== id))
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   const today = new Date().toISOString().slice(0, 10)

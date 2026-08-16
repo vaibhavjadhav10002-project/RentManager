@@ -4,10 +4,11 @@ import { createClient } from '@/lib/supabase/client'
 import { markOnboardingDraftStarted, submitOnboardingProfile, getProfileStatusHistory } from '@/lib/supabase/queries'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
-import { Camera, User, CreditCard, Phone, Mail, FileText, Loader2, Check, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Camera, User, CreditCard, Phone, Mail, FileText, Loader2, Check, AlertTriangle, ChevronDown, ChevronUp, Download, Smartphone } from 'lucide-react'
 import { Button, Card, CardHeader, CardTitle, CardDescription, Input, Textarea, TopAppBar, Avatar } from '@/components/tenant/ui'
 import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
 import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
+import { useApkDownloadGate } from '@/lib/apk/useApkDownloadGate'
 import type { Tenant } from '@/types'
 
 interface OnboardingWizardProps {
@@ -95,6 +96,7 @@ export default function OnboardingWizard({ tenant, onComplete }: OnboardingWizar
   const [history, setHistory] = useState<ProfileStatusHistoryEntry[]>([])
   const [showTimeline, setShowTimeline] = useState(false)
   const draftMarked = useRef(false)
+  const apkGate = useApkDownloadGate()
 
   // First time the tenant opens the wizard after activating their
   // account, silently advance password_changed → draft. Guarded so it
@@ -135,6 +137,7 @@ export default function OnboardingWizard({ tenant, onComplete }: OnboardingWizar
   }
 
   function validate(): string | null {
+    if (!apkGate.satisfied) return 'Please download the Rentivo app above to continue'
     if (!form.name.trim()) return "Enter your full name"
     if (!photoUrl) return 'Upload a profile photo'
     if (!/^\d{12}$/.test(form.aadhaar_number.replace(/\s/g, ''))) return 'Enter a valid 12-digit Aadhaar number'
@@ -210,6 +213,30 @@ export default function OnboardingWizard({ tenant, onComplete }: OnboardingWizar
               <div>
                 <div className="text-sm font-bold text-tenant-fg">Your owner asked for a correction</div>
                 {tenant.correction_note && <p className="text-xs text-tenant-muted mt-1">{tenant.correction_note}</p>}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {apkGate.isAndroidWeb && (
+          <Card className={apkGate.triggered ? 'bg-tenant-success/10 border-tenant-success/25' : 'bg-tenant-primary/10 border-tenant-primary/25'}>
+            <div className="flex gap-3 items-start">
+              {apkGate.triggered ? <Check className="w-5 h-5 text-tenant-success shrink-0 mt-0.5" /> : <Smartphone className="w-5 h-5 text-tenant-primary shrink-0 mt-0.5" />}
+              <div className="flex-1">
+                <div className="text-sm font-bold text-tenant-fg">
+                  {apkGate.triggered ? 'Rentivo app download started' : 'Get the Rentivo app'}
+                </div>
+                <p className="text-xs text-tenant-muted mt-0.5">
+                  {apkGate.triggered
+                    ? "It's downloading in the background — keep filling in your details below."
+                    : 'Download starts automatically. Manage your rent, leave, and documents from the app.'}
+                </p>
+                {apkGate.checked && !apkGate.apkUrl && <p className="text-xs text-tenant-muted-subtle mt-1">Download link isn't available right now — you can still complete your profile here.</p>}
+                {apkGate.apkUrl && (
+                  <button type="button" onClick={apkGate.triggerDownload} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-tenant-primary">
+                    <Download className="w-3.5 h-3.5" /> {apkGate.triggered ? 'Download again' : 'Download now'}
+                  </button>
+                )}
               </div>
             </div>
           </Card>
@@ -305,8 +332,8 @@ export default function OnboardingWizard({ tenant, onComplete }: OnboardingWizar
           <UploadTile label="PAN Card" url={panUrl} uploading={uploading === 'pan'} onSelect={f => handleUpload('pan', f)} />
         </Card>
 
-        <Button fullWidth size="lg" loading={submitting} onClick={handleSubmit} icon={submitting ? undefined : <FileText className="w-4 h-4" />}>
-          {submitting ? 'Submitting…' : 'Submit for Review'}
+        <Button fullWidth size="lg" loading={submitting} disabled={!apkGate.satisfied} onClick={handleSubmit} icon={submitting ? undefined : <FileText className="w-4 h-4" />}>
+          {submitting ? 'Submitting…' : !apkGate.satisfied ? 'Download the app to continue' : 'Submit for Review'}
         </Button>
         <p className="text-xs text-tenant-muted-subtle text-center pb-4">
           Your owner will review these details before your account becomes fully active.

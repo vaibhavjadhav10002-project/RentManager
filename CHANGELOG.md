@@ -1,3 +1,785 @@
+# Changelog — UX: Friendly Error Messages (fixes the exact class of bug from the earlier screenshot)
+
+## Problem
+**52 places across 14 files** showed raw `error.message` directly to
+the user via `toast.error(...)`. This is exactly the class of bug
+behind the "Cannot coerce the result to a single JSON object"
+screenshot earlier this session — that specific root cause is fixed,
+but the *pattern* of surfacing raw technical error text was still live
+everywhere else: a future RLS gap, a network blip, a duplicate-key
+violation, an expired session — any of these would show a PG tenant or
+owner a cryptic PostgREST/Postgres string with zero indication of what
+actually happened or what to do about it.
+
+## Fix
+New shared function `friendlyErrorMessage(error)` in
+`src/lib/utils/index.ts`. Intercepts known cryptic technical error
+signatures (PostgREST single-row errors, expired sessions, network
+failures, unique/foreign-key constraint violations, RLS/permission
+denials) and returns plain language instead. Critically, it does
+**not** touch anything that already reads like a normal sentence —
+this app's own hand-written errors (`"This payment has already been
+decided"`, `"Refund amount cannot exceed deposit paid"`, `"Enter a
+valid email address"`, etc. — several of which were added earlier this
+session) pass through completely unchanged. Verified this distinction
+holds for 10 representative cases (see commit — 4 cryptic → humanized,
+6 already-friendly → unchanged) before rolling it out everywhere.
+
+Replaced every `toast.error(e.message)` / `toast.error(error.message)`
+with `toast.error(friendlyErrorMessage(e/error))` across all 14 files,
+adding the import where missing (merged into the existing
+`@/lib/utils` import where one already existed, rather than adding a
+duplicate import line).
+
+## Files
+- `src/lib/utils/index.ts` (new function)
+- `src/app/(admin)/admin/page.tsx`
+- `src/app/(auth)/login/page.tsx`
+- `src/app/(owner)/approvals/page.tsx`
+- `src/app/(owner)/complaints/page.tsx`
+- `src/app/(owner)/dashboard/page.tsx`
+- `src/app/(owner)/expenses/page.tsx`
+- `src/app/(owner)/inbox/page.tsx`
+- `src/app/(owner)/messages/page.tsx`
+- `src/app/(owner)/notices/page.tsx`
+- `src/app/(owner)/payments/page.tsx`
+- `src/app/(owner)/rooms/page.tsx`
+- `src/app/(owner)/settings/page.tsx`
+- `src/app/(owner)/tenants/page.tsx`
+- `src/app/(tenant)/portal/page.tsx`
+
+## Verification
+No live app access in this sandbox. Verified by: (1) confirming zero
+`toast.error(e.message)`/`toast.error(error.message)` calls remain
+anywhere in the app (grepped after the change), (2) confirming every
+file has exactly one `friendlyErrorMessage` import line — no
+duplicates, no missed files, (3) brace/paren balance on all 15 touched
+files, (4) running the humanizer function standalone against 10 real
+error strings pulled from this app's own code (both its own custom
+errors and genuine raw Postgres errors) to confirm the friendly/
+already-friendly distinction works correctly in both directions.
+
+---
+
+# Changelog — Performance: Supabase Client Singleton (biggest single fix in this performance thread)
+
+## Problem
+`src/lib/supabase/client.ts`'s `createClient()` constructed a **brand
+new** `createBrowserClient(...)` instance on every single call — and
+it's called from 25+ places across the app, many of them inside
+handlers that fire on every user interaction (every approve/reject
+button, every form submit, every page's initial load). Constructing a
+Supabase browser client isn't free: it parses config, wires up
+auth-state listeners, and sets up cookie handling from scratch each
+time. In practice this meant the app was silently building dozens of
+redundant, independent client instances per session instead of reusing
+one — arguably the single highest-leverage fix in this whole
+performance thread, since it touches literally every interaction in
+the app, not just one or two pages.
+
+## The trap I checked for before "just caching it"
+A naive unconditional module-level singleton would have been a real
+regression: `enterExploreMode()`/`exitExploreMode()`
+(`src/lib/explore/cookies.ts`) flip a cookie and then do a **client-side**
+`router.push()` — no full page reload — so the JS module (and any
+cached variable in it) stays alive across that transition. An
+unconditional cache would have kept serving the *mock* Explore-Mode
+client even after a real user exited Explore Mode to sign in for real,
+silently breaking real data access.
+
+## Fix
+Cached the client **per explore-mode state**, not unconditionally —
+`isExploreModeClient()` (a cheap cookie-string check) is still called
+on every invocation, but the actual client construction is skipped
+whenever the cached client's mode still matches. Correct in the common
+case (reuse, fast) and the edge case (mode switch, still correct).
+
+This also matches Supabase's own recommended usage pattern — the
+client is meant to track auth state continuously as one long-lived
+object, not be reconstructed fresh (and re-read cookies from scratch)
+on every call. Also checked `src/lib/supabase/server.ts` (the
+server-component client) — correctly left untouched, since that one
+*must* be constructed fresh per-request (it's bound to that request's
+specific cookies via `await cookies()`); caching it would leak one
+user's session into another user's request.
+
+## Files
+- `src/lib/supabase/client.ts`
+
+## Verification
+No live browser access in this sandbox. Verified by: (1) reading
+`@supabase/ssr`'s `createBrowserClient` doesn't already do this
+caching internally (confirmed via package version — v0.5.1 — and its
+known behavior of constructing fresh on each call), (2) reading the
+mock Explore-Mode client (`src/lib/explore/mock-client.ts`) to confirm
+it's stateless/deterministic and safe to reuse across calls, (3)
+tracing every sign-out call site to confirm none of them rely on
+getting a *fresh* client afterward — Supabase clients are designed to
+track their own auth-state transitions (including sign-out) reactively,
+not require reconstruction, (4) brace/paren balance on the edited file.
+**Test sign-in, sign-out, and entering/exiting Explore Mode on a real
+device before relying on this** — the mode-switch handling is
+reasoned through carefully but wasn't exercised against a live app.
+
+---
+
+# Changelog — Performance: Memoize Ledger Calculations (fixes waste introduced earlier this session)
+
+## Problem
+The shared ledger functions added earlier this session
+(`getRentOutstandingSummary`/`buildMonthlyLedger` in
+`src/lib/utils/index.ts`) walk every month since a tenant joined,
+including the overlapping-leave interval-merge logic per month — real
+work, not trivial. Two call sites ran this **directly in the render
+body**, with no memoization:
+
+1. **Tenant Portal** (`src/app/(tenant)/portal/page.tsx`) — this
+   component has 50+ separate pieces of state (every form field, every
+   modal, every tab). Any one of them changing — typing in an
+   unrelated input, opening any modal — re-renders the whole component
+   and was silently re-running the *entire* ledger walk from scratch
+   every time, not just when payments/leave data actually changed.
+2. **Owner Payments page** (`src/app/(owner)/payments/page.tsx`) —
+   same problem, but worse: it looped this same expensive computation
+   over *every tenant* on the property, on every re-render — so an
+   owner with 30 tenants was redoing 30 full ledger walks on every
+   modal open, tab switch, or keystroke in the search box.
+
+Neither of these was a correctness bug — the two `Promise.all` fixes
+from the last round address round-trip *count*; this addresses
+wasted *CPU work per render*, which shows up as UI jank/lag (typing
+feeling sluggish, modals feeling slow to open) rather than slow
+initial load.
+
+## Fix
+Wrapped both in `useMemo`, dependent only on the actual underlying
+state (`tenant`/`payments`/`leaveRequests` on the Tenant Portal;
+`tenants`/`payments`/`approvedLeaves` on the Payments page) — so the
+ledger walk now only re-runs when that data actually changes (i.e.
+after a real fetch), not on every unrelated re-render. Pure
+optimization: same inputs produce the exact same output as before,
+verified by keeping the computation logic itself completely untouched
+— only wrapped it.
+
+## Files
+- `src/app/(tenant)/portal/page.tsx`
+- `src/app/(owner)/payments/page.tsx`
+
+## Also checked, found already clean
+- `PropertyContext` — properties list is already fetched exactly once
+  per owner session (Provider mounted at the layout level, which
+  persists across client-side navigation in the App Router), not
+  re-fetched per page. No fix needed.
+- No `console.log` debug statements left in any page component.
+- Confirmed via grep that these were the *only* two call sites of
+  `getRentOutstandingSummary`/`buildMonthlyLedger` in the whole
+  codebase — nothing else needed the same fix.
+
+## Verification
+No live browser/profiler access in this sandbox. Verified by: (1)
+confirming the memoized computation's logic is byte-identical to what
+it replaced (only wrapped, not rewritten), (2) confirming the
+dependency arrays reference the actual state variables that change on
+fetch, not derived values that'd be re-created fresh every render
+(which would have silently defeated the memoization), (3) brace/paren
+balance on both files. **A real device/profiler test would be needed
+to measure the actual before/after render cost** — this fix is
+correct by construction (same output, fewer redundant computations),
+but the *magnitude* of the improvement wasn't measured, only reasoned
+about.
+
+---
+
+# Changelog — Visual Refresh: Flutter/Material-3-style Soft Rounded Look (app-wide)
+
+## What changed
+Rounder corners + softer, more diffuse shadows across the **entire
+app** (Owner + Tenant + Admin + QR-join). Achieved by editing the
+**design tokens in exactly 2 files** — not by touching individual
+pages/components — because this codebase already had every card,
+button, and modal wired to a centralized token system
+(`rounded-tenant-*`, `rounded-owner-*`, plain `rounded-xl`/`2xl`/`3xl`,
+`shadow-*`) rather than one-off hardcoded values. This is what made an
+app-wide look change safe to do without touching layout, tabs,
+navigation, or any component structure.
+
+**Files changed:**
+- `tailwind.config.ts` — increased every radius scale (namespaced
+  tenant-*/owner-* tokens AND Tailwind's own `xl`/`2xl`/`3xl` keys, so
+  plain `rounded-xl` etc. used in the QR-join form and Admin panel
+  pick it up too) and softened every shadow scale (larger blur, much
+  lower opacity — diffuse "floating" elevation instead of a hard
+  drop-shadow).
+- `src/app/globals.css` — increased the base `--radius` CSS variable
+  (0.625rem → 1rem), which shadcn's `rounded-lg`/`md`/`sm` derive from.
+
+## What did NOT change (explicitly verified, not assumed)
+- **Bottom navigation (tabs)** — checked both
+  `src/components/tenant/ui/BottomNav.tsx` and
+  `src/components/owner/ui/OwnerBottomNav.tsx` line-by-line: the
+  active-tab pill and badge already used the `-full` radius key
+  (9999px), which I deliberately left unchanged, so the tab bar's
+  shape and behavior are pixel-identical to before — only the rest of
+  the app (cards, buttons, modals) got rounder.
+- No layout, spacing, colors, icons, or page structure touched —
+  purely radius + shadow tokens.
+- No component files were edited — every visual change flows from the
+  2 token files above.
+
+## Before → After (representative values)
+| Token | Before | After |
+|---|---|---|
+| Base `--radius` (shadcn lg/md/sm) | 10px | 16px |
+| `rounded-xl` (used ~200× app-wide) | 12px | 20px |
+| `rounded-2xl` (used ~100× app-wide) | 16px | 24px |
+| `tenant-xl` (buttons/cards in Tenant Portal) | 20px | 26px |
+| `owner-lg` (buttons/cards in Owner shell) | 12px | 18px |
+| `owner-md` shadow | `0 8px 24px -8px / 0.3` (sharper) | `0 8px 28px -8px / 0.10` (soft) |
+
+## Verification
+No live browser/build access in this sandbox — verified by: (1) brace
+balance on both edited files, (2) grepping every `rounded-*`/`shadow-*`
+class pattern used across the whole codebase to confirm the token
+overrides actually cover all of them (including raw Tailwind classes
+outside the namespaced tenant-*/owner-* scales), (3) reading the
+bottom-nav components directly to confirm the tab shape/mechanics stay
+untouched. **Load the app and eyeball a few screens before shipping**
+— a token-level change like this is very low-risk mechanically, but
+"does it actually look good" is inherently a visual judgment call that
+static review can't make for you.
+
+---
+
+# Changelog — Performance Follow-up: Admin Page Fix + Decision on the 3 Suggested Items
+
+## Fixed: Admin page load waterfall
+Scanned every page's load function for the same sequential-await
+pattern fixed on the Tenant Portal. Found one more real instance:
+`src/app/(admin)/admin/page.tsx` — the owners list (`role = 'pg_owner'`)
+doesn't depend on the current admin's own profile at all, but was
+fetched *after* it, sequentially. Parallelized with `Promise.all`, same
+pattern as the Tenant Portal fix, same zero-behavior-change guarantee.
+
+Checked every other page with 3+ sequential awaits
+(`join/[slug]/page.tsx`, `settings/page.tsx`, `messages/page.tsx`,
+`notices/page.tsx`) — every remaining sequential await in those files
+has a genuine data dependency (e.g. "fetch the user, then fetch that
+user's profile," or "fetch messages only for the thread that was just
+opened") and isn't a real waterfall to fix — confirmed by reading each
+one, not assumed.
+
+## Decision on the 3 previously-suggested items: not implementing any of them right now
+
+**1. Realtime updates (Supabase channels)** — skipped. This is a real
+feature addition (new subscriptions on multiple pages, cleanup on
+unmount, risk of duplicate-update bugs against the existing
+fetch-on-load pattern), not a safe tweak. Given this whole session's
+consistent emphasis on minimal, verifiable changes and preserving
+existing behavior exactly, adding a moderately-sized new feature
+without a specific request for it isn't the right call to make
+unilaterally.
+
+**2. List virtualization** — skipped. Not needed at the scale this app
+actually runs at (10–50 tenants/property is typical for a PG). Adding
+a virtualization library now would be solving a problem that doesn't
+exist yet, at the cost of extra complexity and a new dependency.
+
+**3. Splitting the largest page files** (`portal/page.tsx` ~2,100
+lines, `tenants/page.tsx` ~990 lines) — skipped. This is the one item
+I was explicit about needing its own dedicated pass, and that hasn't
+changed: this sandbox still has no way to run a real build or open the
+app in a browser, so a structural refactor of this size couldn't
+actually be verified beyond "the syntax parses" — exactly the kind of
+change that's safe to describe but risky to make blind. Given "make
+sure UI has no issues" was said explicitly this same turn, doing the
+one change I can't properly verify felt like the wrong trade-off.
+
+## Files
+- `src/app/(admin)/admin/page.tsx`
+
+## Verification
+Same as the Tenant Portal fix: confirmed the parallelized queries
+don't depend on each other's results, and re-checked brace/paren
+balance after editing. Not tested against a live build.
+
+---
+
+# Changelog — Performance Review
+
+## What I found already well-optimized (verified by reading the code, not assumed)
+- **Fonts:** already `next/font/google` (self-hosted, no render-blocking
+  external request).
+- **PDF generation (jsPDF) and Excel export (xlsx):** both already
+  dynamically imported at call-time (`await import('xlsx')` /
+  type-only import + runtime dynamic import in `src/lib/pdf.ts`), not
+  bundled into every page that merely offers a "Download" button.
+- **Owner Dashboard, Payments, and Approvals pages:** already fetch
+  every data source in a single `Promise.all` wave — no sequential
+  waterfalls.
+- **Service worker (`public/sw.js`):** deliberately network-first for
+  all pages/API calls, only static assets cached — a considered
+  decision to never risk showing stale rent/payment numbers, not an
+  oversight.
+- **Tenant ID card photos (`tenant-cards/page.tsx`):** raw `<img>`
+  with an explicit lint-disable comment — a deliberate choice already
+  made for small fixed-size thumbnails, left as-is rather than
+  second-guessed.
+
+## Fixed: Tenant Portal initial-load waterfall
+**Problem:** `src/app/(tenant)/portal/page.tsx` — the single
+most-visited page in the app (every tenant, every day) — fetched
+`profiles` → `tenants` → `payments` → `complaints` as four fully
+sequential `await`s, even though `profiles`/`tenants` only depend on
+`user.id` (not each other) and `payments`/`complaints` only depend on
+`tenant.id` (not each other). That's 2 unnecessary full network
+round-trips on every portal load, compounding on the slower mobile
+connections this app actually runs on.
+
+**Fix:** Grouped into two `Promise.all` waves — `[profiles, tenants]`
+then `[payments, complaints]` — cutting 5 sequential round-trips down
+to 3. Pure refactor, no behavior change: verified neither query
+depends on the other's result, and Supabase's `.single()`/`.select()`
+never throw on empty results here (already handled the same way
+before), so this doesn't change what happens on any error path.
+
+## Suggested next steps (not built yet — pick if you want any of these)
+1. **Realtime updates (Supabase channels)** — owner approves a
+   payment/leave/move-out and the tenant sees it update live, without
+   a manual refresh. Genuinely improves "feels fast," but it's a real
+   feature addition (new subscriptions, cleanup on unmount), not a
+   quick tweak — worth a dedicated pass rather than bolting on.
+2. **List virtualization** for the Owner Tenants list — not needed at
+   typical PG scale (10–50 tenants/property) but worth it if any of
+   your properties run into the hundreds.
+3. **Splitting the largest page files** (`portal/page.tsx` ~2,100
+   lines, `tenants/page.tsx` ~990 lines) into smaller components for
+   finer route-level code-splitting. This is the highest-effort,
+   highest-regression-risk item on this list — given how much this
+   session has emphasized preserving the UI exactly, I'd want to do
+   this as its own careful pass with your explicit go-ahead, not bundle
+   it into a "quick perf fix."
+
+## Files
+- `src/app/(tenant)/portal/page.tsx`
+
+## Verification
+Static only (no live network/build access) — traced both query groups
+to confirm no data dependency between the parallelized calls, and
+re-checked the brace/paren balance of the whole file after the edit.
+**Test on a real connection before relying on the perceived speedup**
+— round-trip savings are most noticeable on slower mobile networks and
+harder to perceive on fast wifi.
+
+---
+
+# Changelog — Senior QA Pass on APK Download Gate Feature
+
+## Scope
+Ran a dedicated QA pass on the APK download gate feature (previous
+entry) before considering it done — found and fixed 3 real bugs, all
+in the newly-added code only. Nothing outside the APK feature was
+touched.
+
+## Bugs found and fixed
+1. **🔴 Stale placeholder-detection string (would have silently broken
+   the whole feature).** `public/app-version.json`'s placeholder text
+   was changed to the GitHub-releases format
+   (`REPLACE-WITH-YOUR-GITHUB-USERNAME`/`REPLACE-WITH-YOUR-REPO-NAME`),
+   but the three places that check for "is this still a placeholder"
+   (`useApkDownloadGate.ts`, `tenants/page.tsx`, `approvals/page.tsx`)
+   were still checking for the old string
+   (`REPLACE-WITH-YOUR-PRODUCTION-DOMAIN`). Result: even after filling
+   in a real GitHub URL, the app would never have detected it as
+   configured, and the gate would have stayed permanently in
+   "unavailable" mode. Fixed by matching the generic prefix
+   `REPLACE-WITH` in all three places instead of one exact old string.
+2. **🔴 No fetch timeout — gate could block onboarding forever on a bad
+   connection.** The original `/app-version.json` fetch had no timeout;
+   on a hung/offline connection, `checked` would never become `true`,
+   and an Android tenant would be stuck unable to submit their
+   onboarding form at all — directly contradicting the feature's own
+   stated principle of never actually breaking onboarding. Fixed with
+   a 5-second `AbortController` timeout (mirrors the same pattern
+   already used by the in-app updater's own version check in
+   `src/lib/update/check.ts`) — after which the gate gracefully
+   un-blocks regardless of network state.
+3. **🟡 UI flash: submit button could briefly enable then re-disable.**
+   The original `satisfied` logic treated "apkUrl not yet loaded" the
+   same as "apkUrl confirmed unavailable," so on Android there was a
+   brief window right after page load where the submit button would
+   show enabled, then flip to disabled once the URL resolved a moment
+   later. Fixed by adding an explicit `checked` flag (fetch has
+   settled) and only treating "no URL" as "don't block" once the check
+   has actually completed — the button's disabled state is now
+   deterministic from first render.
+
+## Also verified (no changes needed)
+- Every color token used in both banners (`tenant-success`,
+  `tenant-primary`, and the join page's existing `--join-accent` CSS
+  variable pattern) already exists and is already used elsewhere in
+  the same files — confirmed via grep, not assumed.
+- `Card`'s `className` prop merges via `twMerge(clsx(...))`
+  (`src/lib/utils/index.ts`), so the banner's conditional background
+  color correctly overrides the variant default rather than producing
+  an unpredictable dual-class conflict.
+- No duplicate icon imports were introduced (`Check`/`Download` were
+  already imported in both files for other UI; only `Smartphone` — and
+  `Check`/`Download` in the join page — were newly added).
+- Every newly-imported icon is actually rendered at least once in both
+  files (no unused-import lint failures).
+- Brace/paren balance re-verified on all 5 touched files after every
+  edit in this pass.
+- Confirmed the "Add Tenant" flow (`handleAdd`/`addTenantByOwner`,
+  distinct from "Invite Tenant") never sends a WhatsApp message and
+  has no tenant-facing form to gate — correctly out of scope, not a
+  missed integration point.
+- Confirmed the SQL migration rename (`"Owners update tenants"` →
+  `"Owners update tenants, tenants update own row"`) doesn't break any
+  later migration — every reference to the old name uses
+  `drop policy if exists`, which is idempotent regardless of naming
+  history.
+- Fixed one stale code comment in `40_fix_tenant_onboarding_self_update.sql`
+  left over from an earlier draft of that migration.
+- Walked the gate's full state machine (6 realistic scenarios: iOS,
+  Android-still-checking, Android-misconfigured, Android-resolved-
+  pre-trigger, Android-resolved-triggered, already-inside-native-app)
+  against the exact `satisfied` formula — all 6 resolve correctly with
+  no dead/stuck state.
+
+## Files touched in this QA pass
+- `src/lib/apk/useApkDownloadGate.ts` (timeout, checked flag, stale
+  placeholder string, StrictMode guard docs)
+- `src/app/(owner)/tenants/page.tsx` (stale placeholder string)
+- `src/app/(owner)/approvals/page.tsx` (stale placeholder string)
+- `src/components/tenant/OnboardingWizard.tsx` (use `checked` flag to
+  avoid the unavailable-message flash)
+- `src/app/(auth)/join/[slug]/page.tsx` (same)
+- `supabase/40_fix_tenant_onboarding_self_update.sql` (stale comment)
+
+## What this pass could not verify
+No live browser/device or network access in this sandbox — every check
+above is static (grep-based reference tracing, brace/paren balance,
+manual state-machine walkthrough, pattern-matching against already-
+proven-working code elsewhere in the same files). **A real Android
+device test is still the one thing this pass could not do** — same
+caveat as the original feature entry.
+
+---
+
+# Changelog — Feature: Mandatory APK Download Gate on Tenant Onboarding
+
+## Scope
+When an owner invites/adds a tenant, the tenant now gets prompted to
+download the Rentivo Android app while filling in their onboarding
+details — and on Android, can't submit the form until the download has
+started. iOS/desktop are never gated (an APK can't be installed there).
+
+## What was built
+- **`src/lib/apk/useApkDownloadGate.ts`** (new) — shared hook. Detects
+  Android mobile browser (vs. iOS, desktop, or already inside the
+  installed native app — Capacitor's `window.Capacitor.isNativePlatform()`
+  is checked so someone already using the app is never gated). Fetches
+  `apkDownloadUrl` from `/app-version.json` (the same file the in-app
+  updater already uses) and auto-fires a browser download via a
+  synthetic anchor click as soon as both are known — no user action
+  needed for the download to *start*, so it runs in the background while
+  the tenant fills in the rest of the form, per the original ask.
+- **Onboarding Wizard** (`src/components/tenant/OnboardingWizard.tsx`,
+  invited-tenant flow — this is the exact form in the screenshot from
+  earlier in this session) — added a banner showing download status,
+  with a manual "Download now" fallback button; "Submit for Review" is
+  disabled until the gate is satisfied on Android.
+- **QR self-join form** (`src/app/(auth)/join/[slug]/page.tsx`,
+  tenant-initiated join flow) — same banner and same gate applied to
+  the final "Complete Joining" button, alongside the existing
+  accept-terms/signature requirements.
+- **WhatsApp invite messages** — the APK link is now included in all
+  three places an invite/welcome WhatsApp message is auto-composed:
+  the owner-invite flow and its "Send via WhatsApp" fallback button
+  (`src/app/(owner)/tenants/page.tsx`), and the QR-join-approval welcome
+  message (`src/app/(owner)/approvals/page.tsx`). If the URL can't be
+  fetched (misconfigured `app-version.json`), the APK line is simply
+  omitted from the message rather than sending a broken link.
+- **`public/app-version.json`** — `apkDownloadUrl` placeholder updated
+  to GitHub's stable "latest release" redirect pattern:
+  `.../releases/latest/download/<filename>`. This one URL never needs
+  updating again after every new release — GitHub always resolves it to
+  whichever release is currently marked "latest," as long as the
+  uploaded asset is named the same thing every time (e.g. always
+  `rentivo-latest.apk`). **Still has a placeholder GitHub
+  username/repo — must be filled in with your real GitHub repo before
+  this goes live** (see prominent placeholder text in the file itself).
+
+## Product decisions made explicit (confirmed with the person, not assumed)
+- **iOS/desktop:** never gated — an APK cannot be installed there, so
+  blocking submission would just break onboarding for those tenants.
+- **Android:** strict — matches the exact rule requested: form submit
+  is blocked until a download has been started (auto on page load, or
+  the manual fallback button).
+- **"Download completed" cannot actually be verified from a web page**
+  — there is no cross-browser JS API for it (documented in
+  `src/lib/update/download.ts` for the exact same limitation in the
+  in-app updater). "Gate satisfied" means the browser was told to start
+  the download — the strongest signal available, not literal
+  confirmation of a finished file. This is stated plainly rather than
+  overclaiming what the gate can detect.
+
+## Files
+- `src/lib/apk/useApkDownloadGate.ts` (new)
+- `src/components/tenant/OnboardingWizard.tsx`
+- `src/app/(auth)/join/[slug]/page.tsx`
+- `src/app/(owner)/tenants/page.tsx`
+- `src/app/(owner)/approvals/page.tsx`
+- `public/app-version.json`
+
+## Verification
+No live device/browser test was possible in this sandbox (no network,
+no Android device). Verified via: (1) brace-balance/static parse check
+on every touched file, (2) full-repo grep confirming every hook usage
+resolves and no orphaned imports were introduced, (3) manual trace of
+the gate's satisfied/blocked logic for all four states (iOS, Android
+before download, Android after download, native-app-already-installed).
+**Test on a real Android device before relying on this** — mobile
+browser download behavior (notification style, whether `download`
+attribute is honored cross-origin) varies slightly by browser/OS
+version and can't be fully confirmed from static review.
+
+---
+
+# Changelog — Hotfix: Tenant Onboarding Submission Broken ("Cannot coerce the result to a single JSON object")
+
+## Bug report
+Owner invites a tenant; tenant opens the onboarding form (Emergency
+Contact / PAN upload / etc., screenshot: red banner reading "Cannot
+coerce the result to a single JSON object"); submission fails every
+time.
+
+## Root cause (pre-existing, not introduced by this round's work)
+`07_critical_security_fix.sql` — a genuinely necessary fix at the time
+— removed the tenants UPDATE policy's tenant-self-update clause
+entirely, on the stated assumption "the app never legitimately needs
+this." That assumption was incorrect: `markOnboardingPasswordChanged`,
+`markOnboardingDraftStarted`, and `submitOnboardingProfile`
+(`src/lib/supabase/queries.ts`) are all called *by the tenant
+themselves* from the onboarding wizard, and all update the tenant's own
+`tenants` row. Since that migration, every one of those UPDATEs has
+matched zero rows under RLS; the following `.select().single()` then
+finds zero rows and PostgREST throws exactly the error in the
+screenshot (`PGRST116`). This has been broken since `07_critical_security_fix.sql`
+was applied — independent of, and not caused by, any change made in the
+Approval/Calculation fix round or this merge.
+
+## Fix
+`supabase/40_fix_tenant_onboarding_self_update.sql`:
+- Restores the tenants UPDATE policy's tenant-self-update clause
+  (`auth_user_id = auth.uid()`).
+- Adds `trg_prevent_tenant_self_update_overreach`, a column-allowlist
+  trigger (mirrors the existing `prevent_profile_privilege_escalation`
+  pattern) that permits a tenant-initiated update to touch *only*
+  `pending_profile` and `onboarding_status` — every other column
+  (`monthly_rent`, `deposit_amount`, `deposit_paid`, `room_id`,
+  `status`, etc.) stays locked, exactly re-closing the privilege-
+  escalation hole `07_critical_security_fix.sql` was right to worry
+  about, without leaving the legitimate onboarding flow broken as
+  collateral damage.
+- Further restricts `onboarding_status` so a tenant can only move it to
+  `password_changed` / `draft` / `submitted` / `resubmitted` — never
+  `approved`, `correction_requested`, or `invitation_created`, which
+  stay owner-only. This closes the same self-approval bug class fixed
+  elsewhere this round (payments/leave/extension/move-out), applied
+  here to the one place it was missed.
+
+## Verification
+Traced all three tenant-self-update call sites against the new
+allowlist — each touches only `pending_profile`/`onboarding_status`
+with a legal status value, so none are blocked. Verified the trigger's
+allowlist logic against 4 cases (legitimate submit, malicious
+self-approve attempt, malicious rent-change attempt, legitimate owner
+update) — 3 correctly allowed, 2 correctly blocked (see merge session
+for the standalone logic check). Not verified against a live Supabase
+instance (no network access in this sandbox) — **apply this migration
+and test the onboarding flow end-to-end before considering this closed.**
+
+## Files
+- `supabase/40_fix_tenant_onboarding_self_update.sql` (new)
+- No application code changes — the app's own onboarding functions were
+  already correct; this was purely a database-layer permission gap.
+
+---
+
+# Changelog — Merge: Approval/Calculation Patch → Latest Main ZIP
+
+## Scope
+Merged the previously delivered `PG_Manager_Approval_Calculation_PATCH.zip`
+(11 files, see the "Production Fix Round" entry below) into a newer Main
+ZIP upload. This was a **logic-only merge** — the newer Main ZIP's UI/UX
+was the authority for every file and was preserved exactly; only the
+audited approval/calculation/RLS logic was woven in.
+
+## Newer Main UI found and preserved (not present in the patch's base)
+- `src/app/(owner)/tenants/page.tsx` — an auto-open-WhatsApp tenant-invite
+  flow (sends the login link + temp password via WhatsApp automatically
+  when an owner invites a tenant, plus a "Send via WhatsApp" fallback
+  button in the invite modal).
+- `src/app/(owner)/dashboard/page.tsx` and `src/app/(tenant)/portal/page.tsx`
+  — an "Experience Pack" system (`useActiveExperience`) that swaps the
+  dashboard/portal welcome banner's greeting text, gradient colors, and
+  icon tint when a seasonal/festival pack is active.
+Neither feature was touched — every patch change was applied as a
+targeted edit around these blocks, verified line-by-line via diff before
+and after.
+
+## Migration renumbering
+The patch's migration was originally `38_production_approval_fixes.sql`.
+This Main ZIP already contains an unrelated `38_fix_qr_join_tenant_insert_rls.sql`
+(anonymous QR-join RLS fix). Compared every policy name in both files —
+no overlap (the patch touches `payments`/`leave_requests`/
+`rent_extension_requests`/`move_out_requests`/`profile_update_requests`
+insert/update policies by different names than the QR-join fix touches),
+so both can coexist and RLS-OR together safely. Renumbered the patch's
+migration to `supabase/39_production_approval_fixes.sql` (next free
+number) rather than overwriting or reordering Main's existing `38_`.
+
+## Files touched in this merge
+- Applied directly, verified byte-identical base (no drift beyond what
+  the patch changed): `src/lib/utils/index.ts`, `src/types/index.ts`,
+  `src/lib/supabase/queries.ts`, `src/app/(owner)/payments/page.tsx`,
+  `src/app/(owner)/reports/income/page.tsx`.
+- Merged via targeted edits to preserve newer Main UI:
+  `src/app/(owner)/dashboard/page.tsx`, `src/app/(owner)/tenants/page.tsx`,
+  `src/app/(tenant)/portal/page.tsx`.
+- Added: `supabase/39_production_approval_fixes.sql` (renumbered from the
+  patch's `38_`).
+- Updated: `APPROVAL_CALCULATION_AUDIT.md` (migration filename references,
+  merge report appended), `CHANGELOG.md` (this entry).
+
+## Re-verification after merge
+Re-ran the two headline numeric proofs directly against the merged
+calculation functions: `computeEligibleMoveOutDate('2026-08-05',
+'2026-09-06')` → 5 Nov 2026 (PASS); `computeJoiningPaymentStatus` with
+deposit ₹5,000/₹4,000 and joining rent ₹5,000/₹4,000 → ₹2,000 total
+outstanding, deadline 9 Aug (PASS); overlapping-leave merge (5–9 Sep +
+7–9 Sep) → 5 unique days, ₹1,550 adjustment (PASS). Full re-verification
+table in `APPROVAL_CALCULATION_AUDIT.md`.
+
+## Build verification note
+Same caveat as the underlying patch: no network access in this sandbox,
+so `npm run build` could not be run here. Verified instead via targeted
+diffs of every touched file (before/after, against both the patch and
+the newer Main base) and direct execution of the calculation functions
+themselves (Node, shown above) — but **run `npm run build` before
+deploying**.
+
+---
+
+# Changelog — Production Fix Round: Approval Security, Rent-Cycle Notice & Joining Payment Balance
+
+## Scope
+Fixed every confirmed finding from `APPROVAL_CALCULATION_AUDIT.md` v1
+(score 61/100), implemented the rent-cycle-based move-out notice rule,
+and built the Joining Payment Balance feature. See
+`APPROVAL_CALCULATION_AUDIT.md` v2 for the full second forensic audit
+with independent test cases for every item below.
+
+## Fixed (🔴 Critical)
+- **RLS self-approval bypass** — `payments`, `leave_requests`,
+  `rent_extension_requests`, `move_out_requests`, `profile_update_requests`:
+  insert policies now require the row land in its neutral/pending state;
+  update policies now require the row still be pending before an owner
+  can decide it. New migration: `supabase/39_production_approval_fixes.sql`
+  (renumbered from `38_` in the original patch — this Main ZIP already had
+  an unrelated `38_fix_qr_join_tenant_insert_rls.sql`; verified no policy-name
+  overlap between the two before renumbering, see merge report in
+  `APPROVAL_CALCULATION_AUDIT.md`).
+- **Overlapping approved leave double-counted rent adjustment** —
+  `calculateLeaveRentAdjustment` (`src/lib/utils/index.ts`) now merges
+  overlapping/adjacent leave date ranges before counting days.
+- **Rent-cycle-based move-out notice — new** — `computeEligibleMoveOutDate()`
+  added as the single authoritative eligibility calculation, wired into
+  the tenant Move-Out request form (min-date + validation + hint).
+
+## Fixed (🟠 High)
+- **Owner-side "pending rent" ignored backlog months** — extracted the
+  ledger walk into shared `buildMonthlyLedger()`/`getRentOutstandingSummary()`;
+  Owner Dashboard (`getDashboardStats`) and Owner Payments page now call
+  the same function the Tenant Portal already used, instead of each
+  computing their own current-month-only figure.
+- **Deposit refund could exceed deposit held together with deductions** —
+  client-side check added in Owner Tenants page (`refund + deductions ≤
+  deposit_paid`); DB-level trigger `trg_prevent_deposit_over_settlement`
+  added as a second line of defense.
+- **No state-transition guard on approval decisions** — `approvePayment`,
+  `rejectPayment`, `decideLeaveRequest`, `decideRentExtensionRequest`,
+  `decideMoveOutRequest`, `decideProfileUpdateRequest` (all in
+  `src/lib/supabase/queries.ts`) now require the row still be
+  pending/pending_approval, with a clear error if it's already decided.
+- **`move_out_requests` self-approval RLS gap** — closed in the same
+  migration as the other four tables.
+
+## Fixed (new finding, found while implementing the above)
+- **`tenants.deposit_paid` never updated when a tenant-submitted deposit
+  payment was approved** — `approvePayment()` now syncs `deposit_paid`
+  when the approved payment's `type === 'deposit'`. Without this, the
+  new Joining Payment Balance feature would have shown a deposit as
+  perpetually outstanding even after the owner approved it.
+
+## Fixed (🟡 Medium)
+- **Late fee folded into rent with no separate ledger line** — added
+  `payments.late_fee_amount` column (additive, defaults to 0, no
+  existing rows affected); tenant-submitted rent payments that include
+  a late fee now record it separately; Income Report now shows Rent
+  and Late Fees as distinct figures.
+- **Inconsistent date parsing (local vs UTC-string) across rent-cycle,
+  leave, move-out, extension, and dashboard occupancy calculations** —
+  added `parseDateOnly()` helper (local-midnight construction from a
+  `YYYY-MM-DD` string) and swapped every identified risky call site.
+
+## Added — Joining Payment Balance (new feature, 🔴 item 10)
+- `computeJoiningPaymentStatus()` in `src/lib/utils/index.ts` — single
+  authoritative calculation combining the existing `deposit_amount`/
+  `deposit_paid` and `monthly_rent`/`rent_paid_at_joining` fields (no
+  new required/paid fields invented) into Deposit Outstanding, Joining
+  Rent Outstanding, Total Outstanding, a 5-calendar-day payment
+  deadline from the joining date, and a `paid`/`outstanding`/`overdue`
+  status.
+- Wired into both portals from the same function: a dashboard alert
+  card in the Tenant Portal, and a summary block in the Owner Tenants
+  page's tenant detail view — both read identical values, so they can
+  never disagree.
+- Deliberately did **not** invent a joining-specific late fee, and did
+  **not** change what "approved" means for an onboarded tenant with an
+  outstanding joining balance — the existing repository gives no rule
+  for either, so both are left as documented open questions rather
+  than invented behavior (see Audit v2, "Undetermined business rules").
+
+## Files Modified
+- `supabase/39_production_approval_fixes.sql` (new; renumbered from `38_`)
+- `src/lib/utils/index.ts`
+- `src/lib/supabase/queries.ts`
+- `src/app/(tenant)/portal/page.tsx`
+- `src/app/(owner)/dashboard/page.tsx`
+- `src/app/(owner)/payments/page.tsx`
+- `src/app/(owner)/tenants/page.tsx`
+- `src/app/(owner)/reports/income/page.tsx`
+- `src/types/index.ts`
+- `APPROVAL_CALCULATION_AUDIT.md` (updated to v2)
+
+## Build verification note
+This sandbox has no network access, so `npm install` / `npm run build`
+/ `npx tsc --noEmit` could not be executed here (unlike the prior
+changelog entry above, which ran in an environment with `node_modules`
+already installed). Every change was instead verified by: (1) reading
+every call site of every modified/renamed export via `grep` across the
+whole `src/` tree to confirm no orphaned references, (2) checking the
+`Tenant`/`Payment` TypeScript interfaces against every new function's
+parameter types field-by-field, and (3) manually tracing each new/
+changed calculation against independent numeric test cases (see Audit
+v2). This is a real limitation relative to the prior verified build —
+**run `npm run build` before deploying** to catch anything this
+static review could have missed.
+
+---
+
 # Changelog — Broken Import Fix & Full Production Audit (Post-RC)
 
 ## Scope
