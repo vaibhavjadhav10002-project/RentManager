@@ -7,10 +7,13 @@ import { toast } from 'sonner'
 import { Send, Loader2, MessageCircle, Search } from 'lucide-react'
 import type { Tenant } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function MessagesPage() {
   const { activeId, properties } = useProperty()
   const [tenants, setTenants] = useState<Tenant[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Tenant | null>(null)
@@ -32,7 +35,7 @@ export default function MessagesPage() {
       setLoading(false)
     }
     if (properties.length > 0 || activeId !== 'all') load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   async function openThread(t: Tenant) {
     setSelected(t)

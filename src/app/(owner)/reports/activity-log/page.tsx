@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner'
 import type { LucideIcon } from 'lucide-react'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 type EventKind = 'payment' | 'tenant' | 'complaint' | 'expense' | 'notice'
 
@@ -38,6 +39,8 @@ const KIND_LABEL: Record<EventKind, string> = {
 export default function ActivityLogPage() {
   const { activeId, properties } = useProperty()
   const [events, setEvents] = useState<ActivityEvent[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | EventKind>('all')
 
@@ -126,7 +129,7 @@ export default function ActivityLogPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   const filtered = useMemo(() => (filter === 'all' ? events : events.filter(e => e.kind === filter)).slice(0, 200), [events, filter])
   const counts = useMemo(() => {

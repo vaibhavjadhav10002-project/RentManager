@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { CheckCircle, IndianRupee, UserPlus, MessageSquareWarning } from 'lucide-react'
 import { OwnerCard, OwnerEmptyState } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 /**
  * Notification Center — O12. No dedicated page existed before (Topbar has
@@ -32,6 +33,8 @@ export default function NotificationsPage() {
   const router = useRouter()
   const { activeId, properties } = useProperty()
   const [items, setItems] = useState<any[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | keyof typeof CATEGORY_META>('all')
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
@@ -41,7 +44,7 @@ export default function NotificationsPage() {
     if (propIds.length === 0 || propIds.some(id => !id)) { setLoading(false); return }
     setLoading(true)
     getOwnerNotifications(propIds).then(setItems).catch(() => setItems([])).finally(() => setLoading(false))
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   const filtered = filter === 'all' ? items : items.filter(n => n.type === filter)
   const unreadCount = items.filter(n => !readIds.has(n.id)).length

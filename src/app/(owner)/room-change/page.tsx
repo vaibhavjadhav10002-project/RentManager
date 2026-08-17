@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { ArrowRight, Repeat, Loader2, History } from 'lucide-react'
 import type { Tenant, Room, RoomChange } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function RoomChangePage() {
   const { active, activeId, properties } = useProperty()
@@ -37,6 +38,7 @@ export default function RoomChangePage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const selectedTenant = tenants.find(t => t.id === tenantId)
 

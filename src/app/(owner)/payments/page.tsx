@@ -12,6 +12,7 @@ import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerEmptyState, OwnerInput, OwnerSelect,
   OwnerTable, OwnerTableHead, OwnerTableBody, OwnerTableRow, OwnerTableHeadCell, OwnerTableCell, OwnerTableEmptyRow,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 type Tab = 'all' | 'paid' | 'pending' | 'overdue' | 'bydue' | 'ledger'
 
@@ -68,6 +69,7 @@ export default function PaymentsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   // Pending rent sorted by due date — uses the same full oldest-first
   // ledger (shared with the Tenant Portal via getRentOutstandingSummary)

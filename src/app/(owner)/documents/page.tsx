@@ -11,6 +11,7 @@ import {
   OwnerTable, OwnerTableHead, OwnerTableBody, OwnerTableRow, OwnerTableHeadCell, OwnerTableCell, OwnerTableEmptyRow,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 /**
  * Documents — O10. This page did not exist before; there's no /documents
@@ -32,6 +33,8 @@ export default function DocumentsPage() {
   const { activeId, properties, active } = useProperty()
   const [rows, setRows] = useState<{ agreement: any; tenant: any }[]>([])
   const [unagreementedTenants, setUnagreementedTenants] = useState<any[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [documentDetail, setDocumentDetail] = useState<{ agreement: any; tenant: any } | null>(null)
 
@@ -62,7 +65,7 @@ export default function DocumentsPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   function downloadFull(agreement: any, tenant: any) {
     generateFullAgreementPDF({

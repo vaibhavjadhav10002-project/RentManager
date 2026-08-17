@@ -8,6 +8,7 @@ import { formatINR } from '@/lib/utils'
 import AddPropertyModal from '@/components/shared/AddPropertyModal'
 import { OwnerCard, OwnerButton, OwnerIconButton, OwnerBadge, OwnerEmptyState } from '@/components/owner/ui'
 import type { DashboardStats } from '@/types'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 /**
  * Properties — O3. This page did not exist before; the app previously
@@ -23,6 +24,8 @@ export default function PropertiesPage() {
   const router = useRouter()
   const { properties, setActiveId, refresh } = useProperty()
   const [statsByProperty, setStatsByProperty] = useState<Record<string, DashboardStats>>({})
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
 
@@ -33,7 +36,7 @@ export default function PropertiesPage() {
       .then(entries => setStatsByProperty(Object.fromEntries(entries)))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [properties])
+  }, [properties, refreshKey])
 
   function goToSettings(propertyId: string) {
     setActiveId(propertyId)

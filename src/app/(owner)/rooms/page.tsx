@@ -11,6 +11,7 @@ import {
   OwnerTable, OwnerTableHead, OwnerTableBody, OwnerTableRow, OwnerTableHeadCell, OwnerTableCell,
   OwnerInput, OwnerSelect,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 // NOTE: this schema has no separate Bed entity — bed count lives on
 // Room.total_beds, and individual bed assignment lives on Tenant.bed_label.
@@ -47,6 +48,7 @@ export default function RoomsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   function openEdit(room: Room) {
     setEditingId(room.id)

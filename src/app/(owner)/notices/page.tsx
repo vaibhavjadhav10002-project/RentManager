@@ -11,6 +11,7 @@ import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const CATEGORIES = ['General', 'Maintenance', 'Rent', 'Electricity', 'Emergency', 'Event']
 const PRIORITIES = ['Normal', 'Important', 'Urgent']
@@ -39,6 +40,7 @@ export default function NoticesPage() {
   }, [activeId])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   async function handleAttachmentSelect(file: File | null) {
     if (!file) return

@@ -13,6 +13,7 @@ import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
 import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg, cn, parseDateOnly, friendlyErrorMessage } from '@/lib/utils'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 import {
   BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home, UserPlus, Receipt, Wrench,
   ShieldCheck, BarChart3, Megaphone, Clock, Bell, CalendarClock, Users2, Percent,
@@ -73,6 +74,8 @@ function greetingTimeSlot(): 'morning' | 'afternoon' | 'evening' | 'night' {
 export default function DashboardPage() {
   const router = useRouter()
   const { activeId, active, properties } = useProperty()
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const activePack = useActiveExperience()
   const packGreetingText = activePack?.greeting ? (activePack.greeting[greetingTimeSlot()] ?? activePack.greeting.default) : null
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -110,7 +113,7 @@ export default function DashboardPage() {
         .slice(0, 5)
       setExpiringAgreements(upcoming)
     }).catch(() => setExpiringAgreements([]))
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   useEffect(() => {
     async function load() {
@@ -288,7 +291,7 @@ export default function DashboardPage() {
       return
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   function openRenew(a: any) {
     const oldEnd = new Date(a.end_date)

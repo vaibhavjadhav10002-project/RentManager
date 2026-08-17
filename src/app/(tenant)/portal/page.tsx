@@ -30,6 +30,7 @@ import OnboardingWizard from '@/components/tenant/OnboardingWizard'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 import { Card, Badge, Button, SectionHeader, EmptyState, Avatar, ThemeToggle } from '@/components/tenant/ui'
 import { useActiveExperience } from '@/lib/experience/useActiveExperience'
+import PullToRefresh from '@/components/shared/PullToRefresh'
 
 type Tab = 'dashboard' | 'tenancy' | 'rent' | 'history' | 'maintenance' | 'documents' | 'messages' | 'support' | 'notices' | 'requests'
 
@@ -797,7 +798,8 @@ export default function TenantPortal() {
           </div>
         </header>
 
-        <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-4 pb-24 lg:p-8 max-w-6xl w-full mx-auto">
+        <main id="main-content" className="flex-1 min-h-0 flex flex-col">
+          <PullToRefresh className="p-4 pb-24 lg:p-8 max-w-6xl w-full mx-auto">
           {/* key={tab} re-triggers the entrance animation on every tab
               switch, same as PageTransition does for route-based navigation —
               the portal's tabs are client-side state, not real routes, so
@@ -1724,6 +1726,7 @@ export default function TenantPortal() {
           )}
 
           </div>
+          </PullToRefresh>
         </main>
       </div>
 

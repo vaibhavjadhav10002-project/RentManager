@@ -8,7 +8,8 @@ import { formatINR, formatDate } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Expense } from '@/types'
-import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
+import { SkeletonCardGrid, SkeletonTable } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const ExpensesByCategoryChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ExpensesByCategoryChart), {
   ssr: false, loading: () => <div className="h-[140px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
@@ -27,6 +28,8 @@ interface ExpenseRow extends Expense { property_name: string }
 export default function ExpenseReportPage() {
   const { active, activeId, properties } = useProperty()
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [month, setMonth] = useState<string>('all')
@@ -46,7 +49,7 @@ export default function ExpenseReportPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   const monthOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -99,7 +102,7 @@ export default function ExpenseReportPage() {
   }
 
   if (loading) return (
-    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonTable rows={6} cols={5} /></div>
   )
 
   return (

@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Archive, RotateCcw, Loader2, UserCheck, Package, Users2 } from 'lucide-react'
 import type { Visitor, Parcel, WaitingListEntry } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 type Kind = 'visitor' | 'parcel' | 'waiting'
 interface ArchivedItem { id: string; kind: Kind; title: string; subtitle: string; archivedAt: string }
@@ -61,6 +62,7 @@ export default function ArchivePage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const filtered = useMemo(() => (filter === 'all' ? items : items.filter(i => i.kind === filter)), [items, filter])
   const counts = useMemo(() => {

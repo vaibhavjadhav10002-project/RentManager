@@ -12,6 +12,7 @@ import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState, OwnerAvatar,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 type InboxTab = 'whatsapp' | 'reminders' | 'templates' | 'history'
 
@@ -71,6 +72,7 @@ export default function InboxPage() {
   }, [propertyId])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const tabs: { key: InboxTab; label: string; icon: typeof MessageCircle }[] = [
     { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },

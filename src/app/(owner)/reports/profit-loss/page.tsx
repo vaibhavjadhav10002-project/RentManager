@@ -8,7 +8,8 @@ import { formatINR } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, Scale } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Payment } from '@/types'
-import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
+import { SkeletonCardGrid, SkeletonChart, SkeletonTable } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const ProfitLossChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ProfitLossChart), {
   ssr: false, loading: () => <div className="h-[240px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
@@ -25,6 +26,8 @@ const RANGE_OPTIONS = [
 export default function ProfitLossReportPage() {
   const { active, activeId, properties } = useProperty()
   const [rows, setRows] = useState<MonthRow[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [rangeMonths, setRangeMonths] = useState(6)
@@ -81,7 +84,7 @@ export default function ProfitLossReportPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   const visible = useMemo(() => rows.slice(-rangeMonths), [rows, rangeMonths])
 
@@ -112,7 +115,7 @@ export default function ProfitLossReportPage() {
   }
 
   if (loading) return (
-    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonChart /><SkeletonTable rows={5} cols={5} /></div>
   )
 
   return (

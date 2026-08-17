@@ -6,11 +6,14 @@ import { generateTenantIDCardPDF } from '@/lib/pdf'
 import { QrCode, Download, Loader2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Tenant } from '@/types'
-import { SkeletonList } from '@/components/shared/Skeleton'
+import { SkeletonProfileGrid } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function TenantCardsPage() {
   const { active, activeId, properties } = useProperty()
   const [tenants, setTenants] = useState<Tenant[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
@@ -26,7 +29,7 @@ export default function TenantCardsPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   function propertyNameFor(t: Tenant) {
     if (activeId !== 'all') return active?.name ?? 'Property'
@@ -55,7 +58,7 @@ export default function TenantCardsPage() {
   }
 
   if (loading) return (
-    <SkeletonList rows={6} />
+    <SkeletonProfileGrid count={6} />
   )
 
   return (

@@ -9,6 +9,7 @@ import { Plus, Package, PackageCheck, Trash2, Loader2, Clock, Archive, ChevronRi
 import { OwnerBadge, OwnerIconButton } from '@/components/owner/ui'
 import type { Parcel, Tenant } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function ParcelsPage() {
   const { activeId, properties } = useProperty()
@@ -38,6 +39,7 @@ export default function ParcelsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const filtered = useMemo(
     () => (filter === 'pending' ? parcels.filter(p => !p.collected_at) : parcels),

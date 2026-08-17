@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { DownloadCloud, Loader2, ShieldCheck, FileJson, Clock, CheckCircle2, XCircle, ExternalLink } from 'lucide-react'
 import type { BackupSettings, BackupRun } from '@/types'
 import { saveBlob } from '@/lib/native/share'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 /**
  * Manual Backup exports every property the owner has, in full — not scoped to the
@@ -18,6 +19,8 @@ import { saveBlob } from '@/lib/native/share'
  * this page only orchestrates and packages, it adds no new queries or schema.
  */
 export default function BackupPage() {
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [exporting, setExporting] = useState(false)
   const [lastExport, setLastExport] = useState<{ at: string; properties: number; records: number } | null>(null)
 
@@ -42,7 +45,7 @@ export default function BackupPage() {
       setSettingsLoading(false)
     }
     loadAutoBackupData()
-  }, [])
+  }, [refreshKey])
 
   async function toggleEnabled(enabled: boolean) {
     if (!ownerId) return

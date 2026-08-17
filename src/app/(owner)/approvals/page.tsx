@@ -13,6 +13,7 @@ import type { Room } from '@/types'
 import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
 import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function ApprovalsPage() {
   const { activeId, active, properties } = useProperty()
@@ -97,6 +98,7 @@ export default function ApprovalsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   async function handleApprovePayment(id: string) {
     // Optimistic: this list is pending-only, so a decided payment should

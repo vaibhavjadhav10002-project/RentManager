@@ -13,6 +13,7 @@ import {
   OwnerTable, OwnerTableHead, OwnerTableBody, OwnerTableRow, OwnerTableHeadCell, OwnerTableCell, OwnerTableEmptyRow,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 // Explicit local tone maps (not the generic ownerStatusTone helper) so the
 // specific semantics this page already had are preserved exactly —
@@ -182,6 +183,7 @@ export default function TenantsPage() {
   }, [activeId])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const filtered = tenants.filter(t =>
     (statusFilter === 'all' || t.status === statusFilter) &&

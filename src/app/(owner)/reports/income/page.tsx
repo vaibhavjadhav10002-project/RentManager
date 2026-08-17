@@ -7,7 +7,8 @@ import { formatINR, formatDate } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, IndianRupee } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Payment, PaymentType } from '@/types'
-import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
+import { SkeletonCardGrid, SkeletonTable } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const TYPE_LABEL: Record<PaymentType, string> = { rent: 'Rent', deposit: 'Deposit', advance: 'Advance' }
 const TYPE_BADGE: Record<PaymentType, string> = {
@@ -19,6 +20,8 @@ const TYPE_BADGE: Record<PaymentType, string> = {
 export default function IncomeReportPage() {
   const { active, activeId, properties } = useProperty()
   const [payments, setPayments] = useState<Payment[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [month, setMonth] = useState<string>('all') // 'all' or 'YYYY-M'
@@ -38,7 +41,7 @@ export default function IncomeReportPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   // Distinct months present in the data, newest first — built from payment_date (reliable),
   // not the free-text for_month field which is only ever filled in for rent.
@@ -102,7 +105,7 @@ export default function IncomeReportPage() {
   }
 
   if (loading) return (
-    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonTable rows={6} cols={6} /></div>
   )
 
   return (

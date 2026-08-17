@@ -8,7 +8,8 @@ import { Download, Loader2, TrendingUp, TrendingDown, Scale, History, ChevronRig
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { DashboardStats } from '@/types'
-import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
+import { SkeletonCardGrid, SkeletonChart } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const ReportsOverviewChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ReportsOverviewChart), {
   ssr: false, loading: () => <div className="h-[220px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
@@ -27,6 +28,8 @@ export default function ReportsPage() {
   const { active, activeId, properties } = useProperty()
   const [chartData, setChartData] = useState<{ month: string; revenue: number; expenses: number; profit: number }[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [thisMonthExpenses, setThisMonthExpenses] = useState(0)
   const [rawData, setRawData] = useState<{ payments: any[]; expenses: any[]; tenants: any[] }>({ payments: [], expenses: [], tenants: [] })
   const [loading, setLoading] = useState(true)
@@ -79,7 +82,7 @@ export default function ReportsPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties])
+  }, [activeId, properties, refreshKey])
 
   const occupancyPct = stats ? Math.round((stats.occupiedBeds / (stats.totalBeds || 1)) * 100) : 0
   const netProfit = (stats?.monthlyRevenue ?? 0) - thisMonthExpenses
@@ -135,7 +138,7 @@ export default function ReportsPage() {
   ]
 
   if (loading) return (
-    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
+    <div className="space-y-4"><SkeletonCardGrid count={6} /><SkeletonChart /></div>
   )
 
   return (

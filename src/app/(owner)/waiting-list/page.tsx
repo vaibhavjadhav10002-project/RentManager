@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Plus, Users2, Trash2, Loader2, Phone, Archive } from 'lucide-react'
 import type { WaitingListEntry, WaitingListStatus, Room, Tenant } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const STATUS_COLOR: Record<WaitingListStatus, string> = {
   waiting: 'bg-amber-50 text-amber-600',
@@ -46,6 +47,7 @@ export default function WaitingListPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   // Vacancy reference — reuses the same occupied-vs-total-beds logic already used on
   // the main dashboard, just grouped by sharing type instead of totalled up.

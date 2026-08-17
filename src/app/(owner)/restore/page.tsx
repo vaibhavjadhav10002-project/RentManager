@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { UploadCloud, Loader2, AlertTriangle, CheckCircle2, History, FileJson } from 'lucide-react'
 import type { Property, BackupRun } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 // Backups from the two producers (Manual 5.12, Automatic 5.13) key their tables slightly
 // differently (camelCase vs snake_case) — normalize both to real table names here rather
@@ -30,6 +31,8 @@ interface TableResult { table: string; upserted: number; failed: number; firstEr
 export default function RestorePage() {
   const [myProperties, setMyProperties] = useState<Property[]>([])
   const [runs, setRuns] = useState<BackupRun[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [parsed, setParsed] = useState<ParsedBackup | null>(null)
   const [parseError, setParseError] = useState('')
@@ -50,7 +53,7 @@ export default function RestorePage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [refreshKey])
 
   function parseBackupJson(text: string) {
     setResults(null)

@@ -10,6 +10,7 @@ import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const PRIORITY_TONE: Record<string, NonNullable<OwnerBadgeProps['tone']>> = {
   low: 'neutral', medium: 'warning', high: 'danger',
@@ -40,6 +41,7 @@ export default function ComplaintsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const filtered = filter === 'all' ? complaints : complaints.filter(c => c.status === filter)
 

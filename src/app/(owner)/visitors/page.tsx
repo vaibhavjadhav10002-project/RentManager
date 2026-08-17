@@ -8,6 +8,7 @@ import { Plus, LogOut, Trash2, Loader2, UserCheck, Clock, Archive, ChevronRight,
 import { OwnerBadge, OwnerIconButton } from '@/components/owner/ui'
 import type { Visitor, Tenant } from '@/types'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function VisitorsPage() {
   const { activeId, properties } = useProperty()
@@ -37,6 +38,7 @@ export default function VisitorsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
+  usePullToRefreshHandler(load)
 
   const filtered = useMemo(
     () => (filter === 'in' ? visitors.filter(v => !v.check_out_time) : visitors),

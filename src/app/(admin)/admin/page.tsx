@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Plus, Loader2, Building2, Users, UserCheck } from 'lucide-react'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
 import { SkeletonList } from '@/components/shared/Skeleton'
+import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function AdminPage() {
   const [owners, setOwners] = useState<any[]>([])
@@ -37,6 +38,7 @@ export default function AdminPage() {
   }
 
   useEffect(() => { load() }, [])
+  usePullToRefreshHandler(load)
 
   async function addOwner() {
     if (!form.full_name || !form.email || !form.password) { toast.error('Fill all required fields'); return }
