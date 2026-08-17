@@ -798,6 +798,11 @@ export default function TenantPortal() {
         </header>
 
         <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-4 pb-24 lg:p-8 max-w-6xl w-full mx-auto">
+          {/* key={tab} re-triggers the entrance animation on every tab
+              switch, same as PageTransition does for route-based navigation —
+              the portal's tabs are client-side state, not real routes, so
+              this is the tab-switch equivalent of that same effect. */}
+          <div key={tab} className="animate-page-in">
 
           {tab === 'dashboard' && (
             <div className="space-y-5">
@@ -1718,6 +1723,7 @@ export default function TenantPortal() {
             </div>
           )}
 
+          </div>
         </main>
       </div>
 

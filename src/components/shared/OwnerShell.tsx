@@ -7,6 +7,7 @@ import OwnerMoreSheet from './OwnerMoreSheet'
 import { PropertyProvider } from './PropertyContext'
 import ForcePasswordChangeModal from './ForcePasswordChangeModal'
 import { OwnerThemeProvider } from '@/components/owner/ui'
+import PageTransition from './PageTransition'
 import type { Profile } from '@/types'
 
 function OwnerShellInner({ children, profile }: { children: React.ReactNode; profile: Profile }) {
@@ -40,8 +41,8 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
         />
         <div className="flex-1 flex flex-col lg:ml-56 min-w-0 h-full">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-5 pb-28 lg:p-7 lg:pb-7 animate-fade-in">
-            {children}
+          <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-5 pb-28 lg:p-7 lg:pb-7">
+            <PageTransition>{children}</PageTransition>
           </main>
         </div>
         <OwnerBottomNav onMoreClick={() => setMoreOpen(true)} />

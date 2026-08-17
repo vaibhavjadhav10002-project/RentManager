@@ -71,6 +71,69 @@
   .text-warning { color: hsl(var(--warning)); }
   .bg-warning\/10 { background: hsl(var(--warning) / 0.1); }
   .animate-fade-in { animation: fade-in 0.2s ease-out; }
+  .animate-page-in { animation: page-in 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
+  .animate-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in { animation: none; }
+}
+
+/* ============================================================================
+   NATIVE-FEEL TAP FEEDBACK
+   ============================================================================
+   Web buttons/links have no built-in press feedback the way Flutter/native
+   widgets do (an instant, tactile scale/opacity change the moment a finger
+   touches down) — without this, every tap feels like it "landed" a beat
+   late even when the actual click handler fires immediately. Applied
+   globally via :active so every existing button/link picks it up with zero
+   per-component changes. `transform` (not a layout property) keeps this
+   compositor-only, so it stays smooth even on low-end Android WebViews.
+   prefers-reduced-motion users get instant feedback with no animation. */
+button:not(:disabled):active,
+a:active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: scale(0.97);
+}
+button, a, [role="button"] {
+  transition: transform 0.1s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  button, a, [role="button"] { transition: none !important; }
+  button:active, a:active, [role="button"]:active { transform: none !important; }
+}
+
+/* ============================================================================
+   SKELETON LOADING SHIMMER
+   ============================================================================
+   Used by <Skeleton /> (src/components/shared/Skeleton.tsx) in place of a
+   bare spinner wherever a page/section is waiting on its first data fetch —
+   a shaped, shimmering placeholder that roughly matches the eventual layout
+   reads as "already loading the real thing" rather than "nothing has
+   happened yet", which is most of what makes native apps feel fast even
+   when the underlying request takes the same amount of time. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(var(--background) / 0.5), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.dark .skeleton::after {
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.06), transparent);
 }
 
 /* ============================================================================

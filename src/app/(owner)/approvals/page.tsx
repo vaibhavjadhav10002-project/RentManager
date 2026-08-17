@@ -12,6 +12,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import type { Room } from '@/types'
 import { StatusTimeline, type ProfileStatusHistoryEntry } from '@/components/shared/StatusTimeline'
 import { calculateProfileCompletion } from '@/lib/utils/profileStatus'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function ApprovalsPage() {
   const { activeId, active, properties } = useProperty()
@@ -98,13 +99,23 @@ export default function ApprovalsPage() {
   useEffect(() => { load() }, [load])
 
   async function handleApprovePayment(id: string) {
-    try { await approvePayment(id); toast.success('Payment approved!'); load() }
-    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    // Optimistic: this list is pending-only, so a decided payment should
+    // simply disappear immediately — no need to wait for the round-trip
+    // (or re-fetch all 7 approval queries via load()) just to see it gone.
+    // Snapshot for rollback in case the server call actually fails (e.g.
+    // someone else already decided it — a real race, not just slow
+    // network), so the item doesn't just vanish for no reason.
+    const prev = payments
+    setPayments(p => p.filter(x => x.id !== id))
+    try { await approvePayment(id); toast.success('Payment approved!') }
+    catch (e: any) { setPayments(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleRejectPayment(id: string) {
-    try { await rejectPayment(id); toast.error('Payment rejected'); load() }
-    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    const prev = payments
+    setPayments(p => p.filter(x => x.id !== id))
+    try { await rejectPayment(id); toast.error('Payment rejected') }
+    catch (e: any) { setPayments(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleRejectTenant(id: string, name: string) {
@@ -115,6 +126,12 @@ export default function ApprovalsPage() {
 
   async function handleDecideLeave(l: any, status: 'approved' | 'rejected') {
     setDecidingLeaveId(l.id)
+    // Optimistic: this list shows both pending and already-decided
+    // requests (status badge per row, not a pending-only query), so the
+    // right instant update is flipping this row's own status in place —
+    // matches exactly what the real row will look like once the request
+    // actually resolves.
+    setLeaveRequests(rs => rs.map(r => r.id === l.id ? { ...r, status } : r))
     try {
       await decideLeaveRequest(l.id, status)
       toast[status === 'approved' ? 'success' : 'error'](`Leave request ${status}`)
@@ -126,13 +143,16 @@ export default function ApprovalsPage() {
           url: '/portal', tag: 'leave-request',
         })
       }
-      load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) {
+      setLeaveRequests(rs => rs.map(r => r.id === l.id ? { ...r, status: l.status } : r))
+      toast.error(friendlyErrorMessage(e))
+    }
     setDecidingLeaveId(null)
   }
 
   async function handleDecideExtension(x: any, status: 'approved' | 'rejected') {
     setDecidingExtensionId(x.id)
+    setRentExtensions(rs => rs.map(r => r.id === x.id ? { ...r, status } : r))
     try {
       await decideRentExtensionRequest(x.id, status)
       toast[status === 'approved' ? 'success' : 'error'](`Extension request ${status}`)
@@ -144,13 +164,16 @@ export default function ApprovalsPage() {
           url: '/portal', tag: 'rent-extension',
         })
       }
-      load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) {
+      setRentExtensions(rs => rs.map(r => r.id === x.id ? { ...r, status: x.status } : r))
+      toast.error(friendlyErrorMessage(e))
+    }
     setDecidingExtensionId(null)
   }
 
   async function handleDecideMoveOut(m: any, status: 'approved' | 'rejected') {
     setDecidingMoveOutId(m.id)
+    setMoveOutRequests(rs => rs.map(r => r.id === m.id ? { ...r, status } : r))
     try {
       await decideMoveOutRequest(m.id, status)
       toast[status === 'approved' ? 'success' : 'error'](`Move-out request ${status}`)
@@ -164,8 +187,10 @@ export default function ApprovalsPage() {
           url: '/portal', tag: 'move-out-request',
         })
       }
-      load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) {
+      setMoveOutRequests(rs => rs.map(r => r.id === m.id ? { ...r, status: m.status } : r))
+      toast.error(friendlyErrorMessage(e))
+    }
     setDecidingMoveOutId(null)
   }
 
@@ -364,7 +389,7 @@ export default function ApprovalsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40 text-owner-muted-subtle"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
+        <SkeletonList rows={5} />
       ) : tab === 'payments' ? (
         payments.length === 0 ? (
           <div className="bg-owner-surface rounded-2xl border border-owner-border p-12 text-center text-owner-muted-subtle">
