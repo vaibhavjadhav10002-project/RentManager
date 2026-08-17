@@ -98,11 +98,12 @@ export default function NoticesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this notice? Tenants will no longer see it.')) return
+    const prev = notices
+    setNotices(ns => ns.filter(n => n.id !== id))
     try {
       await deleteNotice(id)
       toast.success('Notice deleted')
-      setNotices(prev => prev.filter(n => n.id !== id))
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) { setNotices(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
   const today = new Date().toISOString().slice(0, 10)

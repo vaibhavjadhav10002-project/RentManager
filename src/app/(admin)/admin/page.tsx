@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Plus, Loader2, Building2, Users, UserCheck } from 'lucide-react'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function AdminPage() {
   const [owners, setOwners] = useState<any[]>([])
@@ -101,7 +102,7 @@ export default function AdminPage() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 font-bold text-sm text-gray-900">All PG Owners</div>
           {loading ? (
-            <div className="flex items-center justify-center h-32 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
+            <SkeletonList rows={5} />
           ) : owners.length === 0 ? (
             <div className="text-center py-12 text-gray-400 text-sm">No PG owners yet. Add one to get started.</div>
           ) : (

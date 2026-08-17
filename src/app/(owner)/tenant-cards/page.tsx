@@ -6,6 +6,7 @@ import { generateTenantIDCardPDF } from '@/lib/pdf'
 import { QrCode, Download, Loader2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Tenant } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function TenantCardsPage() {
   const { active, activeId, properties } = useProperty()
@@ -54,9 +55,7 @@ export default function TenantCardsPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading tenants…
-    </div>
+    <SkeletonList rows={6} />
   )
 
   return (

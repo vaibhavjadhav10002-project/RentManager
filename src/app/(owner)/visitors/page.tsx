@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Plus, LogOut, Trash2, Loader2, UserCheck, Clock, Archive, ChevronRight, X } from 'lucide-react'
 import { OwnerBadge, OwnerIconButton } from '@/components/owner/ui'
 import type { Visitor, Tenant } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function VisitorsPage() {
   const { activeId, properties } = useProperty()
@@ -81,32 +82,35 @@ export default function VisitorsPage() {
 
   async function handleCheckOut(id: string) {
     setActioningId(id)
+    const prev = visitors
+    setVisitors(vs => vs.map(v => v.id === id ? { ...v, check_out_time: new Date().toISOString() } : v))
     try {
       await checkOutVisitor(id)
       toast.success('Visitor checked out')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to check out visitor') }
+    } catch (e: any) { setVisitors(prev); toast.error(e.message || 'Failed to check out visitor') }
     setActioningId(null)
   }
 
   async function handleArchive(id: string) {
     setActioningId(id)
+    const prev = visitors
+    setVisitors(vs => vs.filter(v => v.id !== id))
     try {
       await archiveVisitor(id)
       toast.success('Archived — find it later in Archive & Restore')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to archive record') }
+    } catch (e: any) { setVisitors(prev); toast.error(e.message || 'Failed to archive record') }
     setActioningId(null)
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this visitor record? This cannot be undone.')) return
     setActioningId(id)
+    const prev = visitors
+    setVisitors(vs => vs.filter(v => v.id !== id))
     try {
       await deleteVisitor(id)
       toast.success('Record deleted')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to delete record') }
+    } catch (e: any) { setVisitors(prev); toast.error(e.message || 'Failed to delete record') }
     setActioningId(null)
   }
 
@@ -137,7 +141,7 @@ export default function VisitorsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-owner-muted"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
+        <SkeletonList rows={5} />
       ) : filtered.length === 0 ? (
         <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <UserCheck className="w-8 h-8" />

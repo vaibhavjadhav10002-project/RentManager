@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Plus, Package, PackageCheck, Trash2, Loader2, Clock, Archive, ChevronRight, X } from 'lucide-react'
 import { OwnerBadge, OwnerIconButton } from '@/components/owner/ui'
 import type { Parcel, Tenant } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function ParcelsPage() {
   const { activeId, properties } = useProperty()
@@ -92,32 +93,35 @@ export default function ParcelsPage() {
 
   async function handleCollect(id: string) {
     setActioningId(id)
+    const prev = parcels
+    setParcels(ps => ps.map(p => p.id === id ? { ...p, collected_at: new Date().toISOString() } : p))
     try {
       await collectParcel(id)
       toast.success('Marked as collected')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to update parcel') }
+    } catch (e: any) { setParcels(prev); toast.error(e.message || 'Failed to update parcel') }
     setActioningId(null)
   }
 
   async function handleArchive(id: string) {
     setActioningId(id)
+    const prev = parcels
+    setParcels(ps => ps.filter(p => p.id !== id))
     try {
       await archiveParcel(id)
       toast.success('Archived — find it later in Archive & Restore')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to archive record') }
+    } catch (e: any) { setParcels(prev); toast.error(e.message || 'Failed to archive record') }
     setActioningId(null)
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this parcel record? This cannot be undone.')) return
     setActioningId(id)
+    const prev = parcels
+    setParcels(ps => ps.filter(p => p.id !== id))
     try {
       await deleteParcel(id)
       toast.success('Record deleted')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to delete record') }
+    } catch (e: any) { setParcels(prev); toast.error(e.message || 'Failed to delete record') }
     setActioningId(null)
   }
 
@@ -148,7 +152,7 @@ export default function ParcelsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-owner-muted"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
+        <SkeletonList rows={5} />
       ) : filtered.length === 0 ? (
         <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <Package className="w-8 h-8" />

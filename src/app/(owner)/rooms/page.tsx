@@ -100,8 +100,10 @@ export default function RoomsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this room?')) return
-    try { await deleteRoom(id); toast.success('Room deleted'); load() }
-    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    const prev = rooms
+    setRooms(rs => rs.filter(r => r.id !== id))
+    try { await deleteRoom(id); toast.success('Room deleted') }
+    catch (e: any) { setRooms(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
   return (

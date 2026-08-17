@@ -6,6 +6,7 @@ import { formatDate, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Send, Loader2, MessageCircle, Search } from 'lucide-react'
 import type { Tenant } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function MessagesPage() {
   const { activeId, properties } = useProperty()
@@ -71,7 +72,7 @@ export default function MessagesPage() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-owner-muted-subtle" /></div>
+            <SkeletonList rows={4} />
           ) : filteredTenants.length === 0 ? (
             <div className="text-center py-8 text-sm text-owner-muted-subtle">No active tenants</div>
           ) : filteredTenants.map(t => (

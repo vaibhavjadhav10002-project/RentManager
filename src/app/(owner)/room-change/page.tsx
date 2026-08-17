@@ -5,6 +5,7 @@ import { getTenants, getRooms, getRoomChanges, changeTenantRoom } from '@/lib/su
 import { toast } from 'sonner'
 import { ArrowRight, Repeat, Loader2, History } from 'lucide-react'
 import type { Tenant, Room, RoomChange } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 export default function RoomChangePage() {
   const { active, activeId, properties } = useProperty()
@@ -80,9 +81,7 @@ export default function RoomChangePage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
-    </div>
+    <SkeletonList rows={4} />
   )
 
   return (

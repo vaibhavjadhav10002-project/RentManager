@@ -7,6 +7,7 @@ import { formatINR, formatDate } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, IndianRupee } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Payment, PaymentType } from '@/types'
+import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
 
 const TYPE_LABEL: Record<PaymentType, string> = { rent: 'Rent', deposit: 'Deposit', advance: 'Advance' }
 const TYPE_BADGE: Record<PaymentType, string> = {
@@ -101,9 +102,7 @@ export default function IncomeReportPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading income data…
-    </div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
   )
 
   return (

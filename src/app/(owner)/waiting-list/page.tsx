@@ -6,6 +6,7 @@ import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Users2, Trash2, Loader2, Phone, Archive } from 'lucide-react'
 import type { WaitingListEntry, WaitingListStatus, Room, Tenant } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 const STATUS_COLOR: Record<WaitingListStatus, string> = {
   waiting: 'bg-amber-50 text-amber-600',
@@ -92,32 +93,35 @@ export default function WaitingListPage() {
 
   async function handleStatusChange(id: string, status: WaitingListStatus) {
     setActioningId(id)
+    const prev = entries
+    setEntries(es => es.map(e => e.id === id ? { ...e, status } : e))
     try {
       await updateWaitingListStatus(id, status)
       toast.success(`Marked as ${status}`)
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to update status') }
+    } catch (e: any) { setEntries(prev); toast.error(e.message || 'Failed to update status') }
     setActioningId(null)
   }
 
   async function handleArchive(id: string) {
     setActioningId(id)
+    const prev = entries
+    setEntries(es => es.filter(e => e.id !== id))
     try {
       await archiveWaitingListEntry(id)
       toast.success('Archived — find it later in Archive & Restore')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to archive entry') }
+    } catch (e: any) { setEntries(prev); toast.error(e.message || 'Failed to archive entry') }
     setActioningId(null)
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Remove this person from the waiting list? This cannot be undone.')) return
     setActioningId(id)
+    const prev = entries
+    setEntries(es => es.filter(e => e.id !== id))
     try {
       await deleteWaitingListEntry(id)
       toast.success('Removed')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to remove entry') }
+    } catch (e: any) { setEntries(prev); toast.error(e.message || 'Failed to remove entry') }
     setActioningId(null)
   }
 
@@ -155,7 +159,7 @@ export default function WaitingListPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-owner-muted-subtle"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
+        <SkeletonList rows={5} />
       ) : filtered.length === 0 ? (
         <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <Users2 className="w-8 h-8" />

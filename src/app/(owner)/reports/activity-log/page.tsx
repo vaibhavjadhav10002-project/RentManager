@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { LucideIcon } from 'lucide-react'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 type EventKind = 'payment' | 'tenant' | 'complaint' | 'expense' | 'notice'
 
@@ -135,9 +136,7 @@ export default function ActivityLogPage() {
   }, [events])
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading activity…
-    </div>
+    <SkeletonList rows={6} />
   )
 
   return (

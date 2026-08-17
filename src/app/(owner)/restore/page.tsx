@@ -5,6 +5,7 @@ import { getProperties, getBackupRuns, getBackupFileUrl } from '@/lib/supabase/q
 import { toast } from 'sonner'
 import { UploadCloud, Loader2, AlertTriangle, CheckCircle2, History, FileJson } from 'lucide-react'
 import type { Property, BackupRun } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 // Backups from the two producers (Manual 5.12, Automatic 5.13) key their tables slightly
 // differently (camelCase vs snake_case) — normalize both to real table names here rather
@@ -144,9 +145,7 @@ export default function RestorePage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
-    </div>
+    <SkeletonList rows={5} />
   )
 
   return (

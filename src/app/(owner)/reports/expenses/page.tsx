@@ -8,6 +8,7 @@ import { formatINR, formatDate } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Expense } from '@/types'
+import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
 
 const ExpensesByCategoryChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ExpensesByCategoryChart), {
   ssr: false, loading: () => <div className="h-[140px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
@@ -98,9 +99,7 @@ export default function ExpenseReportPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading expense data…
-    </div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
   )
 
   return (

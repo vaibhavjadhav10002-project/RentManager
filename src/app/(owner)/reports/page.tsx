@@ -8,6 +8,7 @@ import { Download, Loader2, TrendingUp, TrendingDown, Scale, History, ChevronRig
 import { formatINR } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { DashboardStats } from '@/types'
+import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
 
 const ReportsOverviewChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ReportsOverviewChart), {
   ssr: false, loading: () => <div className="h-[220px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
@@ -134,9 +135,7 @@ export default function ReportsPage() {
   ]
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading report…
-    </div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
   )
 
   return (

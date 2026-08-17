@@ -8,6 +8,7 @@ import {
 import { toast } from 'sonner'
 import { Archive, RotateCcw, Loader2, UserCheck, Package, Users2 } from 'lucide-react'
 import type { Visitor, Parcel, WaitingListEntry } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 type Kind = 'visitor' | 'parcel' | 'waiting'
 interface ArchivedItem { id: string; kind: Kind; title: string; subtitle: string; archivedAt: string }
@@ -70,20 +71,19 @@ export default function ArchivePage() {
 
   async function handleRestore(item: ArchivedItem) {
     setActioningId(item.id)
+    const prev = items
+    setItems(its => its.filter(i => i.id !== item.id))
     try {
       if (item.kind === 'visitor') await restoreVisitor(item.id)
       else if (item.kind === 'parcel') await restoreParcel(item.id)
       else await restoreWaitingListEntry(item.id)
       toast.success('Restored')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to restore') }
+    } catch (e: any) { setItems(prev); toast.error(e.message || 'Failed to restore') }
     setActioningId(null)
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
-    </div>
+    <SkeletonList rows={5} />
   )
 
   return (

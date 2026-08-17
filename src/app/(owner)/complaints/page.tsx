@@ -181,19 +181,24 @@ export default function ComplaintsPage() {
                   <button
                     onClick={async () => {
                       setResolvingId(c.id)
-                      await resolveComplaint(c.id)
-                      toast.success('Marked resolved!')
-                      if (c.tenant?.auth_user_id) {
-                        sendPushNotification({
-                          user_ids: [c.tenant.auth_user_id],
-                          title: '✅ Complaint Resolved',
-                          body: `Your complaint "${c.issue_type}" has been marked resolved.`,
-                          url: '/portal', tag: 'complaint',
-                        })
+                      setComplaints(cs => cs.map(x => x.id === c.id ? { ...x, status: 'resolved' } : x))
+                      try {
+                        await resolveComplaint(c.id)
+                        toast.success('Marked resolved!')
+                        if (c.tenant?.auth_user_id) {
+                          sendPushNotification({
+                            user_ids: [c.tenant.auth_user_id],
+                            title: '✅ Complaint Resolved',
+                            body: `Your complaint "${c.issue_type}" has been marked resolved.`,
+                            url: '/portal', tag: 'complaint',
+                          })
+                        }
+                        setComplaintDetail(null)
+                      } catch (e: any) {
+                        setComplaints(cs => cs.map(x => x.id === c.id ? { ...x, status: c.status } : x))
+                        toast.error(friendlyErrorMessage(e))
                       }
-                      await load()
                       setResolvingId(null)
-                      setComplaintDetail(null)
                     }}
                     disabled={isResolving}
                     className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-success hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">

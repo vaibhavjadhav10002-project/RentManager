@@ -8,6 +8,7 @@ import { formatINR } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, Scale } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Payment } from '@/types'
+import { SkeletonList, SkeletonCardGrid } from '@/components/shared/Skeleton'
 
 const ProfitLossChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ProfitLossChart), {
   ssr: false, loading: () => <div className="h-[240px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
@@ -111,9 +112,7 @@ export default function ProfitLossReportPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-owner-muted-subtle">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading profit &amp; loss data…
-    </div>
+    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonList rows={4} /></div>
   )
 
   return (

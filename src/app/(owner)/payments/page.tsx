@@ -149,14 +149,18 @@ export default function PaymentsPage() {
   }
 
   async function handleApproveBill(id: string) {
-    try { await approveBill(id); toast.success('Bill marked paid'); load() }
-    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    const prev = bills
+    setBills(bs => bs.map(b => b.id === id ? { ...b, status: 'paid' } : b))
+    try { await approveBill(id); toast.success('Bill marked paid') }
+    catch (e: any) { setBills(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleDeleteBill(id: string) {
     if (!confirm('Delete this bill?')) return
-    try { await deleteElectricityBill(id); toast.success('Bill deleted'); load() }
-    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    const prev = bills
+    setBills(bs => bs.filter(b => b.id !== id))
+    try { await deleteElectricityBill(id); toast.success('Bill deleted') }
+    catch (e: any) { setBills(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleRecord() {
