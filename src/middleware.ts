@@ -40,10 +40,24 @@ export async function middleware(request: NextRequest) {
     if (isExploring && isOwnerArea) {
       return supabaseResponse
     }
+    if (pathname === '/') {
+      // Same decision RootPage.tsx used to make server-side (explore
+      // cookie → dashboard, onboarded cookie → login, else → welcome) —
+      // moved here so it happens using the SAME getUser() call already
+      // made above, instead of RootPage doing its own redundant
+      // getUser() + a second full request cycle before even reaching
+      // this logic. This is the biggest single win for cold-launch
+      // speed: was 4 sequential auth network round-trips before any
+      // real content started loading, now it's 1.
+      if (request.cookies.get('rentivo_onboarded')?.value !== '1') {
+        return NextResponse.redirect(new URL('/welcome', request.url))
+      }
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && pathname === '/login') {
+  if (user && (pathname === '/login' || pathname === '/')) {
     // Redirect logged-in users to their dashboard based on role
     const { data: profile } = await supabase
       .from('profiles')

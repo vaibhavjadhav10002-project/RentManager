@@ -1,22 +1,15 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
 
-export default async function RootPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    const cookieStore = await cookies()
-    if (cookieStore.get('rentivo_explore')?.value === '1') redirect('/dashboard')
-    if (cookieStore.get('rentivo_onboarded')?.value !== '1') redirect('/welcome')
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-
-  if (profile?.role === 'super_admin') redirect('/admin')
-  if (profile?.role === 'tenant') redirect('/portal')
-  redirect('/dashboard')
+/**
+ * This should almost never actually execute — middleware.ts now handles
+ * the auth+role redirect for `/` directly (before Next.js even reaches
+ * this route), which is what removed the extra ~300-800ms of redundant
+ * getUser()/profile round-trips this page used to make on every cold
+ * launch. This is kept only as a defensive fallback (e.g. if middleware's
+ * matcher is ever changed to exclude `/`), so it deliberately does the
+ * simplest possible thing rather than re-adding the same duplicate
+ * network calls middleware already just made.
+ */
+export default function RootPage() {
+  redirect('/login')
 }

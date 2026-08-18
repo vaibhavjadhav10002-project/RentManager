@@ -1,6 +1,15 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // lucide-react is imported with named imports (`import { X } from
+  // 'lucide-react'`) on nearly every page in this app. Without this, that
+  // pattern can pull in more of the package's module graph than the few
+  // icons actually used per page; this tells Next.js to rewrite those
+  // imports into per-icon paths at build time so each page's bundle only
+  // contains the icons it actually renders.
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },

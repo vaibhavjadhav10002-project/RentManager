@@ -19,18 +19,24 @@ export default function AppUpdateChecker() {
 
   useEffect(() => {
     if (!isNative() || getPlatform() !== 'android') return
-    // Fire-and-forget — never awaited by anything that blocks rendering,
-    // so a slow/failed check can never delay app startup.
-    checkForUpdate().then(res => {
-      setResult(res)
-      if (res.status === 'available') {
-        // Start pulling the APK down in the background the moment we
-        // know one exists, well before the user has tapped anything —
-        // by the time they see this dialog and tap "Update Now", the
-        // file is usually already on-device (see trigger.ts).
-        downloadUpdateInBackground(res.config)
-      }
-    })
+    // Deferred past 'load' for the same reason as PWARegister — this is a
+    // background check, not something the user is waiting on, so it
+    // shouldn't compete with the dashboard/portal's own critical data
+    // fetch for the same early network slot right at launch.
+    const run = () => {
+      checkForUpdate().then(res => {
+        setResult(res)
+        if (res.status === 'available') {
+          // Start pulling the APK down in the background the moment we
+          // know one exists, well before the user has tapped anything —
+          // by the time they see this dialog and tap "Update Now", the
+          // file is usually already on-device (see trigger.ts).
+          downloadUpdateInBackground(res.config)
+        }
+      })
+    }
+    if (document.readyState === 'complete') run()
+    else window.addEventListener('load', run, { once: true })
   }, [])
 
   if (result.status !== 'available') return null
