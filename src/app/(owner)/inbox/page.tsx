@@ -387,6 +387,11 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
             {candidates.map(c => {
               const tenant = tenants.find(t => t.id === c.tenantId)
               if (!tenant) return null
+              // Days-only urgency gradient (no amount data here) — same
+              // warning→danger blend used on Dashboard/Payments, capping
+              // out at 14 days so it matches those screens visually.
+              const pct = Math.round(Math.min(Math.max(c.overdueDays, 0) / 14, 1) * 100)
+              const urgencyColor = `color-mix(in hsl, hsl(var(--owner-warning)), hsl(var(--owner-danger)) ${pct}%)`
               return (
                 <div key={c.tenantId} className="flex items-center gap-3 p-3 bg-owner-bg-subtle rounded-owner-lg">
                   <OwnerAvatar name={tenant.name} size="sm" />
@@ -394,7 +399,8 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
                     <div className="text-sm font-semibold text-owner-fg truncate">{tenant.name}</div>
                     <div className="text-xs text-owner-muted-subtle">Room {tenant.room?.room_number ?? '—'}</div>
                   </div>
-                  <OwnerBadge tone={c.overdueDays > 0 ? 'danger' : 'warning'} size="sm" className="shrink-0">
+                  <OwnerBadge size="sm" className="shrink-0"
+                    style={{ color: urgencyColor, backgroundColor: `color-mix(in srgb, ${urgencyColor} 15%, transparent)` }}>
                     {c.overdueDays > 0 ? `${c.overdueDays}d overdue` : 'Due today'}
                   </OwnerBadge>
                   <OwnerButton onClick={() => handleSend(c)} loading={sendingId === c.tenantId} size="sm" icon={<ExternalLink className="w-3.5 h-3.5" />}>
