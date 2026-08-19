@@ -481,19 +481,27 @@ export default function DashboardPage() {
           <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
         ) : (
           <div className="space-y-2">
-            {pendingTenants.map(t => (
-              <div key={t.id} className={cn(
-                'flex items-center gap-3 p-3 rounded-owner-lg',
-                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
-              )}>
+            {pendingTenants.map(t => {
+              // Blend day-lateness and amount-owed into one urgency score
+              // (rather than picking just one) — a tenant who's only 2
+              // days late but owes a huge amount should read as urgent
+              // too, not just tenants who are simply *old* overdue cases.
+              const dayT = Math.min(t.overdueDays / 14, 1)
+              const amountT = Math.min(t.remainingDue / 15000, 1)
+              const urgencyT = Math.max(dayT, amountT)
+              const pct = Math.round(urgencyT * 100)
+              const urgencyColor = `color-mix(in hsl, hsl(var(--owner-warning)), hsl(var(--owner-danger)) ${pct}%)`
+              return (
+              <div key={t.id} className="flex items-center gap-3 p-3 rounded-owner-lg"
+                style={{ backgroundColor: `color-mix(in srgb, ${urgencyColor} 12%, transparent)` }}>
                 <OwnerAvatar name={t.name} size="md" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
                   <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
-                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
+                  <div className="text-sm font-bold owner-numeric" style={{ color: urgencyColor }}>{formatINR(t.remainingDue)}</div>
+                  <span className="text-xs font-bold" style={{ color: urgencyColor }}>
                     {t.overdueDays}d overdue
                   </span>
                 </div>
@@ -506,7 +514,8 @@ export default function DashboardPage() {
                   </svg>
                 </a>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </OwnerCard>

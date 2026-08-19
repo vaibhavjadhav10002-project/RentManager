@@ -22,7 +22,7 @@ import {
   AlertCircle, LayoutDashboard, ShieldCheck, User as UserIcon, Bell,
   ChevronRight, Headset, ChevronDown, MoreVertical, Send, HelpCircle,
   Wallet, Wrench, Users2, CalendarClock, Eye, Megaphone, X,
-  ChevronLeft, Paperclip, Sun, Moon, Zap, Building2, LayoutGrid, FolderOpen,
+  ChevronLeft, Paperclip, Zap, Building2, LayoutGrid, FolderOpen,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
@@ -46,7 +46,6 @@ export default function TenantPortal() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [rowMenuOpen, setRowMenuOpen] = useState<string | null>(null)
@@ -584,8 +583,8 @@ export default function TenantPortal() {
   }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+    <div className="min-h-screen flex items-center justify-center bg-tenant-bg">
+      <Loader2 className="w-6 h-6 animate-spin text-tenant-primary" />
     </div>
   )
 
@@ -649,8 +648,7 @@ export default function TenantPortal() {
   ]
 
   return (
-    <div className={darkMode ? 'dark' : ''}>
-    <div className="h-[100dvh] overflow-hidden bg-gray-50 dark:bg-gray-900 flex">
+    <div className="h-[100dvh] overflow-hidden bg-tenant-bg flex">
       {mustChangePw && (
         <ForcePasswordChangeModal userId={tenant.auth_user_id} onDone={async () => {
           setMustChangePw(false)
@@ -673,12 +671,12 @@ export default function TenantPortal() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-white border-r border-gray-100 flex flex-col z-40 transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="px-5 h-16 flex items-center gap-2.5 border-b border-gray-100">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-extrabold text-sm">PG</div>
+      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-tenant-surface border-r border-tenant-border flex flex-col z-40 transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="px-5 h-16 flex items-center gap-2.5 border-b border-tenant-border">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-tenant-primary to-tenant-accent-teal flex items-center justify-center text-white font-extrabold text-sm">PG</div>
           <div>
-            <div className="text-sm font-extrabold text-gray-900">RentFlow</div>
-            <div className="text-[11px] text-gray-400">Tenant Portal</div>
+            <div className="text-sm font-extrabold text-tenant-fg">RentFlow</div>
+            <div className="text-[11px] text-tenant-muted-subtle">Tenant Portal</div>
           </div>
         </div>
 
@@ -686,30 +684,30 @@ export default function TenantPortal() {
           {navItems.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => { key === 'messages' ? openMessagesTab() : setTab(key); setSidebarOpen(false) }}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
-                tab === key ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'
+                tab === key ? 'bg-tenant-primary/10 text-tenant-primary' : 'text-tenant-muted hover:bg-tenant-surface-hover'
               }`}>
               <span className="flex items-center gap-3"><Icon className="w-4 h-4" /> {label}</span>
               {key === 'messages' && unreadMessages > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadMessages}</span>
+                <span className="bg-tenant-danger text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadMessages}</span>
               )}
               {key === 'maintenance' && openComplaints > 0 && (
-                <span className="bg-orange-100 text-orange-600 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{openComplaints}</span>
+                <span className="bg-tenant-warning-subtle text-tenant-warning text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{openComplaints}</span>
               )}
               {key === 'notices' && allNotices.filter(n => !n.isRead).length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{allNotices.filter(n => !n.isRead).length}</span>
+                <span className="bg-tenant-danger text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{allNotices.filter(n => !n.isRead).length}</span>
               )}
             </button>
           ))}
         </nav>
 
         <div className="p-3">
-          <div className="bg-indigo-50 rounded-2xl p-4">
-            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center mb-2 shadow-sm">
-              <Wallet className="w-4 h-4 text-indigo-600" />
+          <div className="bg-tenant-primary/10 rounded-2xl p-4">
+            <div className="w-9 h-9 rounded-xl bg-tenant-surface-elevated flex items-center justify-center mb-2 shadow-tenant-sm">
+              <Wallet className="w-4 h-4 text-tenant-primary" />
             </div>
-            <div className="text-xs font-bold text-gray-900">Pay Rent Easily</div>
-            <div className="text-[11px] text-gray-500 mb-2">Make your rent payment securely in just a few clicks.</div>
-            <button onClick={() => openPay('rent')} className="w-full text-xs font-semibold text-indigo-700 bg-white rounded-xl py-1.5 shadow-sm hover:bg-indigo-100 transition">
+            <div className="text-xs font-bold text-tenant-fg">Pay Rent Easily</div>
+            <div className="text-[11px] text-tenant-muted mb-2">Make your rent payment securely in just a few clicks.</div>
+            <button onClick={() => openPay('rent')} className="w-full text-xs font-semibold text-tenant-primary bg-tenant-surface-elevated rounded-xl py-1.5 shadow-tenant-sm hover:bg-tenant-surface-hover transition">
               Pay Now
             </button>
           </div>
@@ -720,25 +718,21 @@ export default function TenantPortal() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="bg-white border-b border-gray-100 px-4 lg:px-8 min-h-16 native-safe-top flex items-center justify-between sticky top-0 z-20">
+        <header className="bg-tenant-surface border-b border-tenant-border px-4 lg:px-8 min-h-16 native-safe-top flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-gray-500">☰</button>
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-tenant-muted">☰</button>
             <div className="hidden sm:block">
-              <div className="text-sm font-extrabold text-gray-900 leading-tight">
+              <div className="text-sm font-extrabold text-tenant-fg leading-tight">
                 {navItems.find(n => n.key === tab)?.label ?? 'Dashboard'}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode(d => !d)} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="p-2 rounded-xl bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition text-gray-500 dark:text-slate-400">
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
             <div className="relative">
-              <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition text-gray-500">
+              <button onClick={() => setNotifOpen(o => !o)} aria-label="Notifications" className="relative p-2 rounded-xl bg-tenant-bg-subtle hover:bg-tenant-surface-hover transition text-tenant-muted">
                 <Bell className="w-4 h-4" />
                 {tenantNotifications.length > 0 && (
-                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full border-2 border-white text-[9px] text-white font-bold flex items-center justify-center">
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-tenant-danger rounded-full border-2 border-tenant-surface text-[9px] text-white font-bold flex items-center justify-center">
                     {tenantNotifications.length > 9 ? '9+' : tenantNotifications.length}
                   </span>
                 )}
@@ -746,16 +740,24 @@ export default function TenantPortal() {
               {notifOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
-                  <div className="absolute top-full right-0 mt-1.5 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 font-bold text-sm text-gray-900">Notifications</div>
+                  {/* w-80 with right-0 anchoring used to push this off the
+                      left edge of the viewport on narrow phone screens
+                      (right-anchored + fixed-width can overshoot the left
+                      side once the screen is narrower than the sidebar +
+                      dropdown combined). Capping with max-w-[calc(100vw-2rem)]
+                      lets it shrink to fit instead of overflowing, while
+                      still preferring the full 320px (w-80) on anything
+                      wide enough for it. */}
+                  <div className="absolute top-full right-0 mt-1.5 w-80 max-w-[calc(100vw-2rem)] bg-tenant-surface-elevated rounded-xl shadow-tenant-lg border border-tenant-border z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-tenant-border font-bold text-sm text-tenant-fg">Notifications</div>
                     <div className="max-h-80 overflow-y-auto">
                       {tenantNotifications.length === 0 ? (
-                        <div className="text-center py-8 text-sm text-gray-400">You&apos;re all caught up!</div>
+                        <div className="text-center py-8 text-sm text-tenant-muted-subtle">You&apos;re all caught up!</div>
                       ) : tenantNotifications.map(n => (
                         <button key={n.id} onClick={() => { setNotifOpen(false); n.tab === 'messages' ? openMessagesTab() : setTab(n.tab) }}
-                          className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition">
-                          <div className="text-sm font-semibold text-gray-900">{n.title}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{n.subtitle}</div>
+                          className="w-full text-left px-4 py-3 hover:bg-tenant-surface-hover border-b border-tenant-border last:border-0 transition">
+                          <div className="text-sm font-semibold text-tenant-fg truncate">{n.title}</div>
+                          <div className="text-xs text-tenant-muted mt-0.5 line-clamp-2 break-words">{n.subtitle}</div>
                         </button>
                       ))}
                     </div>
@@ -766,29 +768,29 @@ export default function TenantPortal() {
 
             <div className="relative">
               <button onClick={() => setProfileMenuOpen(o => !o)} className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-tenant-primary to-tenant-accent-teal flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:block text-left">
-                  <div className="text-sm font-bold text-gray-900 leading-tight">{tenant.name}</div>
-                  <div className="text-xs text-gray-400 leading-tight">Tenant</div>
+                  <div className="text-sm font-bold text-tenant-fg leading-tight">{tenant.name}</div>
+                  <div className="text-xs text-tenant-muted-subtle leading-tight">Tenant</div>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400 hidden sm:block" />
+                <ChevronDown className="w-3.5 h-3.5 text-tenant-muted-subtle hidden sm:block" />
               </button>
               {profileMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setProfileMenuOpen(false)} />
-                  <div className="absolute top-full right-0 mt-1.5 w-48 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                  <div className="absolute top-full right-0 mt-1.5 w-48 max-w-[calc(100vw-2rem)] bg-tenant-surface-elevated rounded-xl shadow-tenant-lg border border-tenant-border z-50 overflow-hidden">
                     <button onClick={() => { setProfileMenuOpen(false); setTab('tenancy') }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-tenant-fg hover:bg-tenant-surface-hover transition">
                       <UserIcon className="w-4 h-4" /> My Tenancy
                     </button>
                     <button onClick={() => { setProfileMenuOpen(false); setPwModal(true) }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-tenant-fg hover:bg-tenant-surface-hover transition">
                       <Lock className="w-4 h-4" /> Change Password
                     </button>
                     <button onClick={async () => { const sb = createClient(); await sb.auth.signOut(); router.push('/login') }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition">
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-tenant-danger hover:bg-tenant-danger-subtle transition">
                       <LogOut className="w-4 h-4" /> Logout
                     </button>
                   </div>
@@ -1784,34 +1786,34 @@ export default function TenantPortal() {
             aria-labelledby="notice-modal-title"
           >
             <div onClick={e => e.stopPropagation()}
-              className="bg-white rounded-2xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95 fade-in duration-200 max-h-[90vh] flex flex-col">
+              className="bg-tenant-surface-elevated rounded-2xl w-full max-w-md shadow-tenant-lg relative animate-in zoom-in-95 fade-in duration-200 max-h-[90vh] flex flex-col">
 
               <button onClick={dismissNoticeModal} aria-label="Close"
-                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition z-10">
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-tenant-bg-subtle hover:bg-tenant-surface-hover text-tenant-muted transition z-10">
                 <X className="w-4 h-4" />
               </button>
 
-              <div className={`px-6 pt-6 pb-4 rounded-t-2xl ${isUrgent ? 'bg-gradient-to-br from-red-50 to-orange-50' : 'bg-gradient-to-br from-indigo-50 to-blue-50'}`}>
+              <div className={`px-6 pt-6 pb-4 rounded-t-2xl ${isUrgent ? 'bg-tenant-danger-subtle' : 'bg-tenant-primary/10'}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isUrgent ? 'bg-red-100' : 'bg-indigo-100'}`}>
-                    <Megaphone className={`w-5 h-5 ${isUrgent ? 'text-red-600' : 'text-indigo-600'}`} />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isUrgent ? 'bg-tenant-danger/15' : 'bg-tenant-primary/15'}`}>
+                    <Megaphone className={`w-5 h-5 ${isUrgent ? 'text-tenant-danger' : 'text-tenant-primary'}`} />
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      notice.priority === 'Urgent' ? 'bg-red-600 text-white' : notice.priority === 'Important' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+                      notice.priority === 'Urgent' ? 'bg-tenant-danger text-white' : notice.priority === 'Important' ? 'bg-tenant-warning-subtle text-tenant-warning' : 'bg-tenant-bg-subtle text-tenant-muted'
                     }`}>{notice.priority}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{notice.category}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-tenant-primary/15 text-tenant-primary">{notice.category}</span>
                   </div>
                 </div>
-                <h2 id="notice-modal-title" className="text-lg font-extrabold text-gray-900 pr-8">{notice.title}</h2>
+                <h2 id="notice-modal-title" className="text-lg font-extrabold text-tenant-fg pr-8">{notice.title}</h2>
               </div>
 
               <div className="px-6 py-4 overflow-y-auto flex-1">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{notice.description}</p>
+                <p className="text-sm text-tenant-fg/85 whitespace-pre-wrap">{notice.description}</p>
 
                 {notice.attachment_url && (
                   <a href={notice.attachment_url} target="_blank" rel="noreferrer"
-                    className="mt-3 flex items-center gap-2 p-3 bg-gray-50 rounded-xl text-sm font-semibold text-indigo-600 hover:bg-gray-100 transition">
+                    className="mt-3 flex items-center gap-2 p-3 bg-tenant-bg-subtle rounded-xl text-sm font-semibold text-tenant-primary hover:bg-tenant-surface-hover transition">
                     <Paperclip className="w-4 h-4" /> {notice.attachment_name || 'View attachment'}
                     <Download className="w-3.5 h-3.5 ml-auto" />
                   </a>
@@ -1819,43 +1821,43 @@ export default function TenantPortal() {
 
                 <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
                   <div>
-                    <div className="text-gray-400">Published</div>
-                    <div className="font-semibold text-gray-800">{formatDate(notice.publish_date)}</div>
+                    <div className="text-tenant-muted-subtle">Published</div>
+                    <div className="font-semibold text-tenant-fg">{formatDate(notice.publish_date)}</div>
                   </div>
                   <div>
-                    <div className="text-gray-400">Expires</div>
-                    <div className="font-semibold text-gray-800">{notice.expiry_date ? formatDate(notice.expiry_date) : 'No expiry'}</div>
+                    <div className="text-tenant-muted-subtle">Expires</div>
+                    <div className="font-semibold text-tenant-fg">{notice.expiry_date ? formatDate(notice.expiry_date) : 'No expiry'}</div>
                   </div>
                   {notice.created_by && (
                     <div className="col-span-2">
-                      <div className="text-gray-400">Published By</div>
-                      <div className="font-semibold text-gray-800">{notice.created_by}</div>
+                      <div className="text-tenant-muted-subtle">Published By</div>
+                      <div className="font-semibold text-tenant-fg">{notice.created_by}</div>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="px-6 py-4 border-t border-gray-100 space-y-3 flex-shrink-0">
+              <div className="px-6 py-4 border-t border-tenant-border space-y-3 flex-shrink-0">
                 {noticeQueue.length > 1 && (
-                  <div className="flex items-center justify-between text-xs text-gray-400">
+                  <div className="flex items-center justify-between text-xs text-tenant-muted-subtle">
                     <button onClick={() => setNoticeIndex(i => Math.max(0, i - 1))} disabled={noticeIndex === 0}
-                      className="flex items-center gap-1 font-semibold disabled:opacity-30 hover:text-gray-700 transition">
+                      className="flex items-center gap-1 font-semibold disabled:opacity-30 hover:text-tenant-fg transition">
                       <ChevronLeft className="w-3.5 h-3.5" /> Previous
                     </button>
                     <span>{noticeIndex + 1} of {noticeQueue.length}</span>
                     <button onClick={() => setNoticeIndex(i => Math.min(noticeQueue.length - 1, i + 1))} disabled={noticeIndex === noticeQueue.length - 1}
-                      className="flex items-center gap-1 font-semibold disabled:opacity-30 hover:text-gray-700 transition">
+                      className="flex items-center gap-1 font-semibold disabled:opacity-30 hover:text-tenant-fg transition">
                       Next <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
                 <div className="flex gap-2">
                   <button onClick={() => { setNoticeModalOpen(false); setTab('notices') }}
-                    className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+                    className="flex-1 py-2.5 border border-tenant-border rounded-xl text-sm font-semibold text-tenant-muted hover:bg-tenant-surface-hover transition">
                     View All Notices
                   </button>
                   <button onClick={closeNoticeModal}
-                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition">
+                    className="flex-1 py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition">
                     <CheckCircle className="w-4 h-4" /> Mark as Read
                   </button>
                 </div>
@@ -2100,7 +2102,6 @@ export default function TenantPortal() {
           </div>
         </div>
       )}
-    </div>
     </div>
   )
 }

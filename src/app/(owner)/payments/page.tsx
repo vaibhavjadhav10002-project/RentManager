@@ -305,18 +305,24 @@ export default function PaymentsPage() {
             <>
               {/* Mobile: stacked card list, no horizontal scroll */}
               <div className="sm:hidden space-y-2">
-                {pendingRentSorted.map(t => (
+                {pendingRentSorted.map(t => {
+                  const urgency = Math.max(Math.min(t.overdueDays / 14, 1), Math.min(t.remainingDue / 15000, 1))
+                  const urgencyColor = `color-mix(in hsl, hsl(var(--owner-warning)), hsl(var(--owner-danger)) ${Math.round(urgency * 100)}%)`
+                  return (
                   <div key={t.id} className="bg-owner-surface border border-owner-border rounded-owner-lg p-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-semibold text-owner-fg truncate">{t.name}</div>
                         <div className="text-xs text-owner-muted-subtle truncate">Room {t.room?.room_number}</div>
                       </div>
-                      <OwnerBadge tone={t.overdueDays > 5 ? 'danger' : 'warning'} className="shrink-0 whitespace-nowrap">{t.overdueDays}d overdue</OwnerBadge>
+                      <OwnerBadge className="shrink-0 whitespace-nowrap"
+                        style={{ color: urgencyColor, backgroundColor: `color-mix(in srgb, ${urgencyColor} 15%, transparent)` }}>
+                        {t.overdueDays}d overdue
+                      </OwnerBadge>
                     </div>
                     <div className="flex items-center justify-between mt-3">
                       <div>
-                        <div className="font-bold owner-numeric text-owner-fg">{formatINR(t.remainingDue)}</div>
+                        <div className="font-bold owner-numeric" style={{ color: urgencyColor }}>{formatINR(t.remainingDue)}</div>
                         {t.remainingDue < t.monthly_rent && <div className="text-xs font-normal text-owner-muted-subtle">of {formatINR(t.monthly_rent)}</div>}
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -337,7 +343,8 @@ export default function PaymentsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
               {/* Desktop/tablet: full table */}
               <div className="hidden sm:block">
@@ -348,7 +355,10 @@ export default function PaymentsPage() {
                     </tr>
                   </OwnerTableHead>
                   <OwnerTableBody>
-                    {pendingRentSorted.map(t => (
+                    {pendingRentSorted.map(t => {
+                      const urgency = Math.max(Math.min(t.overdueDays / 14, 1), Math.min(t.remainingDue / 15000, 1))
+                      const urgencyColor = `color-mix(in hsl, hsl(var(--owner-warning)), hsl(var(--owner-danger)) ${Math.round(urgency * 100)}%)`
+                      return (
                       <OwnerTableRow key={t.id}>
                         <OwnerTableCell>
                           <div className="font-semibold text-owner-fg">{t.name}</div>
@@ -356,9 +366,9 @@ export default function PaymentsPage() {
                         </OwnerTableCell>
                         <OwnerTableCell className="font-mono text-xs font-bold">{t.dueDate}</OwnerTableCell>
                         <OwnerTableCell>
-                          <OwnerBadge tone={t.overdueDays > 5 ? 'danger' : 'warning'}>{t.overdueDays}d overdue</OwnerBadge>
+                          <OwnerBadge style={{ color: urgencyColor, backgroundColor: `color-mix(in srgb, ${urgencyColor} 15%, transparent)` }}>{t.overdueDays}d overdue</OwnerBadge>
                         </OwnerTableCell>
-                        <OwnerTableCell className="font-bold owner-numeric">
+                        <OwnerTableCell className="font-bold owner-numeric" style={{ color: urgencyColor }}>
                           {formatINR(t.remainingDue)}
                           {t.remainingDue < t.monthly_rent && <span className="block text-xs font-normal text-owner-muted-subtle">of {formatINR(t.monthly_rent)}</span>}
                         </OwnerTableCell>
@@ -383,7 +393,8 @@ export default function PaymentsPage() {
                           </OwnerButton>
                         </OwnerTableCell>
                       </OwnerTableRow>
-                    ))}
+                      )
+                    })}
                   </OwnerTableBody>
                 </OwnerTable>
               </div>

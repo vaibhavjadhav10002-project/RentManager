@@ -104,6 +104,53 @@ export function getOverdueDays(joiningDate: string, today = new Date()): number 
   return Math.max(0, differenceInDays(today, due))
 }
 
+// ─── Amount/date-driven urgency color ──────────────────────────────────────
+// A flat "warning vs danger" badge (the old `overdueDays > 5 ? danger :
+// warning` pattern) treats a tenant who's 1 day late the same as one who's
+// 30 days late, and says nothing at all about how much is actually owed.
+// These return a smoothly graduated color instead — 0 days/₹0 reads as the
+// theme's ordinary warning tone, and it shifts continuously toward the
+// theme's danger tone as days-overdue or the amount grows, capping out
+// at `maxDays`/`maxAmount` rather than growing forever.
+//
+// Built on CSS `color-mix()` interpolating between the *current theme's*
+// `--owner-warning`/`--owner-danger` (or `--tenant-*`) CSS variables —
+// not fixed hex/hsl values — so the exact same style object automatically
+// produces correct, readable colors in both dark and light mode, and in
+// both the Owner and Tenant shells, with zero extra branching. Falls back
+// to a flat `var(--owner-warning)` color on the handful of older WebViews
+// that don't support color-mix() (invalid color-mix() values are simply
+// ignored by the browser, leaving that fallback in place — no crash, just
+// slightly less graduated on those devices).
+/**
+ * Days-overdue → urgency color. `maxDays` (default 14) is the point at
+ * which it reaches full danger-tone saturation — chosen because by two
+ * weeks late, further lateness doesn't need to look any *more* alarming,
+ * it's already read as urgent.
+ */
+export function getDueUrgencyStyle(daysOverdue: number, tokenPrefix: 'owner' | 'tenant' = 'owner', maxDays = 14): { color?: string; backgroundColor?: string } {
+  const t = daysOverdue / maxDays
+  // React doesn't parse a `;`-joined string into a real style object, so
+  // build it as CSSProperties directly rather than reusing the CSS-string
+  // helper above — the helper's `color-mix` output is embedded as a
+  // string value that's still valid to assign straight to `color`.
+  const pct = Math.round(Math.max(0, Math.min(t, 1)) * 100)
+  return { color: `color-mix(in hsl, hsl(var(--${tokenPrefix}-warning)), hsl(var(--${tokenPrefix}-danger)) ${pct}%)` }
+}
+
+/** Same idea, keyed off amount owed rather than days late. */
+export function getAmountUrgencyStyle(amount: number, tokenPrefix: 'owner' | 'tenant' = 'owner', maxAmount = 15000): { color?: string; backgroundColor?: string } {
+  const pct = Math.round(Math.max(0, Math.min(amount / maxAmount, 1)) * 100)
+  return { color: `color-mix(in hsl, hsl(var(--${tokenPrefix}-warning)), hsl(var(--${tokenPrefix}-danger)) ${pct}%)` }
+}
+
+/** Background-tinted version of the above, for badge/chip fills rather than plain text. */
+export function getDueUrgencyBgStyle(daysOverdue: number, tokenPrefix: 'owner' | 'tenant' = 'owner', maxDays = 14): { color?: string; backgroundColor?: string } {
+  const pct = Math.round(Math.max(0, Math.min(daysOverdue / maxDays, 1)) * 100)
+  const mixed = `color-mix(in hsl, hsl(var(--${tokenPrefix}-warning)), hsl(var(--${tokenPrefix}-danger)) ${pct}%)`
+  return { color: mixed, backgroundColor: `color-mix(in srgb, ${mixed} 15%, transparent)` }
+}
+
 // ─── Late fee auto-calculation ────────────────────────────────────────────────
 // Property-level policy (not per-agreement) so it applies to every tenant
 // regardless of how they joined. Returns 0 if the property hasn't
