@@ -35,26 +35,26 @@
   --owner-muted: 220 10% 65%;
   --owner-muted-subtle: 220 9% 46%;
 
-  --owner-primary: 243 85% 64%;
-  --owner-primary-hover: 243 88% 71%;
+  --owner-primary: 243 96% 62%;
+  --owner-primary-hover: 243 98% 68%;
   --owner-primary-foreground: 0 0% 100%;
 
-  --owner-success: 142 76% 50%;
+  --owner-success: 142 92% 46%;
   --owner-success-subtle: 142 45% 16%;
-  --owner-warning: 38 96% 57%;
+  --owner-warning: 40 100% 55%;
   --owner-warning-subtle: 38 55% 16%;
-  --owner-danger: 0 90% 65%;
+  --owner-danger: 0 100% 62%;
   --owner-danger-subtle: 0 55% 18%;
-  --owner-info: 217 95% 66%;
+  --owner-info: 217 100% 63%;
   --owner-info-subtle: 217 55% 18%;
-  --owner-accent-purple: 271 88% 70%;
+  --owner-accent-purple: 271 96% 68%;
   --owner-accent-purple-subtle: 271 50% 20%;
-  --owner-accent-teal: 172 75% 47%;
+  --owner-accent-teal: 172 92% 44%;
   --owner-accent-teal-subtle: 172 50% 16%;
 
-  --owner-ring: 243 85% 64%;
+  --owner-ring: 243 96% 62%;
   --owner-shadow-color: 224 60% 2%;
-  --owner-glow: 243 85% 64%;
+  --owner-glow: 243 96% 62%;
 
   background-color: hsl(var(--owner-background));
   color: hsl(var(--owner-foreground));
@@ -74,26 +74,26 @@
   --owner-muted: 215 16% 44%;
   --owner-muted-subtle: 215 14% 58%;
 
-  --owner-primary: 243 85% 58%;
-  --owner-primary-hover: 243 85% 52%;
+  --owner-primary: 243 96% 55%;
+  --owner-primary-hover: 243 98% 49%;
   --owner-primary-foreground: 0 0% 100%;
 
-  --owner-success: 142 76% 36%;
+  --owner-success: 142 92% 32%;
   --owner-success-subtle: 142 60% 94%;
-  --owner-warning: 32 98% 42%;
+  --owner-warning: 34 100% 39%;
   --owner-warning-subtle: 38 92% 94%;
-  --owner-danger: 0 80% 50%;
+  --owner-danger: 0 96% 46%;
   --owner-danger-subtle: 0 84% 96%;
-  --owner-info: 217 95% 54%;
+  --owner-info: 217 100% 50%;
   --owner-info-subtle: 217 91% 95%;
-  --owner-accent-purple: 271 78% 52%;
+  --owner-accent-purple: 271 92% 48%;
   --owner-accent-purple-subtle: 271 70% 95%;
-  --owner-accent-teal: 172 75% 33%;
+  --owner-accent-teal: 172 92% 30%;
   --owner-accent-teal-subtle: 172 60% 93%;
 
-  --owner-ring: 243 85% 58%;
+  --owner-ring: 243 96% 55%;
   --owner-shadow-color: 220 40% 60%;
-  --owner-glow: 243 85% 58%;
+  --owner-glow: 243 96% 55%;
 
   color-scheme: light;
 }

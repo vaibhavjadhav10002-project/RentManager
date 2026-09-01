@@ -28,26 +28,26 @@
   --tenant-muted: 220 10% 66%;
   --tenant-muted-subtle: 220 9% 46%;
 
-  --tenant-primary: 243 85% 64%;
-  --tenant-primary-hover: 243 88% 71%;
+  --tenant-primary: 243 96% 62%;
+  --tenant-primary-hover: 243 98% 68%;
   --tenant-primary-foreground: 0 0% 100%;
 
-  --tenant-success: 142 76% 50%;
+  --tenant-success: 142 92% 46%;
   --tenant-success-subtle: 142 45% 16%;
-  --tenant-warning: 38 96% 57%;
+  --tenant-warning: 40 100% 55%;
   --tenant-warning-subtle: 38 55% 16%;
-  --tenant-danger: 0 90% 65%;
+  --tenant-danger: 0 100% 62%;
   --tenant-danger-subtle: 0 55% 18%;
-  --tenant-info: 217 95% 66%;
+  --tenant-info: 217 100% 63%;
   --tenant-info-subtle: 217 55% 18%;
-  --tenant-accent-purple: 271 88% 70%;
+  --tenant-accent-purple: 271 96% 68%;
   --tenant-accent-purple-subtle: 271 50% 20%;
-  --tenant-accent-teal: 172 75% 47%;
+  --tenant-accent-teal: 172 92% 44%;
   --tenant-accent-teal-subtle: 172 50% 16%;
 
-  --tenant-ring: 243 85% 64%;
+  --tenant-ring: 243 96% 62%;
   --tenant-shadow-color: 228 60% 2%;
-  --tenant-glow: 243 85% 64%;
+  --tenant-glow: 243 96% 62%;
 
   background-color: hsl(var(--tenant-background));
   color: hsl(var(--tenant-foreground));
@@ -67,26 +67,26 @@
   --tenant-muted: 215 16% 44%;
   --tenant-muted-subtle: 215 14% 58%;
 
-  --tenant-primary: 243 85% 58%;
-  --tenant-primary-hover: 243 85% 52%;
+  --tenant-primary: 243 96% 55%;
+  --tenant-primary-hover: 243 98% 49%;
   --tenant-primary-foreground: 0 0% 100%;
 
-  --tenant-success: 142 76% 36%;
+  --tenant-success: 142 92% 32%;
   --tenant-success-subtle: 142 60% 94%;
-  --tenant-warning: 32 98% 42%;
+  --tenant-warning: 34 100% 39%;
   --tenant-warning-subtle: 38 92% 94%;
-  --tenant-danger: 0 80% 50%;
+  --tenant-danger: 0 96% 46%;
   --tenant-danger-subtle: 0 84% 96%;
-  --tenant-info: 217 95% 54%;
+  --tenant-info: 217 100% 50%;
   --tenant-info-subtle: 217 91% 95%;
-  --tenant-accent-purple: 271 78% 52%;
+  --tenant-accent-purple: 271 92% 48%;
   --tenant-accent-purple-subtle: 271 70% 95%;
-  --tenant-accent-teal: 172 75% 33%;
+  --tenant-accent-teal: 172 92% 30%;
   --tenant-accent-teal-subtle: 172 60% 93%;
 
-  --tenant-ring: 243 85% 58%;
+  --tenant-ring: 243 96% 55%;
   --tenant-shadow-color: 220 40% 60%;
-  --tenant-glow: 243 85% 58%;
+  --tenant-glow: 243 96% 55%;
 
   color-scheme: light;
 }
