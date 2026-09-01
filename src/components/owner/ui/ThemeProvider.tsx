@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useActiveExperience } from '@/lib/experience/useActiveExperience'
+import { getDayAccentPalette } from '@/lib/theme/dayAccent'
 
 export type OwnerThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
@@ -93,6 +94,18 @@ export function OwnerThemeProvider({
 
   const activeTheme = mounted ? resolvedTheme : initialPreference === 'system' ? 'dark' : initialPreference
 
+  // Day-of-week accent rotation (see src/lib/theme/dayAccent.ts) — the
+  // "default" look for an ordinary day, applied before any Experience
+  // Pack so a festival/campaign color (below) always wins when active.
+  const dayAccent = getDayAccentPalette(activeTheme)
+  const dayStyle: React.CSSProperties = {
+    '--owner-primary': dayAccent.primary,
+    '--owner-primary-hover': dayAccent.hover,
+    '--owner-primary-foreground': dayAccent.foreground,
+    '--owner-ring': dayAccent.ring,
+    '--owner-glow': dayAccent.glow,
+  } as React.CSSProperties
+
   // Same accent-color-override approach as TenantThemeProvider — see the
   // comment there. Applying it here means the whole Owner Dashboard
   // (buttons, badges, active sidebar/bottom-nav state, ...) picks up the
@@ -110,7 +123,7 @@ export function OwnerThemeProvider({
       <div
         className={`owner-shell min-h-screen ${activeTheme === 'dark' ? 'dark' : ''}`}
         data-theme={activeTheme}
-        style={accentStyle}
+        style={{ ...dayStyle, ...accentStyle }}
         suppressHydrationWarning
       >
         {children}

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useActiveExperience } from '@/lib/experience/useActiveExperience'
+import { getDayAccentPalette } from '@/lib/theme/dayAccent'
 
 export type TenantThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
@@ -92,6 +93,18 @@ export function TenantThemeProvider({
     [preference, resolvedTheme, setPreference]
   )
 
+  // Day-of-week accent rotation (see src/lib/theme/dayAccent.ts) — the
+  // "default" look for an ordinary day, applied before any Experience
+  // Pack so a festival/campaign color (below) always wins when active.
+  const dayAccent = getDayAccentPalette(resolvedTheme)
+  const dayStyle: React.CSSProperties = {
+    '--tenant-primary': dayAccent.primary,
+    '--tenant-primary-hover': dayAccent.hover,
+    '--tenant-primary-foreground': dayAccent.foreground,
+    '--tenant-ring': dayAccent.ring,
+    '--tenant-glow': dayAccent.glow,
+  } as React.CSSProperties
+
   // Applying the active Experience Pack's accent color as a CSS variable
   // override right here — rather than in each individual screen — means
   // every `bg-tenant-primary`/`text-tenant-primary`/etc. class already
@@ -115,7 +128,7 @@ export function TenantThemeProvider({
       <div
         className="tenant-portal min-h-screen"
         data-theme={mounted ? resolvedTheme : initialPreference === 'system' ? undefined : initialPreference}
-        style={accentStyle}
+        style={{ ...dayStyle, ...accentStyle }}
         suppressHydrationWarning
       >
         {children}
