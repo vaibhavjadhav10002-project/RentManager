@@ -128,7 +128,7 @@ export default function Topbar({ onMenuClick }: Props) {
                 <button key={p.id} onClick={() => { setActiveId(p.id); setPropOpen(false) }}
                   className={cn('w-full flex items-center gap-3 px-4 py-3 hover:bg-owner-surface-hover text-left border-b border-owner-border last:border-0 transition-colors',
                     activeId === p.id && 'bg-owner-primary/10')}>
-                  <div className="w-8 h-8 rounded-owner-md bg-owner-primary flex items-center justify-center text-white font-bold text-xs shrink-0">
+                  <div className="w-8 h-8 rounded-owner-md bg-owner-primary flex items-center justify-center text-owner-primary-fg font-bold text-xs shrink-0">
                     {p.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">

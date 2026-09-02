@@ -134,7 +134,7 @@ export default function WaitingListPage() {
           <h1 className="text-xl font-extrabold text-owner-fg">Waiting List</h1>
           <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
-        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-xl text-sm font-semibold transition">
+        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-owner-primary-fg rounded-xl text-sm font-semibold transition">
           <Plus className="w-4 h-4" /> Add to List
         </button>
       </div>
@@ -254,7 +254,7 @@ export default function WaitingListPage() {
             <div className="px-6 py-4 border-t border-owner-border flex justify-end gap-2">
               <button onClick={() => { setModal(false); resetForm() }} className="px-4 py-2 text-sm font-semibold text-owner-muted hover:bg-owner-surface-hover rounded-xl transition">Cancel</button>
               <button onClick={handleAdd} disabled={saving}
-                className="px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-xl text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2">
+                className="px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-owner-primary-fg rounded-xl text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Add
               </button>
             </div>

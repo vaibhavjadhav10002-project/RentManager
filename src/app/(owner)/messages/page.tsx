@@ -118,7 +118,7 @@ export default function MessagesPage() {
                 <div className="text-center py-8 text-sm text-owner-muted-subtle">No messages yet — say hello!</div>
               ) : thread.map(m => (
                 <div key={m.id} className={`flex ${m.sender === 'owner' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'owner' ? 'bg-owner-primary text-white' : 'bg-owner-surface border border-owner-border text-owner-fg'}`}>
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${m.sender === 'owner' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface border border-owner-border text-owner-fg'}`}>
                     {m.body}
                     <div className={`text-[10px] mt-1 ${m.sender === 'owner' ? 'text-white/70' : 'text-owner-muted-subtle'}`}>{formatDate(m.created_at)}</div>
                   </div>
@@ -131,7 +131,7 @@ export default function MessagesPage() {
                 placeholder="Type a message…"
                 className="flex-1 px-4 py-2.5 bg-owner-surface-hover border border-owner-border rounded-xl text-sm focus:outline-none focus:border-owner-primary" />
               <button onClick={handleSend} disabled={sending || !newMessage.trim()}
-                className="px-4 py-2.5 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-owner-lg disabled:opacity-50 transition">
+                className="px-4 py-2.5 bg-owner-primary hover:bg-owner-primary-hover text-owner-primary-fg rounded-owner-lg disabled:opacity-50 transition">
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>

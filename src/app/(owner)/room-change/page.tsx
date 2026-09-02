@@ -144,7 +144,7 @@ export default function RoomChangePage() {
         </p>
 
         <button onClick={handleMove} disabled={saving || !selectedTenant || !toRoomId}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-owner-primary hover:bg-owner-primary-hover text-owner-primary-fg rounded-xl text-sm font-semibold transition disabled:opacity-50">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Repeat className="w-4 h-4" />} Move Tenant
         </button>
       </div>

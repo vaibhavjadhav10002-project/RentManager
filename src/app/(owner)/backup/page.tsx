@@ -136,7 +136,7 @@ export default function BackupPage() {
         </div>
 
         <button onClick={runBackup} disabled={exporting}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-owner-primary hover:bg-owner-primary-hover text-owner-primary-fg rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
           {exporting ? 'Preparing backup…' : 'Download Backup Now'}
         </button>

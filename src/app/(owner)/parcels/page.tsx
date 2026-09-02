@@ -137,7 +137,7 @@ export default function ParcelsPage() {
           <h1 className="text-xl font-extrabold text-owner-fg">Parcel Management</h1>
           <p className="text-sm text-owner-muted">{pendingCount} awaiting collection</p>
         </div>
-        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-owner-lg text-sm font-semibold transition">
+        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-owner-lg text-sm font-semibold transition">
           <Plus className="w-4 h-4" /> Log Parcel
         </button>
       </div>
@@ -332,7 +332,7 @@ export default function ParcelsPage() {
                 Cancel
               </button>
               <button onClick={handleLog} disabled={saving}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition disabled:opacity-50">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Log Parcel
               </button>
             </div>

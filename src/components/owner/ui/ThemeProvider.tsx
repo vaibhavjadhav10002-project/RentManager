@@ -97,14 +97,20 @@ export function OwnerThemeProvider({
   // Day-of-week accent rotation (see src/lib/theme/dayAccent.ts) — the
   // "default" look for an ordinary day, applied before any Experience
   // Pack so a festival/campaign color (below) always wins when active.
-  const dayAccent = getDayAccentPalette(activeTheme)
-  const dayStyle: React.CSSProperties = {
-    '--owner-primary': dayAccent.primary,
-    '--owner-primary-hover': dayAccent.hover,
-    '--owner-primary-foreground': dayAccent.foreground,
-    '--owner-ring': dayAccent.ring,
-    '--owner-glow': dayAccent.glow,
-  } as React.CSSProperties
+  // Gated on `mounted` (same pattern as activeTheme above) so the server
+  // render — which may run in a different timezone/day than the visitor —
+  // never disagrees with the client; the static CSS default shows first
+  // and the day color applies right after hydration.
+  const dayAccent = mounted ? getDayAccentPalette(activeTheme) : null
+  const dayStyle: React.CSSProperties | undefined = dayAccent
+    ? ({
+        '--owner-primary': dayAccent.primary,
+        '--owner-primary-hover': dayAccent.hover,
+        '--owner-primary-foreground': dayAccent.foreground,
+        '--owner-ring': dayAccent.ring,
+        '--owner-glow': dayAccent.glow,
+      } as React.CSSProperties)
+    : undefined
 
   // Same accent-color-override approach as TenantThemeProvider — see the
   // comment there. Applying it here means the whole Owner Dashboard

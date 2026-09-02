@@ -229,7 +229,7 @@ export default function DocumentsPage() {
                   <div className="flex-1 h-12 flex items-center justify-center text-xs text-owner-muted-subtle">Government ID not uploaded</div>
                 )}
                 <button onClick={() => downloadFull(agreement, tenant)}
-                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition">
                   <Download className="w-4 h-4" /> Download
                 </button>
               </div>

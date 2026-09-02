@@ -58,6 +58,7 @@ export default function TenantPortal() {
   const [pwForm, setPwForm] = useState({ newPw: '', confirm: '' })
   const [complaint, setComplaint] = useState({ issue_type: 'Plumbing', description: '', priority: 'medium' })
   const [saving, setSaving] = useState(false)
+  const [payingBillId, setPayingBillId] = useState<string | null>(null)
   const [claimed, setClaimed] = useState(false)
   const [depositClaimed, setDepositClaimed] = useState(false)
   const [mustChangePw, setMustChangePw] = useState(false)
@@ -301,11 +302,13 @@ export default function TenantPortal() {
   }
 
   async function handlePayBill(billId: string) {
+    setPayingBillId(billId)
     try {
       await claimBillPaid(billId)
       setBills(prev => prev.map(b => b.id === billId ? { ...b, status: 'pending_approval' } : b))
       toast.success('Marked as paid — waiting for owner approval')
     } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    setPayingBillId(null)
   }
 
   const pendingBillsList = bills.filter(b => b.status === 'pending')
@@ -1343,9 +1346,21 @@ export default function TenantPortal() {
                             <div className="text-sm font-semibold text-tenant-fg truncate">{b.bill_type} — {b.for_month}</div>
                             <div className="text-xs text-tenant-muted-subtle tenant-numeric">{formatINR(b.amount)}</div>
                           </div>
-                          <Badge tone={b.status === 'paid' ? 'success' : b.status === 'pending_approval' ? 'info' : 'warning'} size="sm" className="capitalize shrink-0">
-                            {b.status.replace('_', ' ')}
-                          </Badge>
+                          {b.status === 'pending' ? (
+                            <Button
+                              size="sm"
+                              className="shrink-0"
+                              loading={payingBillId === b.id}
+                              disabled={tenant.status !== 'active'}
+                              onClick={() => handlePayBill(b.id)}
+                            >
+                              Pay
+                            </Button>
+                          ) : (
+                            <Badge tone={b.status === 'paid' ? 'success' : 'info'} size="sm" className="capitalize shrink-0">
+                              {b.status.replace('_', ' ')}
+                            </Badge>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1857,7 +1872,7 @@ export default function TenantPortal() {
                     View All Notices
                   </button>
                   <button onClick={closeNoticeModal}
-                    className="flex-1 py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition">
+                    className="flex-1 py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition">
                     <CheckCircle className="w-4 h-4" /> Mark as Read
                   </button>
                 </div>
@@ -1899,7 +1914,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit for Approval
               </button>
             </div>
@@ -1937,7 +1952,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitComplaint} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -1970,7 +1985,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitLeaveRequest} disabled={savingLeave} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingLeave && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2013,7 +2028,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-tenant-border shrink-0">
-              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitProfileUpdateRequest} disabled={savingProfileUpdate} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingProfileUpdate && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2043,7 +2058,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitExtensionRequest} disabled={savingExtension} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingExtension && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2071,7 +2086,7 @@ export default function TenantPortal() {
               </div>
             </div>
             <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+              <button onClick={submitMoveOutRequest} disabled={savingMoveOut} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
                 {savingMoveOut && <Loader2 className="w-4 h-4 animate-spin" />} Submit Request
               </button>
             </div>
@@ -2097,7 +2112,7 @@ export default function TenantPortal() {
               ))}
             </div>
             <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={changePassword} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-white rounded-tenant-xl text-sm font-semibold transition">Update Password</button>
+              <button onClick={changePassword} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold transition">Update Password</button>
             </div>
           </div>
         </div>

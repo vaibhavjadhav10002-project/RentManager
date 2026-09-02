@@ -126,7 +126,7 @@ export default function VisitorsPage() {
           <h1 className="text-xl font-extrabold text-owner-fg">Visitor Management</h1>
           <p className="text-sm text-owner-muted">{currentlyInCount} currently on the property</p>
         </div>
-        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-owner-lg text-sm font-semibold transition">
+        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-owner-lg text-sm font-semibold transition">
           <Plus className="w-4 h-4" /> Log Visitor
         </button>
       </div>
@@ -228,7 +228,7 @@ export default function VisitorsPage() {
               <div className="px-5 py-4 border-t border-owner-border shrink-0 space-y-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
                 {!v.check_out_time && (
                   <button onClick={async () => { await handleCheckOut(v.id); setVisitorDetail(null) }} disabled={isActing}
-                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition disabled:opacity-50">
                     {isActing ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />} Check Out
                   </button>
                 )}
@@ -313,7 +313,7 @@ export default function VisitorsPage() {
                 Cancel
               </button>
               <button onClick={handleCheckIn} disabled={saving}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition disabled:opacity-50">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Check In
               </button>
             </div>

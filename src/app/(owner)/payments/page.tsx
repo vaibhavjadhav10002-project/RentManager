@@ -625,7 +625,7 @@ export default function PaymentsPage() {
                     approvalStatus: p.approval_status,
                     receiptNo: p.id.slice(0, 8).toUpperCase(),
                   })}
-                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition">
                     <FileText className="w-4 h-4" /> Download Receipt
                   </button>
                 ) : (
@@ -769,7 +769,7 @@ export default function PaymentsPage() {
             </div>
             <div className="px-5 py-4 border-t border-owner-border shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               <button onClick={handleRaiseBill} disabled={billSaving}
-                className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition disabled:opacity-50">
                 {billSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Raise Bill
               </button>
             </div>

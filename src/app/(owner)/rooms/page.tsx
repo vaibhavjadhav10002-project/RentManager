@@ -276,7 +276,7 @@ export default function RoomsPage() {
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition disabled:opacity-50">
                 {editingId ? 'Save Changes' : 'Add Room'}
               </button>
             </div>
@@ -348,7 +348,7 @@ export default function RoomsPage() {
                   <Trash2 className="w-4 h-4" /> Delete
                 </button>
                 <button onClick={() => { setRoomDetail(null); openEdit(room) }}
-                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition">
                   <Pencil className="w-4 h-4" /> Edit Room
                 </button>
               </div>

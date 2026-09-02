@@ -104,7 +104,7 @@ export default function TenantCardsPage() {
               </div>
               <div className="px-4 pb-4">
                 <button onClick={() => downloadCard(t)} disabled={downloadingId === t.id}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-owner-primary hover:opacity-90 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-owner-primary hover:opacity-90 text-owner-primary-fg rounded-xl text-xs font-semibold transition disabled:opacity-50">
                   {downloadingId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                   Download ID Card
                 </button>

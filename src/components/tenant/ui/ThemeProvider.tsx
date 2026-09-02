@@ -96,14 +96,19 @@ export function TenantThemeProvider({
   // Day-of-week accent rotation (see src/lib/theme/dayAccent.ts) — the
   // "default" look for an ordinary day, applied before any Experience
   // Pack so a festival/campaign color (below) always wins when active.
-  const dayAccent = getDayAccentPalette(resolvedTheme)
-  const dayStyle: React.CSSProperties = {
-    '--tenant-primary': dayAccent.primary,
-    '--tenant-primary-hover': dayAccent.hover,
-    '--tenant-primary-foreground': dayAccent.foreground,
-    '--tenant-ring': dayAccent.ring,
-    '--tenant-glow': dayAccent.glow,
-  } as React.CSSProperties
+  // Gated on `mounted` so the server render (which may be in a different
+  // timezone/day than the visitor) never disagrees with the client — the
+  // static CSS default shows first, day color kicks in right after hydration.
+  const dayAccent = mounted ? getDayAccentPalette(resolvedTheme) : null
+  const dayStyle: React.CSSProperties | undefined = dayAccent
+    ? ({
+        '--tenant-primary': dayAccent.primary,
+        '--tenant-primary-hover': dayAccent.hover,
+        '--tenant-primary-foreground': dayAccent.foreground,
+        '--tenant-ring': dayAccent.ring,
+        '--tenant-glow': dayAccent.glow,
+      } as React.CSSProperties)
+    : undefined
 
   // Applying the active Experience Pack's accent color as a CSS variable
   // override right here — rather than in each individual screen — means

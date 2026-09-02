@@ -83,7 +83,7 @@ export default function PropertiesPage() {
               <OwnerCard key={p.id} className="flex flex-col">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-owner-lg bg-owner-primary flex items-center justify-center text-white font-bold shrink-0">
+                    <div className="w-11 h-11 rounded-owner-lg bg-owner-primary flex items-center justify-center text-owner-primary-fg font-bold shrink-0">
                       {p.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
