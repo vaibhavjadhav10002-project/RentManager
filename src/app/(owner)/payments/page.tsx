@@ -39,6 +39,7 @@ export default function PaymentsPage() {
   const [bulkReminderModal, setBulkReminderModal] = useState(false)
   const [remindedPhones, setRemindedPhones] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
+  const [bulkApproving, setBulkApproving] = useState(false)
   const [form, setForm] = useState({
     tenant_id: '', type: 'rent', for_month: '', total_due: '', amount_received: '',
     method: 'cash', collected_by: '', payment_date: new Date().toISOString().slice(0, 10), reference_number: '',
@@ -165,6 +166,19 @@ export default function PaymentsPage() {
     catch (e: any) { setBills(prev); toast.error(friendlyErrorMessage(e)) }
   }
 
+  async function handleApproveAllPending() {
+    const ids = payments.filter(p => p.approval_status === 'pending_approval').map(p => p.id)
+    if (ids.length === 0) return
+    if (!confirm(`Approve all ${ids.length} pending payments? This can't be undone in bulk.`)) return
+    setBulkApproving(true)
+    try {
+      for (const id of ids) await approvePayment(id)
+      toast.success(`${ids.length} payments approved`)
+      load()
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    setBulkApproving(false)
+  }
+
   async function handleRecord() {
     if (!form.tenant_id || !form.amount_received) { toast.error('Fill required fields'); return }
     if (Number(form.amount_received) <= 0) { toast.error('Amount must be greater than 0'); return }
@@ -209,7 +223,7 @@ export default function PaymentsPage() {
           >
             Remind All
           </OwnerButton>
-          <OwnerButton onClick={() => setBillModal(true)} variant="secondary" icon={<Zap className="w-4 h-4 text-owner-warning" />} className="w-full sm:w-auto">
+          <OwnerButton onClick={() => { setBillForm(f => ({ ...f, for_month: f.for_month || thisMonth })); setBillModal(true) }} variant="secondary" icon={<Zap className="w-4 h-4 text-owner-warning" />} className="w-full sm:w-auto">
             Electricity Bill
           </OwnerButton>
           <OwnerButton onClick={() => setRecordModal(true)} icon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto">
@@ -407,6 +421,14 @@ export default function PaymentsPage() {
             <p className="text-xs text-owner-muted px-1">
               Every partial payment is logged separately with the collector&apos;s name. Past entries are never changed.
             </p>
+          )}
+          {tab === 'pending' && tabFiltered.length > 1 && (
+            <div className="flex items-center justify-between gap-3 bg-owner-bg-subtle rounded-owner-lg px-3.5 py-2.5">
+              <p className="text-xs text-owner-muted">{tabFiltered.length} payments awaiting your approval</p>
+              <OwnerButton size="sm" variant="secondary" loading={bulkApproving} icon={<Check className="w-3.5 h-3.5" />} onClick={handleApproveAllPending}>
+                Approve All
+              </OwnerButton>
+            </div>
           )}
           <div className="hidden sm:block">
             <OwnerTable>
@@ -658,7 +680,25 @@ export default function PaymentsPage() {
               </OwnerIconButton>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              <OwnerSelect label="Tenant *" value={form.tenant_id} onChange={e => setForm(f => ({ ...f, tenant_id: e.target.value }))}>
+              <OwnerSelect label="Tenant *" value={form.tenant_id} onChange={e => {
+                const tenantId = e.target.value
+                const summary = outstandingByTenant.get(tenantId)
+                const t = tenants.find(x => x.id === tenantId)
+                // Smart pre-fill: pick the tenant's oldest unpaid month (rent)
+                // or outstanding deposit balance automatically, same as the
+                // "By Due Date" row-level Record shortcut, so switching
+                // tenants here never leaves stale amounts/months behind.
+                setForm(f => ({
+                  ...f,
+                  tenant_id: tenantId,
+                  for_month: f.type === 'rent' ? (summary?.oldestUnpaidMonth?.label ?? '') : '',
+                  total_due: f.type === 'rent'
+                    ? String(Math.max(0, (summary?.oldestUnpaidMonth?.amount ?? 0) - (summary?.oldestUnpaidMonth?.paid ?? 0)))
+                    : f.type === 'deposit'
+                      ? String(Math.max(0, (t?.deposit_amount ?? 0) - (t?.deposit_paid ?? 0)))
+                      : '',
+                }))
+              }}>
                 <option value="">Select Tenant</option>
                 {tenants.filter(t => t.status === 'active').map(t => (
                   <option key={t.id} value={t.id}>{t.name} — Room {t.room?.room_number}</option>
@@ -668,17 +708,47 @@ export default function PaymentsPage() {
                 <OwnerSelect
                   label="Type"
                   value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value, for_month: e.target.value === 'advance' ? '' : f.for_month }))}
+                  onChange={e => {
+                    const type = e.target.value
+                    const summary = outstandingByTenant.get(form.tenant_id)
+                    const t = tenants.find(x => x.id === form.tenant_id)
+                    setForm(f => ({
+                      ...f,
+                      type,
+                      for_month: type === 'rent' ? (summary?.oldestUnpaidMonth?.label ?? '') : '',
+                      total_due: type === 'rent'
+                        ? String(Math.max(0, (summary?.oldestUnpaidMonth?.amount ?? 0) - (summary?.oldestUnpaidMonth?.paid ?? 0)))
+                        : type === 'deposit'
+                          ? String(Math.max(0, (t?.deposit_amount ?? 0) - (t?.deposit_paid ?? 0)))
+                          : '',
+                    }))
+                  }}
                 >
                   {['rent', 'deposit', 'advance'].map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                 </OwnerSelect>
-                {form.type !== 'advance' && (
-                  <OwnerInput label="For Month" value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" />
+                {form.type === 'rent' && (
+                  form.tenant_id && (outstandingByTenant.get(form.tenant_id)?.months.some(m => m.status !== 'paid')) ? (
+                    <OwnerSelect
+                      label="For Month"
+                      value={form.for_month}
+                      onChange={e => {
+                        const label = e.target.value
+                        const month = outstandingByTenant.get(form.tenant_id)?.months.find(m => m.label === label)
+                        setForm(f => ({ ...f, for_month: label, total_due: String(Math.max(0, (month?.amount ?? 0) - (month?.paid ?? 0))) }))
+                      }}
+                    >
+                      {outstandingByTenant.get(form.tenant_id)!.months.filter(m => m.status !== 'paid').map(m => (
+                        <option key={m.label} value={m.label}>{m.label} — {formatINR(Math.max(0, m.amount - m.paid))} due</option>
+                      ))}
+                    </OwnerSelect>
+                  ) : (
+                    <OwnerInput label="For Month" value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" hint={form.tenant_id ? 'No pending months — fully paid' : 'Select a tenant first'} />
+                  )
                 )}
                 {form.type === 'advance' && (
                   <p className="text-xs text-owner-muted-subtle -mt-2 col-span-1 self-end pb-2">Advance payments auto-apply to the tenant&apos;s next unpaid month(s) — no need to pick a month.</p>
                 )}
-                <OwnerInput label="Total Due (₹)" type="number" value={form.total_due} onChange={e => setForm(f => ({ ...f, total_due: e.target.value }))} />
+                <OwnerInput label="Total Due (₹)" type="number" value={form.total_due} onChange={e => setForm(f => ({ ...f, total_due: e.target.value }))} hint={form.type !== 'advance' ? 'Auto-filled from the ledger — edit if needed' : undefined} />
                 <OwnerInput label="Amount Received (₹) *" type="number" value={form.amount_received} onChange={e => setForm(f => ({ ...f, amount_received: e.target.value }))} />
               </div>
               <div>

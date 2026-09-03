@@ -51,6 +51,7 @@ export default function TenantPortal() {
   const [rowMenuOpen, setRowMenuOpen] = useState<string | null>(null)
 
   const [payModal, setPayModal] = useState(false)
+  const [payAllModal, setPayAllModal] = useState(false)
   const [pwModal, setPwModal] = useState(false)
   const [complaintModal, setComplaintModal] = useState(false)
   const [method, setMethod] = useState('upi')
@@ -343,7 +344,7 @@ export default function TenantPortal() {
           total_due: payAmountFor('rent'), amount_received: payAmountFor('rent'),
           late_fee_amount: lateFee,
           submitted_by_tenant: true, approval_status: 'pending_approval',
-          payment_date: new Date().toISOString().slice(0, 10),
+          method, tenant_note: note, payment_date: new Date().toISOString().slice(0, 10),
         })
         setClaimed(true)
       }
@@ -352,7 +353,7 @@ export default function TenantPortal() {
           tenant_id: tenant.id, property_id: tenant.property_id, type: 'deposit', for_month: null,
           total_due: depositDue, amount_received: depositDue,
           submitted_by_tenant: true, approval_status: 'pending_approval',
-          payment_date: new Date().toISOString().slice(0, 10),
+          method, tenant_note: note, payment_date: new Date().toISOString().slice(0, 10),
         })
         setDepositClaimed(true)
       }
@@ -361,6 +362,8 @@ export default function TenantPortal() {
       }
       setBills(prev => prev.map(b => b.status === 'pending' ? { ...b, status: 'pending_approval' } : b))
       toast.success('All pending payments marked as paid — waiting for owner approval')
+      setPayAllModal(false)
+      setNote('')
     } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
@@ -874,6 +877,23 @@ export default function TenantPortal() {
                 </Card>
               )}
 
+              {/* When more than one thing is pending at once (rent + a
+                  bill, or rent + deposit, ...), paying each separately is
+                  tedious and easy to half-finish. One combined action,
+                  reusing the same "send money, then confirm" 2-step flow
+                  as the single-item modal — see handlePayAll(). */}
+              {pendingItemCount > 1 && tenant.status === 'active' && (
+                <Card className="bg-tenant-primary/10 border-tenant-primary/20">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="text-xs font-bold text-tenant-primary">{pendingItemCount} things pending — {formatINR(totalDueAll)} total</div>
+                      <div className="text-xs text-tenant-muted mt-0.5">Rent, deposit, and bills all together in one go</div>
+                    </div>
+                    <Button size="sm" onClick={() => setPayAllModal(true)}>Pay All</Button>
+                  </div>
+                </Card>
+              )}
+
               {/* Overview */}
               <div>
                 <SectionHeader title="Overview" />
@@ -1282,29 +1302,40 @@ export default function TenantPortal() {
 
               <Card padding="none">
                 <div className="divide-y divide-tenant-border">
-                  {ledgerDisplay.map(m => (
-                    <div key={m.label} className="flex items-center justify-between px-4 py-3.5">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-tenant-fg">{m.label}</div>
-                        <div className="text-xs text-tenant-muted-subtle">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : 'Not yet paid'}</div>
-                        {(m.adjustment ?? 0) > 0 && <div className="text-xs text-tenant-primary mt-0.5">Leave adjustment: − {formatINR(m.adjustment ?? 0)}</div>}
+                  {ledgerDisplay.map(m => {
+                    const isPayableNow = m.status !== 'paid' && m.label === oldestUnpaidMonth?.label
+                    return (
+                      <div key={m.label} className={`flex items-center justify-between gap-3 px-4 py-3.5 ${isPayableNow ? 'bg-tenant-primary/5' : ''}`}>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-tenant-fg flex items-center gap-2 flex-wrap">
+                            {m.label}
+                            {isPayableNow && (
+                              <span className="text-[10px] font-bold text-tenant-primary bg-tenant-primary/10 px-1.5 py-0.5 rounded-full">Due now</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-tenant-muted-subtle">{m.paidOn ? `Paid on ${formatDate(m.paidOn)}` : isPayableNow ? 'Pay this to stay on track' : 'Not yet paid'}</div>
+                          {(m.adjustment ?? 0) > 0 && <div className="text-xs text-tenant-primary mt-0.5">Leave adjustment: − {formatINR(m.adjustment ?? 0)}</div>}
+                        </div>
+                        <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                          <div className="text-sm font-bold text-tenant-fg tenant-numeric">{formatINR(m.amount)}</div>
+                          {isPayableNow ? (
+                            tenant.status === 'active' && !claimed ? (
+                              <Button size="sm" onClick={() => openPay('rent')}>Pay</Button>
+                            ) : (
+                              <Badge tone="warning" size="sm">{claimed ? 'Awaiting approval' : 'Pending'}</Badge>
+                            )
+                          ) : (
+                            <Badge tone={m.status === 'paid' ? 'success' : m.status === 'partial' ? 'warning' : 'danger'} size="sm">
+                              {m.status === 'paid' ? 'Paid' : m.status === 'partial' ? 'Partial' : 'Pending'}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-sm font-bold text-tenant-fg tenant-numeric">{formatINR(m.amount)}</div>
-                        <Badge tone={m.status === 'paid' ? 'success' : m.status === 'partial' ? 'warning' : 'danger'} size="sm" className="mt-1">
-                          {m.status === 'paid' ? 'Paid' : m.status === 'partial' ? 'Partial' : 'Pending'}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </Card>
 
-              {!thisMonthPaid && !claimed && tenant.status === 'active' && (
-                <Button fullWidth onClick={() => openPay('rent')}>
-                  Pay {oldestUnpaidMonth?.label ?? thisMonth} Rent
-                </Button>
-              )}
               {!thisMonthPaid && !claimed && tenant.status === 'active' && oldestUnpaidMonth &&
                 !rentExtensions.some(e => e.for_month === oldestUnpaidMonth.label && e.status !== 'rejected') && (
                 <Button fullWidth variant="secondary" onClick={() => setExtensionModal(true)}>
@@ -1885,37 +1916,147 @@ export default function TenantPortal() {
       {/* Mark as Paid Modal */}
       {payModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg">
-            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between sticky top-0 bg-tenant-surface-elevated z-10">
               <h2 className="text-base font-bold">Pay {payKind === 'rent' ? `Rent — ${oldestUnpaidMonth?.label ?? thisMonth}` : 'Security Deposit'}</h2>
               <button onClick={() => setPayModal(false)} className="text-tenant-muted-subtle text-xl font-bold">×</button>
             </div>
-            <div className="p-5 space-y-4">
-              <div className="bg-tenant-primary/10 rounded-tenant-xl p-3 text-xs text-tenant-primary">
-                Amount: <span className="font-bold">{formatINR(payAmount)}</span>{payKind === 'rent' && lateFee > 0 && <span> (includes {formatINR(lateFee)} late fee)</span>}. This notifies your owner that you&apos;ve paid. No real payment is made here — the owner will verify and approve.
+            <div className="p-5 space-y-5">
+              <div className="text-center">
+                <div className="text-xs text-tenant-muted">Amount to pay</div>
+                <div className="text-2xl font-extrabold text-tenant-fg tenant-numeric">{formatINR(payAmount)}</div>
+                {payKind === 'rent' && lateFee > 0 && (
+                  <div className="text-xs text-tenant-danger mt-0.5">includes {formatINR(lateFee)} late fee</div>
+                )}
               </div>
-              {tenant.property?.upi_id && (
-                <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={payAmount} note={`${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`} />
-              )}
-              <div>
-                <label className="text-xs font-semibold text-tenant-muted block mb-2">Payment Method</label>
-                <div className="flex gap-2">
-                  {['upi', 'cash', 'bank_transfer'].map(m => (
-                    <button key={m} onClick={() => setMethod(m)}
-                      className={`flex-1 py-2 rounded-tenant-xl text-xs font-semibold border transition ${method === m ? 'border-tenant-primary bg-tenant-primary/10 text-tenant-primary' : 'border-tenant-border text-tenant-muted hover:bg-tenant-surface-hover'}`}>
-                      {m.replace('_', ' ').toUpperCase()}
-                    </button>
-                  ))}
+
+              {/* Step 1 — actually send the money (real transfer, happens outside this app) */}
+              <div className="border border-tenant-border rounded-tenant-xl p-3.5">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="w-5 h-5 rounded-full bg-tenant-primary text-tenant-primary-fg text-[11px] font-bold flex items-center justify-center flex-shrink-0">1</span>
+                  <span className="text-xs font-bold text-tenant-fg">Send the money</span>
+                </div>
+                {tenant.property?.upi_id ? (
+                  <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={payAmount} note={`${payKind === 'rent' ? 'Rent' : 'Deposit'} - ${tenant.name}`} />
+                ) : (
+                  <p className="text-xs text-tenant-muted">Pay your owner directly via UPI, bank transfer, or cash — however you usually do.</p>
+                )}
+              </div>
+
+              {/* Step 2 — tell the owner, since RentManager can't see the actual transfer */}
+              <div className="border border-tenant-border rounded-tenant-xl p-3.5">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="w-5 h-5 rounded-full bg-tenant-primary text-tenant-primary-fg text-[11px] font-bold flex items-center justify-center flex-shrink-0">2</span>
+                  <span className="text-xs font-bold text-tenant-fg">Tell your owner you paid</span>
+                </div>
+                <p className="text-xs text-tenant-muted mb-3">
+                  This app can&apos;t see your bank/UPI transfer, so once you&apos;ve actually sent the money above, confirm it here — your owner gets notified and approves it on their end.
+                </p>
+                <div className="mb-3">
+                  <label className="text-xs font-semibold text-tenant-muted block mb-2">How did you pay?</label>
+                  <div className="flex gap-2">
+                    {['upi', 'cash', 'bank_transfer'].map(m => (
+                      <button key={m} onClick={() => setMethod(m)}
+                        className={`flex-1 py-2 rounded-tenant-xl text-xs font-semibold border transition ${method === m ? 'border-tenant-primary bg-tenant-primary/10 text-tenant-primary' : 'border-tenant-border text-tenant-muted hover:bg-tenant-surface-hover'}`}>
+                        {m.replace('_', ' ').toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-tenant-muted block mb-1">Note (optional)</label>
+                  <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Paid via GPay this morning" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none bg-tenant-bg" />
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-tenant-muted block mb-1">Note (optional)</label>
-                <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Paid via GPay this morning" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none" />
+            </div>
+            <div className="px-5 py-4 border-t border-tenant-border sticky bottom-0 bg-tenant-surface-elevated">
+              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />} I&apos;ve Paid — Notify Owner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pay All Modal — combines rent + deposit + bills into the same
+          2-step "send money, then confirm" flow as the single-item modal
+          above, for tenants with more than one thing due at once. */}
+      {payAllModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-tenant-surface-elevated rounded-tenant-2xl w-full max-w-sm shadow-tenant-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-5 py-4 border-b border-tenant-border flex items-center justify-between sticky top-0 bg-tenant-surface-elevated z-10">
+              <h2 className="text-base font-bold">Pay Everything Due</h2>
+              <button onClick={() => setPayAllModal(false)} className="text-tenant-muted-subtle text-xl font-bold">×</button>
+            </div>
+            <div className="p-5 space-y-5">
+              <div className="text-center">
+                <div className="text-xs text-tenant-muted">Total for {pendingItemCount} items</div>
+                <div className="text-2xl font-extrabold text-tenant-fg tenant-numeric">{formatINR(totalDueAll)}</div>
+              </div>
+
+              <div className="border border-tenant-border rounded-tenant-xl divide-y divide-tenant-border overflow-hidden">
+                {totalRentPending > 0 && !claimed && (
+                  <div className="flex items-center justify-between px-3.5 py-2.5 text-sm">
+                    <span className="text-tenant-fg">Rent — {oldestUnpaidMonth?.label ?? thisMonth}</span>
+                    <span className="font-semibold text-tenant-fg tenant-numeric">{formatINR(payAmountFor('rent'))}</span>
+                  </div>
+                )}
+                {depositDue > 0 && !depositClaimed && (
+                  <div className="flex items-center justify-between px-3.5 py-2.5 text-sm">
+                    <span className="text-tenant-fg">Security Deposit</span>
+                    <span className="font-semibold text-tenant-fg tenant-numeric">{formatINR(depositDue)}</span>
+                  </div>
+                )}
+                {pendingBillsList.map(b => (
+                  <div key={b.id} className="flex items-center justify-between px-3.5 py-2.5 text-sm">
+                    <span className="text-tenant-fg">{b.bill_type} — {b.for_month}</span>
+                    <span className="font-semibold text-tenant-fg tenant-numeric">{formatINR(b.amount)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Step 1 — actually send the combined total */}
+              <div className="border border-tenant-border rounded-tenant-xl p-3.5">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="w-5 h-5 rounded-full bg-tenant-primary text-tenant-primary-fg text-[11px] font-bold flex items-center justify-center flex-shrink-0">1</span>
+                  <span className="text-xs font-bold text-tenant-fg">Send {formatINR(totalDueAll)}</span>
+                </div>
+                {tenant.property?.upi_id ? (
+                  <UpiPayButtons upiId={tenant.property.upi_id} payeeName={tenant.property.name ?? 'PG Owner'} amount={totalDueAll} note={`Rent+Dues - ${tenant.name}`} />
+                ) : (
+                  <p className="text-xs text-tenant-muted">Pay your owner directly via UPI, bank transfer, or cash — however you usually do.</p>
+                )}
+              </div>
+
+              {/* Step 2 — tell the owner, since RentManager can't see the actual transfer */}
+              <div className="border border-tenant-border rounded-tenant-xl p-3.5">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="w-5 h-5 rounded-full bg-tenant-primary text-tenant-primary-fg text-[11px] font-bold flex items-center justify-center flex-shrink-0">2</span>
+                  <span className="text-xs font-bold text-tenant-fg">Tell your owner you paid</span>
+                </div>
+                <p className="text-xs text-tenant-muted mb-3">
+                  Once you&apos;ve sent the full amount above, confirm it here — each item gets marked as paid and your owner approves them on their end.
+                </p>
+                <div className="mb-3">
+                  <label className="text-xs font-semibold text-tenant-muted block mb-2">How did you pay?</label>
+                  <div className="flex gap-2">
+                    {['upi', 'cash', 'bank_transfer'].map(m => (
+                      <button key={m} onClick={() => setMethod(m)}
+                        className={`flex-1 py-2 rounded-tenant-xl text-xs font-semibold border transition ${method === m ? 'border-tenant-primary bg-tenant-primary/10 text-tenant-primary' : 'border-tenant-border text-tenant-muted hover:bg-tenant-surface-hover'}`}>
+                        {m.replace('_', ' ').toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-tenant-muted block mb-1">Note (optional)</label>
+                  <textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Paid via GPay this morning" className="w-full px-3 py-2 border border-tenant-border rounded-tenant-xl text-sm focus:outline-none focus:border-tenant-primary resize-none bg-tenant-bg" />
+                </div>
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-tenant-border">
-              <button onClick={submitPayment} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit for Approval
+            <div className="px-5 py-4 border-t border-tenant-border sticky bottom-0 bg-tenant-surface-elevated">
+              <button onClick={handlePayAll} disabled={saving} className="w-full py-2.5 bg-tenant-primary hover:bg-tenant-primary-hover text-tenant-primary-fg rounded-tenant-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />} I&apos;ve Paid It All — Notify Owner
               </button>
             </div>
           </div>
