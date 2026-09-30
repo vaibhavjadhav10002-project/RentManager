@@ -1,8 +1,6 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { useActiveExperience } from '@/lib/experience/useActiveExperience'
-import { getDayAccentPalette } from '@/lib/theme/dayAccent'
 
 export type OwnerThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
@@ -94,42 +92,11 @@ export function OwnerThemeProvider({
 
   const activeTheme = mounted ? resolvedTheme : initialPreference === 'system' ? 'dark' : initialPreference
 
-  // Day-of-week accent rotation (see src/lib/theme/dayAccent.ts) — the
-  // "default" look for an ordinary day, applied before any Experience
-  // Pack so a festival/campaign color (below) always wins when active.
-  // Gated on `mounted` (same pattern as activeTheme above) so the server
-  // render — which may run in a different timezone/day than the visitor —
-  // never disagrees with the client; the static CSS default shows first
-  // and the day color applies right after hydration.
-  const dayAccent = mounted ? getDayAccentPalette(activeTheme) : null
-  const dayStyle: React.CSSProperties | undefined = dayAccent
-    ? ({
-        '--owner-primary': dayAccent.primary,
-        '--owner-primary-hover': dayAccent.hover,
-        '--owner-primary-foreground': dayAccent.foreground,
-        '--owner-ring': dayAccent.ring,
-        '--owner-glow': dayAccent.glow,
-      } as React.CSSProperties)
-    : undefined
-
-  // Same accent-color-override approach as TenantThemeProvider — see the
-  // comment there. Applying it here means the whole Owner Dashboard
-  // (buttons, badges, active sidebar/bottom-nav state, ...) picks up the
-  // active Experience Pack's seasonal color with zero per-screen changes.
-  const activePack = useActiveExperience()
-  const accentStyle = activePack?.accentPalette?.primary
-    ? ({
-        '--owner-primary': activePack.accentPalette.primary,
-        '--owner-primary-hover': activePack.accentPalette.secondary ?? activePack.accentPalette.primary,
-      } as React.CSSProperties)
-    : undefined
-
   return (
     <OwnerThemeContext.Provider value={value}>
       <div
         className={`owner-shell min-h-screen ${activeTheme === 'dark' ? 'dark' : ''}`}
         data-theme={activeTheme}
-        style={{ ...dayStyle, ...accentStyle }}
         suppressHydrationWarning
       >
         {children}

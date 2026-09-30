@@ -58,8 +58,19 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 800,
-      backgroundColor: '#2563EB', // matches manifest.json theme_color
+      // Shortened from 800ms — this was a flat minimum show-time
+      // regardless of how fast the page underneath was actually ready,
+      // so it added pure, unconditional delay to every single app open.
+      // 400ms is still comfortably above the ~250ms floor needed to
+      // avoid a jarring flash before the WebView's first paint, but
+      // shaves real, perceptible time off every cold start.
+      launchShowDuration: 400,
+      // Matches the app's own dark theme background (owner/tenant shells
+      // both default to dark) instead of the old bright blue — the splash
+      // screen now hands off to the real app with the same background
+      // color already in place, instead of a jarring light-to-dark flash
+      // that reads as janky/slow even when the actual timing is fine.
+      backgroundColor: '#0B0D14',
       androidSplashResourceName: 'splash',
       showSpinner: false,
       splashFullScreen: true,
@@ -67,7 +78,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'DARK', // overridden at runtime per theme in native/bootstrap.ts
-      backgroundColor: '#2563EB',
+      backgroundColor: '#0B0D14',
     },
     Keyboard: {
       resize: KeyboardResize.Body,

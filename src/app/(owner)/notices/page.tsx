@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getNoticesForProperty, addNotice, deleteNotice } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
-import { formatDate, friendlyErrorMessage } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Loader2, Megaphone, Trash2, Paperclip, X, Building2 } from 'lucide-react'
 import { sendPushNotification } from '@/lib/push'
@@ -11,7 +11,6 @@ import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const CATEGORIES = ['General', 'Maintenance', 'Rent', 'Electricity', 'Emergency', 'Event']
 const PRIORITIES = ['Normal', 'Important', 'Urgent']
@@ -40,7 +39,6 @@ export default function NoticesPage() {
   }, [activeId])
 
   useEffect(() => { load() }, [load])
-  usePullToRefreshHandler(load)
 
   async function handleAttachmentSelect(file: File | null) {
     if (!file) return
@@ -94,18 +92,17 @@ export default function NoticesPage() {
       setForm({ title: '', description: '', category: 'General', priority: 'Normal', publish_date: new Date().toISOString().slice(0, 10), expiry_date: '' })
       setAttachment(null)
       load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this notice? Tenants will no longer see it.')) return
-    const prev = notices
-    setNotices(ns => ns.filter(n => n.id !== id))
     try {
       await deleteNotice(id)
       toast.success('Notice deleted')
-    } catch (e: any) { setNotices(prev); toast.error(friendlyErrorMessage(e)) }
+      setNotices(prev => prev.filter(n => n.id !== id))
+    } catch (e: any) { toast.error(e.message) }
   }
 
   const today = new Date().toISOString().slice(0, 10)

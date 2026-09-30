@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getExpenses, addExpense, deleteExpense } from '@/lib/supabase/queries'
-import { formatINR, formatDate, cn, friendlyErrorMessage } from '@/lib/utils'
+import { formatINR, formatDate, cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Plus, Trash2, Receipt, X } from 'lucide-react'
 import {
@@ -10,7 +10,6 @@ import {
   OwnerTable, OwnerTableHead, OwnerTableBody, OwnerTableRow, OwnerTableHeadCell, OwnerTableCell, OwnerTableEmptyRow,
   type OwnerBadgeProps,
 } from '@/components/owner/ui'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const CATEGORIES = ['Electricity', 'Water', 'WiFi', 'Cleaning', 'Maintenance', 'Salary', 'Other']
 
@@ -41,7 +40,6 @@ export default function ExpensesPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
-  usePullToRefreshHandler(load)
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
   const byCategory = CATEGORIES.map(cat => ({ cat, total: expenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0) })).filter(c => c.total > 0)
@@ -55,7 +53,7 @@ export default function ExpensesPage() {
     try {
       await addExpense({ property_id: propertyId, category: form.category, amount: Number(form.amount), notes: form.notes, expense_date: form.expense_date })
       toast.success('Expense added!'); setModal(false); load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
 
@@ -94,21 +92,25 @@ export default function ExpensesPage() {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 rounded-owner-lg bg-owner-surface-hover animate-pulse" />)}
         </div>
-      ) : expenses.length === 0 ? (
-        <OwnerEmptyState icon={Receipt} title="No expenses yet" action={<OwnerButton onClick={() => setModal(true)} icon={<Plus className="w-4 h-4" />}>Add Expense</OwnerButton>} />
       ) : (
-        <>
-          {/* Mobile: stacked card list, no horizontal scroll */}
-          <div className="sm:hidden space-y-2">
-            {expenses.map(e => (
-              <div key={e.id} className="bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <OwnerBadge tone={CAT_TONE[e.category] ?? 'neutral'}>{e.category}</OwnerBadge>
-                  <div className="text-xs text-owner-muted mt-1">{formatDate(e.expense_date)}</div>
-                  {e.notes && <div className="text-xs text-owner-muted-subtle mt-1 truncate">{e.notes}</div>}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <div className="font-bold owner-numeric text-owner-fg">{formatINR(e.amount)}</div>
+        <OwnerTable>
+          <OwnerTableHead>
+            <tr>
+              {['Category', 'Amount', 'Date', 'Notes', 'Actions'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
+            </tr>
+          </OwnerTableHead>
+          <OwnerTableBody>
+            {expenses.length === 0 ? (
+              <OwnerTableEmptyRow colSpan={5}>
+                <OwnerEmptyState icon={Receipt} title="No expenses yet" action={<OwnerButton onClick={() => setModal(true)} icon={<Plus className="w-4 h-4" />}>Add Expense</OwnerButton>} />
+              </OwnerTableEmptyRow>
+            ) : expenses.map(e => (
+              <OwnerTableRow key={e.id}>
+                <OwnerTableCell><OwnerBadge tone={CAT_TONE[e.category] ?? 'neutral'}>{e.category}</OwnerBadge></OwnerTableCell>
+                <OwnerTableCell className="font-bold owner-numeric">{formatINR(e.amount)}</OwnerTableCell>
+                <OwnerTableCell className="text-xs text-owner-muted">{formatDate(e.expense_date)}</OwnerTableCell>
+                <OwnerTableCell className="text-xs text-owner-muted-subtle">{e.notes || '—'}</OwnerTableCell>
+                <OwnerTableCell>
                   <OwnerIconButton
                     aria-label="Delete expense"
                     variant="ghost"
@@ -118,42 +120,11 @@ export default function ExpensesPage() {
                   >
                     <Trash2 />
                   </OwnerIconButton>
-                </div>
-              </div>
+                </OwnerTableCell>
+              </OwnerTableRow>
             ))}
-          </div>
-          {/* Desktop/tablet: full table */}
-          <div className="hidden sm:block">
-            <OwnerTable>
-              <OwnerTableHead>
-                <tr>
-                  {['Category', 'Amount', 'Date', 'Notes', 'Actions'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
-                </tr>
-              </OwnerTableHead>
-              <OwnerTableBody>
-                {expenses.map(e => (
-                  <OwnerTableRow key={e.id}>
-                    <OwnerTableCell><OwnerBadge tone={CAT_TONE[e.category] ?? 'neutral'}>{e.category}</OwnerBadge></OwnerTableCell>
-                    <OwnerTableCell className="font-bold owner-numeric">{formatINR(e.amount)}</OwnerTableCell>
-                    <OwnerTableCell className="text-xs text-owner-muted">{formatDate(e.expense_date)}</OwnerTableCell>
-                    <OwnerTableCell className="text-xs text-owner-muted-subtle">{e.notes || '—'}</OwnerTableCell>
-                    <OwnerTableCell>
-                      <OwnerIconButton
-                        aria-label="Delete expense"
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => { await deleteExpense(e.id); toast.success('Deleted'); load() }}
-                        className="hover:text-owner-danger"
-                      >
-                        <Trash2 />
-                      </OwnerIconButton>
-                    </OwnerTableCell>
-                  </OwnerTableRow>
-                ))}
-              </OwnerTableBody>
-            </OwnerTable>
-          </div>
-        </>
+          </OwnerTableBody>
+        </OwnerTable>
       )}
 
       {modal && (

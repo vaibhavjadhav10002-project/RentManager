@@ -8,7 +8,6 @@ import { formatINR } from '@/lib/utils'
 import AddPropertyModal from '@/components/shared/AddPropertyModal'
 import { OwnerCard, OwnerButton, OwnerIconButton, OwnerBadge, OwnerEmptyState } from '@/components/owner/ui'
 import type { DashboardStats } from '@/types'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 /**
  * Properties — O3. This page did not exist before; the app previously
@@ -24,8 +23,6 @@ export default function PropertiesPage() {
   const router = useRouter()
   const { properties, setActiveId, refresh } = useProperty()
   const [statsByProperty, setStatsByProperty] = useState<Record<string, DashboardStats>>({})
-  const [refreshKey, setRefreshKey] = useState(0)
-  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
 
@@ -36,7 +33,7 @@ export default function PropertiesPage() {
       .then(entries => setStatsByProperty(Object.fromEntries(entries)))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [properties, refreshKey])
+  }, [properties])
 
   function goToSettings(propertyId: string) {
     setActiveId(propertyId)
@@ -83,7 +80,7 @@ export default function PropertiesPage() {
               <OwnerCard key={p.id} className="flex flex-col">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-owner-lg bg-owner-primary flex items-center justify-center text-owner-primary-fg font-bold shrink-0">
+                    <div className="w-11 h-11 rounded-owner-lg bg-owner-primary flex items-center justify-center text-white font-bold shrink-0">
                       {p.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">

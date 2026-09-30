@@ -1,8 +1,6 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { useActiveExperience } from '@/lib/experience/useActiveExperience'
-import { getDayAccentPalette } from '@/lib/theme/dayAccent'
 
 export type TenantThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
@@ -93,49 +91,12 @@ export function TenantThemeProvider({
     [preference, resolvedTheme, setPreference]
   )
 
-  // Day-of-week accent rotation (see src/lib/theme/dayAccent.ts) — the
-  // "default" look for an ordinary day, applied before any Experience
-  // Pack so a festival/campaign color (below) always wins when active.
-  // Gated on `mounted` so the server render (which may be in a different
-  // timezone/day than the visitor) never disagrees with the client — the
-  // static CSS default shows first, day color kicks in right after hydration.
-  const dayAccent = mounted ? getDayAccentPalette(resolvedTheme) : null
-  const dayStyle: React.CSSProperties | undefined = dayAccent
-    ? ({
-        '--tenant-primary': dayAccent.primary,
-        '--tenant-primary-hover': dayAccent.hover,
-        '--tenant-primary-foreground': dayAccent.foreground,
-        '--tenant-ring': dayAccent.ring,
-        '--tenant-glow': dayAccent.glow,
-      } as React.CSSProperties)
-    : undefined
-
-  // Applying the active Experience Pack's accent color as a CSS variable
-  // override right here — rather than in each individual screen — means
-  // every `bg-tenant-primary`/`text-tenant-primary`/etc. class already
-  // used throughout the tenant portal (buttons, badges, active nav state,
-  // the bottom-nav "Pay Now" FAB, ...) picks up the seasonal color
-  // automatically, with zero changes needed anywhere else. See
-  // src/lib/experience/ and useActiveExperience.ts.
-  const activePack = useActiveExperience()
-  const accentStyle = activePack?.accentPalette?.primary
-    ? ({
-        '--tenant-primary': activePack.accentPalette.primary,
-        '--tenant-primary-hover': activePack.accentPalette.secondary ?? activePack.accentPalette.primary,
-      } as React.CSSProperties)
-    : undefined
-
   return (
     <TenantThemeContext.Provider value={value}>
       {/* suppressHydrationWarning: resolvedTheme can legitimately differ
           between the server render (always "dark") and the client's first
           paint (saved preference / OS setting), same tradeoff as next-themes. */}
-      <div
-        className="tenant-portal min-h-screen"
-        data-theme={mounted ? resolvedTheme : initialPreference === 'system' ? undefined : initialPreference}
-        style={{ ...dayStyle, ...accentStyle }}
-        suppressHydrationWarning
-      >
+      <div className="tenant-portal min-h-screen" data-theme={mounted ? resolvedTheme : initialPreference === 'system' ? undefined : initialPreference} suppressHydrationWarning>
         {children}
       </div>
     </TenantThemeContext.Provider>

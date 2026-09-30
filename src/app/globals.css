@@ -8,55 +8,38 @@
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    --primary: 221 100% 54%;
+    --primary: 221 80% 48%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 270 92% 48%;
+    --secondary: 270 67% 47%;
     --secondary-foreground: 0 0% 100%;
     --muted: 214 32% 91%;
     --muted-foreground: 215 16% 47%;
-    --accent: 270 92% 48%;
+    --accent: 270 67% 47%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 98% 55%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 221 100% 54%;
-    --radius: 1rem;
-    --success: 160 100% 33%;
-    --warning: 38 100% 46%;
+    --ring: 221 83% 53%;
+    --radius: 0.625rem;
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
   }
 
   .dark {
-    --background: 222 47% 9%;
+    --background: 222 47% 7%;
     --foreground: 210 40% 96%;
-    --card: 222 47% 11%;
+    --card: 222 45% 10%;
     --card-foreground: 210 40% 96%;
-    --primary: 221 100% 61%;
+    --primary: 221 78% 54%;
     --primary-foreground: 0 0% 100%;
-    --muted: 217 33% 17%;
+    --muted: 217 33% 15%;
     --muted-foreground: 215 20% 65%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --border: 217 33% 15%;
+    --input: 217 33% 15%;
   }
 
   * { @apply border-border; }
-  html, body {
-    /* Guarantees zero horizontal scroll anywhere in the app, regardless
-       of any individual element that might be a few px too wide (e.g. an
-       unwrapped label, a flex-item rounding error). `overflow-x: hidden`
-       (not the newer `clip`) deliberately — `clip` isn't reliably
-       supported on older Android WebView engines and can itself cause
-       broken/partial rendering there. This can only clip accidental
-       overflow, it can never hide intentionally-scrollable content
-       (tab/filter strips use their own local overflow-x-auto). */
-    overflow-x: hidden;
-    /* Momentum/native-feeling scroll on the document itself, not just
-       nested overflow containers. NOTE: deliberately no `transform`
-       here — that would change the containing block for every
-       `position: fixed` element in the app (Sidebar, bottom nav,
-       modal backdrops), breaking them. */
-    -webkit-overflow-scrolling: touch;
-  }
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', -apple-system, sans-serif;
@@ -71,69 +54,6 @@
   .text-warning { color: hsl(var(--warning)); }
   .bg-warning\/10 { background: hsl(var(--warning) / 0.1); }
   .animate-fade-in { animation: fade-in 0.2s ease-out; }
-  .animate-page-in { animation: page-in 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
-  .animate-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
-}
-
-@keyframes page-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes shimmer {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .animate-page-in { animation: none; }
-}
-
-/* ============================================================================
-   NATIVE-FEEL TAP FEEDBACK
-   ============================================================================
-   Web buttons/links have no built-in press feedback the way Flutter/native
-   widgets do (an instant, tactile scale/opacity change the moment a finger
-   touches down) — without this, every tap feels like it "landed" a beat
-   late even when the actual click handler fires immediately. Applied
-   globally via :active so every existing button/link picks it up with zero
-   per-component changes. `transform` (not a layout property) keeps this
-   compositor-only, so it stays smooth even on low-end Android WebViews.
-   prefers-reduced-motion users get instant feedback with no animation. */
-button:not(:disabled):active,
-a:active,
-[role="button"]:not([aria-disabled="true"]):active {
-  transform: scale(0.97);
-}
-button, a, [role="button"] {
-  transition: transform 0.1s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  button, a, [role="button"] { transition: none !important; }
-  button:active, a:active, [role="button"]:active { transform: none !important; }
-}
-
-/* ============================================================================
-   SKELETON LOADING SHIMMER
-   ============================================================================
-   Used by <Skeleton /> (src/components/shared/Skeleton.tsx) in place of a
-   bare spinner wherever a page/section is waiting on its first data fetch —
-   a shaped, shimmering placeholder that roughly matches the eventual layout
-   reads as "already loading the real thing" rather than "nothing has
-   happened yet", which is most of what makes native apps feel fast even
-   when the underlying request takes the same amount of time. */
-.skeleton {
-  position: relative;
-  overflow: hidden;
-  background: hsl(var(--muted));
-}
-.skeleton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, hsl(var(--background) / 0.5), transparent);
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-.dark .skeleton::after {
-  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.06), transparent);
 }
 
 /* ============================================================================

@@ -1,18 +1,17 @@
 'use client'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getPayments, recordPayment, approvePayment, rejectPayment, getCollectors, getTenants, getElectricityBills, addElectricityBill, approveBill, deleteElectricityBill, getLeaveRequests, getRentExtensionRequests } from '@/lib/supabase/queries'
 import { generateReceiptPDF } from '@/lib/pdf'
-import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays, cn, getApprovedExtensionFor, getRentOutstandingSummary, friendlyErrorMessage } from '@/lib/utils'
+import { formatINR, formatDate, whatsappLink, rentReminderMsg, computeDueDate, getOverdueDays, cn, calculateLeaveRentAdjustment, getApprovedExtensionFor } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Plus, Check, MessageCircle, Phone, FileText, Zap, Trash2, X, Wallet, ChevronRight, Loader2 } from 'lucide-react'
+import { Plus, Check, MessageCircle, Phone, FileText, Zap, Trash2, X } from 'lucide-react'
 import type { Payment, Collector, Tenant, ElectricityBill } from '@/types'
 import { sendPushNotification } from '@/lib/push'
 import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerEmptyState, OwnerInput, OwnerSelect,
   OwnerTable, OwnerTableHead, OwnerTableBody, OwnerTableRow, OwnerTableHeadCell, OwnerTableCell, OwnerTableEmptyRow,
 } from '@/components/owner/ui'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 type Tab = 'all' | 'paid' | 'pending' | 'overdue' | 'bydue' | 'ledger'
 
@@ -34,12 +33,9 @@ export default function PaymentsPage() {
   const [billSaving, setBillSaving] = useState(false)
   const [billForm, setBillForm] = useState({ tenant_id: '', for_month: '', amount: '', due_date: '' })
   const [recordModal, setRecordModal] = useState(false)
-  const [paymentDetail, setPaymentDetail] = useState<Payment | null>(null)
-  const [decidingPaymentId, setDecidingPaymentId] = useState<string | null>(null)
   const [bulkReminderModal, setBulkReminderModal] = useState(false)
   const [remindedPhones, setRemindedPhones] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
-  const [bulkApproving, setBulkApproving] = useState(false)
   const [form, setForm] = useState({
     tenant_id: '', type: 'rent', for_month: '', total_due: '', amount_received: '',
     method: 'cash', collected_by: '', payment_date: new Date().toISOString().slice(0, 10), reference_number: '',
@@ -70,47 +66,41 @@ export default function PaymentsPage() {
   }, [activeId, properties])
 
   useEffect(() => { load() }, [load])
-  usePullToRefreshHandler(load)
 
-  // Pending rent sorted by due date — uses the same full oldest-first
-  // ledger (shared with the Tenant Portal via getRentOutstandingSummary)
-  // rather than only checking this calendar month, so a tenant who skipped
-  // an older month still shows up here even if a later month is paid.
+  // Pending rent sorted by due date — accounts for partial payments and
+  // only counts actual rent payments (not deposit/advance) toward "paid"
   const today = new Date()
   const thisMonth = today.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-  // Memoized: this walks every tenant's full oldest-first ledger
-  // (including the overlapping-leave interval merge per month) — without
-  // memoization it would re-run for every tenant on every re-render of
-  // this page (opening a modal, switching tabs, typing in the search
-  // box), not just when the underlying tenants/payments/leaves actually
-  // change.
-  const outstandingByTenant = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof getRentOutstandingSummary>>()
-    tenants.forEach(t => {
-      const tenantPayments = payments.filter(p => p.tenant_id === t.id)
-      const tenantLeaves = approvedLeaves.filter(l => l.tenant_id === t.id)
-      map.set(t.id, getRentOutstandingSummary(t, tenantPayments, tenantLeaves))
-    })
-    return map
-  }, [tenants, payments, approvedLeaves])
+  const rentPaidThisMonthByTenant = new Map<string, number>()
+  payments.forEach(p => {
+    if (p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent') {
+      rentPaidThisMonthByTenant.set(p.tenant_id, (rentPaidThisMonthByTenant.get(p.tenant_id) ?? 0) + p.amount_received)
+    }
+  })
+  const effectiveRentFor = (t: Tenant) => {
+    const tenantLeaves = approvedLeaves.filter(l => l.tenant_id === t.id)
+    const adjustment = calculateLeaveRentAdjustment(thisMonth, t.monthly_rent, tenantLeaves)
+    return { rent: t.monthly_rent - adjustment, adjustment }
+  }
   const paidTenantIds = new Set(
-    tenants.filter(t => (outstandingByTenant.get(t.id)?.totalPending ?? 0) <= 0).map(t => t.id)
+    [...rentPaidThisMonthByTenant.entries()].filter(([tid, amt]) => {
+      const t = tenants.find(x => x.id === tid)
+      return t && amt >= effectiveRentFor(t).rent
+    }).map(([tid]) => tid)
   )
   const pendingRentSorted = tenants
-    .filter(t => t.status === 'active' && (outstandingByTenant.get(t.id)?.totalPending ?? 0) > 0)
+    .filter(t => t.status === 'active' && (rentPaidThisMonthByTenant.get(t.id) ?? 0) < effectiveRentFor(t).rent)
     .map(t => {
-      const summary = outstandingByTenant.get(t.id)!
-      const oldest = summary.oldestUnpaidMonth
+      const { rent, adjustment } = effectiveRentFor(t)
       const tenantExtensions = approvedExtensions.filter(x => x.tenant_id === t.id)
-      const activeExtension = oldest ? getApprovedExtensionFor(oldest.label, tenantExtensions) : null
+      const activeExtension = getApprovedExtensionFor(thisMonth, tenantExtensions)
       return {
         ...t,
         dueDate: computeDueDate(t.joining_date, today).toISOString().slice(0, 10),
         overdueDays: getOverdueDays(t.joining_date, today),
-        oldestUnpaidMonthLabel: oldest?.label ?? thisMonth,
-        remainingDue: summary.totalPending,
-        leaveAdjustment: oldest?.adjustment ?? 0,
-        effectiveRent: oldest?.amount ?? t.monthly_rent,
+        remainingDue: rent - (rentPaidThisMonthByTenant.get(t.id) ?? 0),
+        leaveAdjustment: adjustment,
+        effectiveRent: rent,
         activeExtension,
       }
     })
@@ -147,36 +137,19 @@ export default function PaymentsPage() {
       setBillModal(false)
       setBillForm({ tenant_id: '', for_month: '', amount: '', due_date: '' })
       load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) { toast.error(e.message) }
     setBillSaving(false)
   }
 
   async function handleApproveBill(id: string) {
-    const prev = bills
-    setBills(bs => bs.map(b => b.id === id ? { ...b, status: 'paid' } : b))
-    try { await approveBill(id); toast.success('Bill marked paid') }
-    catch (e: any) { setBills(prev); toast.error(friendlyErrorMessage(e)) }
+    try { await approveBill(id); toast.success('Bill marked paid'); load() }
+    catch (e: any) { toast.error(e.message) }
   }
 
   async function handleDeleteBill(id: string) {
     if (!confirm('Delete this bill?')) return
-    const prev = bills
-    setBills(bs => bs.filter(b => b.id !== id))
-    try { await deleteElectricityBill(id); toast.success('Bill deleted') }
-    catch (e: any) { setBills(prev); toast.error(friendlyErrorMessage(e)) }
-  }
-
-  async function handleApproveAllPending() {
-    const ids = payments.filter(p => p.approval_status === 'pending_approval').map(p => p.id)
-    if (ids.length === 0) return
-    if (!confirm(`Approve all ${ids.length} pending payments? This can't be undone in bulk.`)) return
-    setBulkApproving(true)
-    try {
-      for (const id of ids) await approvePayment(id)
-      toast.success(`${ids.length} payments approved`)
-      load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
-    setBulkApproving(false)
+    try { await deleteElectricityBill(id); toast.success('Bill deleted'); load() }
+    catch (e: any) { toast.error(e.message) }
   }
 
   async function handleRecord() {
@@ -203,11 +176,11 @@ export default function PaymentsPage() {
       toast.success('Payment recorded!')
       setRecordModal(false)
       load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
 
-  const TABS: [Tab, string][] = [['all', 'All'], ['paid', 'Paid'], ['pending', 'Pending'], ['bydue', 'By Due Date'], ['ledger', 'Ledger']]
+  const TABS: [Tab, string][] = [['all', 'All'], ['paid', 'Paid'], ['pending', 'Pending'], ['bydue', 'Pending (by due date)'], ['ledger', 'Ledger']]
 
   return (
     <div className="space-y-5">
@@ -216,17 +189,17 @@ export default function PaymentsPage() {
           <h1 className="text-xl font-extrabold text-owner-fg">Payments</h1>
           <p className="text-sm text-owner-muted">Rent collection &amp; ledger</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 flex-wrap">
           <OwnerButton
             onClick={() => { if (pendingRentSorted.length === 0) { toast.error('No pending rent to remind about'); return } setBulkReminderModal(true) }}
-            variant="secondary" icon={<MessageCircle className="w-4 h-4 text-owner-success" />} className="w-full sm:w-auto"
+            variant="secondary" icon={<MessageCircle className="w-4 h-4 text-owner-success" />}
           >
             Remind All
           </OwnerButton>
-          <OwnerButton onClick={() => { setBillForm(f => ({ ...f, for_month: f.for_month || thisMonth })); setBillModal(true) }} variant="secondary" icon={<Zap className="w-4 h-4 text-owner-warning" />} className="w-full sm:w-auto">
-            Electricity Bill
+          <OwnerButton onClick={() => setBillModal(true)} variant="secondary" icon={<Zap className="w-4 h-4 text-owner-warning" />}>
+            Raise Electricity Bill
           </OwnerButton>
-          <OwnerButton onClick={() => setRecordModal(true)} icon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto">
+          <OwnerButton onClick={() => setRecordModal(true)} icon={<Plus className="w-4 h-4" />}>
             Record Payment
           </OwnerButton>
         </div>
@@ -256,38 +229,29 @@ export default function PaymentsPage() {
           </div>
           <div className="space-y-2">
             {bills.map(b => (
-              <div key={b.id} className="bg-owner-bg-subtle rounded-owner-lg p-3.5 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 text-white flex items-center justify-center shrink-0">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg truncate">
-                    {b.tenant?.name ?? 'Tenant'} <span className="text-owner-muted-subtle font-normal text-xs">· {b.for_month}</span>
-                  </div>
-                  <div className="text-xs text-owner-muted-subtle truncate">
+              <div key={b.id} className="flex items-center justify-between gap-3 p-3 bg-owner-bg-subtle rounded-owner-lg">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-owner-fg">{b.tenant?.name ?? 'Tenant'} · {b.for_month}</div>
+                  <div className="text-xs text-owner-muted-subtle">
                     Room {b.tenant?.room?.room_number ?? '—'} · {formatINR(b.amount)}
                     {b.due_date && ` · Due ${formatDate(b.due_date)}`}
+                    {b.tenant_note && ` · "${b.tenant_note}"`}
                   </div>
-                  {b.tenant_note && (
-                    <div className="text-xs text-owner-muted-subtle truncate italic">&quot;{b.tenant_note}&quot;</div>
-                  )}
                 </div>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <OwnerBadge tone={b.status === 'paid' ? 'success' : b.status === 'pending_approval' ? 'info' : 'warning'} size="sm">
-                    {b.status === 'paid' ? 'Paid' : b.status === 'pending_approval' ? 'Awaiting' : 'Unpaid'}
+                <div className="flex items-center gap-2 shrink-0">
+                  <OwnerBadge tone={b.status === 'paid' ? 'success' : b.status === 'pending_approval' ? 'info' : 'warning'}>
+                    {b.status === 'paid' ? 'Paid' : b.status === 'pending_approval' ? 'Awaiting Confirmation' : 'Unpaid'}
                   </OwnerBadge>
-                  <div className="flex items-center gap-1">
-                    {b.status === 'pending_approval' && (
-                      <OwnerIconButton aria-label="Confirm paid" variant="ghost" size="sm" onClick={() => handleApproveBill(b.id)} className="hover:text-owner-success">
-                        <Check />
-                      </OwnerIconButton>
-                    )}
-                    {b.status !== 'paid' && (
-                      <OwnerIconButton aria-label="Delete bill" variant="ghost" size="sm" onClick={() => handleDeleteBill(b.id)} className="hover:text-owner-danger">
-                        <Trash2 />
-                      </OwnerIconButton>
-                    )}
-                  </div>
+                  {b.status === 'pending_approval' && (
+                    <OwnerIconButton aria-label="Confirm paid" variant="ghost" size="sm" onClick={() => handleApproveBill(b.id)} className="hover:text-owner-success">
+                      <Check />
+                    </OwnerIconButton>
+                  )}
+                  {b.status !== 'paid' && (
+                    <OwnerIconButton aria-label="Delete bill" variant="ghost" size="sm" onClick={() => handleDeleteBill(b.id)} className="hover:text-owner-danger">
+                      <Trash2 />
+                    </OwnerIconButton>
+                  )}
                 </div>
               </div>
             ))}
@@ -296,12 +260,12 @@ export default function PaymentsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg w-fit flex-wrap">
         {TABS.map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
             className={cn(
-              'px-3 py-1.5 rounded-owner-full text-xs font-semibold transition-colors',
-              tab === v ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'
+              'px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors',
+              tab === v ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg'
             )}>
             {l}
           </button>
@@ -313,107 +277,53 @@ export default function PaymentsPage() {
           <p className="text-xs text-owner-muted px-1">
             Sorted by due date — oldest overdue first. Due date = same day-of-month as joining date.
           </p>
-          {pendingRentSorted.length === 0 ? (
-            <OwnerEmptyState icon={Check} title="No pending rent!" />
-          ) : (
-            <>
-              {/* Mobile: stacked card list, no horizontal scroll */}
-              <div className="sm:hidden space-y-2">
-                {pendingRentSorted.map(t => {
-                  const urgency = Math.max(Math.min(t.overdueDays / 14, 1), Math.min(t.remainingDue / 15000, 1))
-                  const urgencyColor = `color-mix(in hsl, hsl(var(--owner-warning)), hsl(var(--owner-danger)) ${Math.round(urgency * 100)}%)`
-                  return (
-                  <div key={t.id} className="bg-owner-surface border border-owner-border rounded-owner-lg p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-semibold text-owner-fg truncate">{t.name}</div>
-                        <div className="text-xs text-owner-muted-subtle truncate">Room {t.room?.room_number}</div>
-                      </div>
-                      <OwnerBadge className="shrink-0 whitespace-nowrap"
-                        style={{ color: urgencyColor, backgroundColor: `color-mix(in srgb, ${urgencyColor} 15%, transparent)` }}>
-                        {t.overdueDays}d overdue
-                      </OwnerBadge>
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <div>
-                        <div className="font-bold owner-numeric" style={{ color: urgencyColor }}>{formatINR(t.remainingDue)}</div>
-                        {t.remainingDue < t.monthly_rent && <div className="text-xs font-normal text-owner-muted-subtle">of {formatINR(t.monthly_rent)}</div>}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
-                          onClick={() => { if (t.auth_user_id) sendPushNotification({ user_ids: [t.auth_user_id], title: '💰 Rent Reminder', body: `${formatINR(t.remainingDue)} rent is due. Please pay soon.`, url: '/portal', tag: 'rent-reminder' }) }}
-                          target="_blank" rel="noreferrer" className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors">
-                          <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
-                        </a>
-                        <a href={`tel:${t.phone}`} className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors">
-                          <Phone className="w-3.5 h-3.5 text-owner-info" />
-                        </a>
-                        <OwnerButton
-                          onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: t.oldestUnpaidMonthLabel })); setRecordModal(true) }}
-                          size="sm" icon={<Check className="w-3.5 h-3.5" />}
-                        >
-                          Record
-                        </OwnerButton>
-                      </div>
-                    </div>
+          <OwnerTable>
+          <OwnerTableHead>
+            <tr>
+              {['Tenant', 'Due Date', 'Overdue By', 'Amount', 'Remind', 'Action'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
+            </tr>
+          </OwnerTableHead>
+          <OwnerTableBody>
+            {pendingRentSorted.length === 0 ? (
+              <OwnerTableEmptyRow colSpan={6}><OwnerEmptyState icon={Check} title="No pending rent!" /></OwnerTableEmptyRow>
+            ) : pendingRentSorted.map(t => (
+              <OwnerTableRow key={t.id}>
+                <OwnerTableCell>
+                  <div className="font-semibold text-owner-fg">{t.name}</div>
+                  <div className="text-xs text-owner-muted-subtle">Room {t.room?.room_number}</div>
+                </OwnerTableCell>
+                <OwnerTableCell className="font-mono text-xs font-bold">{t.dueDate}</OwnerTableCell>
+                <OwnerTableCell>
+                  <OwnerBadge tone={t.overdueDays > 5 ? 'danger' : 'warning'}>{t.overdueDays}d overdue</OwnerBadge>
+                </OwnerTableCell>
+                <OwnerTableCell className="font-bold owner-numeric">
+                  {formatINR(t.remainingDue)}
+                  {t.remainingDue < t.monthly_rent && <span className="block text-xs font-normal text-owner-muted-subtle">of {formatINR(t.monthly_rent)}</span>}
+                </OwnerTableCell>
+                <OwnerTableCell>
+                  <div className="flex gap-1.5">
+                    <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
+                      onClick={() => { if (t.auth_user_id) sendPushNotification({ user_ids: [t.auth_user_id], title: '💰 Rent Reminder', body: `${formatINR(t.remainingDue)} rent is due. Please pay soon.`, url: '/portal', tag: 'rent-reminder' }) }}
+                      target="_blank" rel="noreferrer" className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors">
+                      <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
+                    </a>
+                    <a href={`tel:${t.phone}`} className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors">
+                      <Phone className="w-3.5 h-3.5 text-owner-info" />
+                    </a>
                   </div>
-                  )
-                })}
-              </div>
-              {/* Desktop/tablet: full table */}
-              <div className="hidden sm:block">
-                <OwnerTable>
-                  <OwnerTableHead>
-                    <tr>
-                      {['Tenant', 'Due Date', 'Overdue By', 'Amount', 'Remind', 'Action'].map(h => <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>)}
-                    </tr>
-                  </OwnerTableHead>
-                  <OwnerTableBody>
-                    {pendingRentSorted.map(t => {
-                      const urgency = Math.max(Math.min(t.overdueDays / 14, 1), Math.min(t.remainingDue / 15000, 1))
-                      const urgencyColor = `color-mix(in hsl, hsl(var(--owner-warning)), hsl(var(--owner-danger)) ${Math.round(urgency * 100)}%)`
-                      return (
-                      <OwnerTableRow key={t.id}>
-                        <OwnerTableCell>
-                          <div className="font-semibold text-owner-fg">{t.name}</div>
-                          <div className="text-xs text-owner-muted-subtle">Room {t.room?.room_number}</div>
-                        </OwnerTableCell>
-                        <OwnerTableCell className="font-mono text-xs font-bold">{t.dueDate}</OwnerTableCell>
-                        <OwnerTableCell>
-                          <OwnerBadge style={{ color: urgencyColor, backgroundColor: `color-mix(in srgb, ${urgencyColor} 15%, transparent)` }}>{t.overdueDays}d overdue</OwnerBadge>
-                        </OwnerTableCell>
-                        <OwnerTableCell className="font-bold owner-numeric" style={{ color: urgencyColor }}>
-                          {formatINR(t.remainingDue)}
-                          {t.remainingDue < t.monthly_rent && <span className="block text-xs font-normal text-owner-muted-subtle">of {formatINR(t.monthly_rent)}</span>}
-                        </OwnerTableCell>
-                        <OwnerTableCell>
-                          <div className="flex gap-1.5">
-                            <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, t.property?.name ?? 'PG'))}
-                              onClick={() => { if (t.auth_user_id) sendPushNotification({ user_ids: [t.auth_user_id], title: '💰 Rent Reminder', body: `${formatINR(t.remainingDue)} rent is due. Please pay soon.`, url: '/portal', tag: 'rent-reminder' }) }}
-                              target="_blank" rel="noreferrer" className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors">
-                              <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
-                            </a>
-                            <a href={`tel:${t.phone}`} className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors">
-                              <Phone className="w-3.5 h-3.5 text-owner-info" />
-                            </a>
-                          </div>
-                        </OwnerTableCell>
-                        <OwnerTableCell>
-                          <OwnerButton
-                            onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: t.oldestUnpaidMonthLabel })); setRecordModal(true) }}
-                            size="sm" icon={<Check className="w-3.5 h-3.5" />}
-                          >
-                            Record
-                          </OwnerButton>
-                        </OwnerTableCell>
-                      </OwnerTableRow>
-                      )
-                    })}
-                  </OwnerTableBody>
-                </OwnerTable>
-              </div>
-            </>
-          )}
+                </OwnerTableCell>
+                <OwnerTableCell>
+                  <OwnerButton
+                    onClick={() => { setForm(f => ({ ...f, tenant_id: t.id, total_due: String(t.remainingDue), type: 'rent', for_month: thisMonth })); setRecordModal(true) }}
+                    size="sm" icon={<Check className="w-3.5 h-3.5" />}
+                  >
+                    Record
+                  </OwnerButton>
+                </OwnerTableCell>
+              </OwnerTableRow>
+            ))}
+          </OwnerTableBody>
+        </OwnerTable>
         </div>
       ) : (
         <div className="space-y-2">
@@ -422,16 +332,7 @@ export default function PaymentsPage() {
               Every partial payment is logged separately with the collector&apos;s name. Past entries are never changed.
             </p>
           )}
-          {tab === 'pending' && tabFiltered.length > 1 && (
-            <div className="flex items-center justify-between gap-3 bg-owner-bg-subtle rounded-owner-lg px-3.5 py-2.5">
-              <p className="text-xs text-owner-muted">{tabFiltered.length} payments awaiting your approval</p>
-              <OwnerButton size="sm" variant="secondary" loading={bulkApproving} icon={<Check className="w-3.5 h-3.5" />} onClick={handleApproveAllPending}>
-                Approve All
-              </OwnerButton>
-            </div>
-          )}
-          <div className="hidden sm:block">
-            <OwnerTable>
+          <OwnerTable>
           {loading ? (
             <div className="p-4 space-y-2">
               {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-11 rounded-owner-lg bg-owner-surface-hover animate-pulse" />)}
@@ -504,201 +405,21 @@ export default function PaymentsPage() {
             </>
           )}
         </OwnerTable>
-          </div>
-
-          {/* Mobile: stacked card list, no horizontal scroll */}
-          <div className="sm:hidden">
-            {loading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 rounded-owner-lg bg-owner-surface-hover animate-pulse" />)}
-              </div>
-            ) : tabFiltered.length === 0 ? (
-              <OwnerEmptyState icon={FileText} title="No payments found" />
-            ) : (
-              <div className="space-y-2">
-                {tabFiltered.map(p => (
-                  <button key={p.id} onClick={() => setPaymentDetail(p)}
-                    className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-2.5 text-left transition active:scale-[0.99] active:bg-owner-surface-hover overflow-hidden">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shrink-0">
-                      <Wallet className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-owner-fg truncate">{p.tenant?.name ?? '—'}</div>
-                      <div className="text-xs text-owner-muted-subtle truncate">Room {p.tenant?.room?.room_number ?? '—'} · {p.for_month ?? p.type} · {formatDate(p.payment_date)}</div>
-                    </div>
-                    <div className="text-right shrink-0 max-w-[38%]">
-                      <div className="font-bold text-owner-fg owner-numeric truncate">{formatINR(p.amount_received)}</div>
-                      {tab === 'ledger'
-                        ? <OwnerBadge tone="purple" size="sm" className="truncate max-w-full">{p.collector?.name ?? '—'}</OwnerBadge>
-                        : <OwnerBadge tone={p.approval_status === 'approved' ? 'success' : p.approval_status === 'rejected' ? 'danger' : 'warning'} size="sm">
-                            {p.approval_status === 'pending_approval' ? 'Pending' : p.approval_status === 'approved' ? 'Approved' : 'Rejected'}
-                          </OwnerBadge>
-                      }
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
-      {/* Payment Detail sheet — List → Detail pattern matching Approvals/Tenants */}
-      {paymentDetail && (() => {
-        const p = paymentDetail
-        const isPending = p.approval_status === 'pending_approval'
-        const isDeciding = decidingPaymentId === p.id
-        return (
-          <>
-            <div onClick={() => setPaymentDetail(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-            <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
-              <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-                <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
-              </div>
-              <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shrink-0">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Payment Details</div>
-                  <div className="font-bold text-owner-fg truncate">{p.tenant?.name ?? '—'} <span className="text-owner-muted-subtle font-normal text-xs">· Room {p.tenant?.room?.room_number ?? '—'}</span></div>
-                </div>
-                <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setPaymentDetail(null)}>
-                  <X />
-                </OwnerIconButton>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-                <div className="bg-owner-surface-hover rounded-2xl p-4 text-center">
-                  <div className="text-xs text-owner-muted-subtle font-semibold uppercase tracking-wide">Amount Received</div>
-                  <div className="text-3xl font-extrabold text-owner-fg mt-1 owner-numeric">{formatINR(p.amount_received)}</div>
-                  {p.amount_received < p.total_due && (
-                    <div className="text-xs text-owner-warning font-semibold mt-1">of {formatINR(p.total_due)} due</div>
-                  )}
-                  {tab !== 'ledger' && (
-                    <OwnerBadge tone={p.approval_status === 'approved' ? 'success' : p.approval_status === 'rejected' ? 'danger' : 'warning'} className="capitalize mt-2">
-                      {p.approval_status.replace('_', ' ')}
-                    </OwnerBadge>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Type</div>
-                    <div className="text-sm font-semibold text-owner-fg mt-0.5 capitalize">{p.type}</div>
-                  </div>
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">For Month</div>
-                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{p.for_month ?? '—'}</div>
-                  </div>
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Method</div>
-                    <div className="text-sm font-semibold text-owner-fg mt-0.5 capitalize">{p.method?.replace('_', ' ') ?? '—'}</div>
-                  </div>
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Date</div>
-                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{formatDate(p.payment_date)}</div>
-                  </div>
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Collected By</div>
-                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{p.collector?.name ?? '—'}</div>
-                  </div>
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Transaction ID</div>
-                    <div className="text-xs font-mono font-semibold text-owner-fg mt-0.5">#{p.id.slice(0, 8).toUpperCase()}</div>
-                  </div>
-                </div>
-                {p.reference_number && (
-                  <div className="bg-owner-surface-hover rounded-xl p-3">
-                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">Reference Number</div>
-                    <div className="text-sm font-semibold text-owner-fg mt-0.5 font-mono">{p.reference_number}</div>
-                  </div>
-                )}
-              </div>
-
-              <div className="px-5 py-4 border-t border-owner-border shrink-0 space-y-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-                {isPending ? (
-                  <div className="flex gap-2.5">
-                    <button
-                      onClick={async () => { setDecidingPaymentId(p.id); await rejectPayment(p.id); toast.error('Rejected'); await load(); setDecidingPaymentId(null); setPaymentDetail(null) }}
-                      disabled={isDeciding}
-                      className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-danger-subtle hover:opacity-80 active:scale-[0.98] text-owner-danger rounded-2xl text-sm font-bold transition disabled:opacity-50">
-                      {isDeciding ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} Reject
-                    </button>
-                    <button
-                      onClick={async () => { setDecidingPaymentId(p.id); await approvePayment(p.id); toast.success('Approved'); await load(); setDecidingPaymentId(null); setPaymentDetail(null) }}
-                      disabled={isDeciding}
-                      className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-success hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
-                      {isDeciding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Approve
-                    </button>
-                  </div>
-                ) : p.approval_status === 'approved' || tab === 'ledger' ? (
-                  <button onClick={() => generateReceiptPDF({
-                    tenantName: p.tenant?.name ?? 'Tenant',
-                    propertyName: active?.name ?? properties.find(pr => pr.id === p.property_id)?.name ?? 'PG',
-                    roomNumber: p.tenant?.room?.room_number,
-                    forMonth: p.for_month ?? undefined,
-                    type: p.type,
-                    totalDue: p.total_due,
-                    amountReceived: p.amount_received,
-                    method: p.method ?? undefined,
-                    referenceNumber: p.reference_number ?? undefined,
-                    paymentDate: p.payment_date,
-                    approvalStatus: p.approval_status,
-                    receiptNo: p.id.slice(0, 8).toUpperCase(),
-                  })}
-                    className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition">
-                    <FileText className="w-4 h-4" /> Download Receipt
-                  </button>
-                ) : (
-                  <div className="text-center text-xs text-owner-muted-subtle py-2">This payment was rejected — no receipt available.</div>
-                )}
-              </div>
-            </div>
-          </>
-        )
-      })()}
-
       {/* Record Payment Modal */}
       {recordModal && (
-        <>
-          <div onClick={() => setRecordModal(false)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
-            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
-            </div>
-            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shrink-0">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">New Entry</div>
-                <div className="font-bold text-owner-fg">Record Payment</div>
-              </div>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
+              <h2 className="text-base font-bold text-owner-fg">Record Payment</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setRecordModal(false)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              <OwnerSelect label="Tenant *" value={form.tenant_id} onChange={e => {
-                const tenantId = e.target.value
-                const summary = outstandingByTenant.get(tenantId)
-                const t = tenants.find(x => x.id === tenantId)
-                // Smart pre-fill: pick the tenant's oldest unpaid month (rent)
-                // or outstanding deposit balance automatically, same as the
-                // "By Due Date" row-level Record shortcut, so switching
-                // tenants here never leaves stale amounts/months behind.
-                setForm(f => ({
-                  ...f,
-                  tenant_id: tenantId,
-                  for_month: f.type === 'rent' ? (summary?.oldestUnpaidMonth?.label ?? '') : '',
-                  total_due: f.type === 'rent'
-                    ? String(Math.max(0, (summary?.oldestUnpaidMonth?.amount ?? 0) - (summary?.oldestUnpaidMonth?.paid ?? 0)))
-                    : f.type === 'deposit'
-                      ? String(Math.max(0, (t?.deposit_amount ?? 0) - (t?.deposit_paid ?? 0)))
-                      : '',
-                }))
-              }}>
+            <div className="p-6 space-y-4">
+              <OwnerSelect label="Tenant *" value={form.tenant_id} onChange={e => setForm(f => ({ ...f, tenant_id: e.target.value }))}>
                 <option value="">Select Tenant</option>
                 {tenants.filter(t => t.status === 'active').map(t => (
                   <option key={t.id} value={t.id}>{t.name} — Room {t.room?.room_number}</option>
@@ -708,47 +429,17 @@ export default function PaymentsPage() {
                 <OwnerSelect
                   label="Type"
                   value={form.type}
-                  onChange={e => {
-                    const type = e.target.value
-                    const summary = outstandingByTenant.get(form.tenant_id)
-                    const t = tenants.find(x => x.id === form.tenant_id)
-                    setForm(f => ({
-                      ...f,
-                      type,
-                      for_month: type === 'rent' ? (summary?.oldestUnpaidMonth?.label ?? '') : '',
-                      total_due: type === 'rent'
-                        ? String(Math.max(0, (summary?.oldestUnpaidMonth?.amount ?? 0) - (summary?.oldestUnpaidMonth?.paid ?? 0)))
-                        : type === 'deposit'
-                          ? String(Math.max(0, (t?.deposit_amount ?? 0) - (t?.deposit_paid ?? 0)))
-                          : '',
-                    }))
-                  }}
+                  onChange={e => setForm(f => ({ ...f, type: e.target.value, for_month: e.target.value === 'advance' ? '' : f.for_month }))}
                 >
                   {['rent', 'deposit', 'advance'].map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                 </OwnerSelect>
-                {form.type === 'rent' && (
-                  form.tenant_id && (outstandingByTenant.get(form.tenant_id)?.months.some(m => m.status !== 'paid')) ? (
-                    <OwnerSelect
-                      label="For Month"
-                      value={form.for_month}
-                      onChange={e => {
-                        const label = e.target.value
-                        const month = outstandingByTenant.get(form.tenant_id)?.months.find(m => m.label === label)
-                        setForm(f => ({ ...f, for_month: label, total_due: String(Math.max(0, (month?.amount ?? 0) - (month?.paid ?? 0))) }))
-                      }}
-                    >
-                      {outstandingByTenant.get(form.tenant_id)!.months.filter(m => m.status !== 'paid').map(m => (
-                        <option key={m.label} value={m.label}>{m.label} — {formatINR(Math.max(0, m.amount - m.paid))} due</option>
-                      ))}
-                    </OwnerSelect>
-                  ) : (
-                    <OwnerInput label="For Month" value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" hint={form.tenant_id ? 'No pending months — fully paid' : 'Select a tenant first'} />
-                  )
+                {form.type !== 'advance' && (
+                  <OwnerInput label="For Month" value={form.for_month} onChange={e => setForm(f => ({ ...f, for_month: e.target.value }))} placeholder="e.g. June 2024" />
                 )}
                 {form.type === 'advance' && (
                   <p className="text-xs text-owner-muted-subtle -mt-2 col-span-1 self-end pb-2">Advance payments auto-apply to the tenant&apos;s next unpaid month(s) — no need to pick a month.</p>
                 )}
-                <OwnerInput label="Total Due (₹)" type="number" value={form.total_due} onChange={e => setForm(f => ({ ...f, total_due: e.target.value }))} hint={form.type !== 'advance' ? 'Auto-filled from the ledger — edit if needed' : undefined} />
+                <OwnerInput label="Total Due (₹)" type="number" value={form.total_due} onChange={e => setForm(f => ({ ...f, total_due: e.target.value }))} />
                 <OwnerInput label="Amount Received (₹) *" type="number" value={form.amount_received} onChange={e => setForm(f => ({ ...f, amount_received: e.target.value }))} />
               </div>
               <div>
@@ -785,41 +476,25 @@ export default function PaymentsPage() {
                 Partial payments are supported — only the amount entered above will be recorded. If remaining balance is collected later by a different person, add a separate entry.
               </p>
             </div>
-            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-              <button onClick={() => setRecordModal(false)}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
-                Cancel
-              </button>
-              <button onClick={handleRecord} disabled={saving}
-                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-success hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Payment
-              </button>
+            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
+              <OwnerButton onClick={handleRecord} loading={saving} fullWidth>Save Payment</OwnerButton>
+              <OwnerButton onClick={() => setRecordModal(false)} variant="secondary" fullWidth>Cancel</OwnerButton>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Raise Electricity Bill Modal */}
       {billModal && (
-        <>
-          <div onClick={() => setBillModal(false)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
-            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
-            </div>
-            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0">
-                <Zap className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">New Bill</div>
-                <div className="font-bold text-owner-fg">Raise Electricity Bill</div>
-              </div>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
+              <h2 className="text-base font-bold text-owner-fg">Raise Electricity Bill</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setBillModal(false)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div className="p-6 space-y-4">
               <OwnerSelect label="Tenant *" value={billForm.tenant_id} onChange={e => setBillForm(f => ({ ...f, tenant_id: e.target.value }))}>
                 <option value="">Select tenant</option>
                 {tenants.filter(t => t.status === 'active').map(t => (
@@ -837,41 +512,28 @@ export default function PaymentsPage() {
                 <OwnerInput label="Due Date" type="date" value={billForm.due_date} onChange={e => setBillForm(f => ({ ...f, due_date: e.target.value }))} />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-owner-border shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-              <button onClick={handleRaiseBill} disabled={billSaving}
-                className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-owner-primary-fg rounded-2xl text-sm font-bold transition disabled:opacity-50">
-                {billSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Raise Bill
-              </button>
+            <div className="px-6 py-4 border-t border-owner-border">
+              <OwnerButton onClick={handleRaiseBill} loading={billSaving} fullWidth>Raise Bill</OwnerButton>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Bulk Reminder Modal — was a dead button (state existed, no UI) */}
       {bulkReminderModal && (
-        <>
-          <div onClick={() => setBulkReminderModal(false)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
-            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
-              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
-            </div>
-            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-owner-success to-emerald-600 text-white flex items-center justify-center shrink-0">
-                <MessageCircle className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Bulk Reminder</div>
-                <div className="font-bold text-owner-fg">Remind All ({pendingRentSorted.length})</div>
-              </div>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between shrink-0">
+              <h2 className="text-base font-bold text-owner-fg">Remind All ({pendingRentSorted.length})</h2>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setBulkReminderModal(false)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+            <div className="p-4 space-y-2 overflow-y-auto">
               {pendingRentSorted.map(t => {
                 const done = remindedPhones.has(t.phone)
                 return (
-                  <div key={t.id} className="flex items-center justify-between p-3 bg-owner-surface-hover rounded-owner-lg">
+                  <div key={t.id} className="flex items-center justify-between p-3 bg-owner-bg-subtle rounded-owner-lg">
                     <div>
                       <div className="text-sm font-semibold text-owner-fg">{t.name}</div>
                       <div className="text-xs text-owner-muted-subtle owner-numeric">{formatINR(t.remainingDue)} pending</div>
@@ -889,14 +551,11 @@ export default function PaymentsPage() {
                 )
               })}
             </div>
-            <div className="px-5 py-4 border-t border-owner-border shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-              <button onClick={() => setBulkReminderModal(false)}
-                className="w-full h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
-                Done
-              </button>
+            <div className="p-4 border-t border-owner-border shrink-0">
+              <OwnerButton onClick={() => setBulkReminderModal(false)} variant="secondary" fullWidth>Done</OwnerButton>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

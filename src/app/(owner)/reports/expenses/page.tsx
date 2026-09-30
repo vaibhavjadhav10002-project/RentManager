@@ -1,26 +1,20 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getExpenses } from '@/lib/supabase/queries'
 import { formatINR, formatDate } from '@/lib/utils'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { ChevronLeft, Download, Loader2, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Expense } from '@/types'
-import { SkeletonCardGrid, SkeletonTable } from '@/components/shared/Skeleton'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
-
-const ExpensesByCategoryChart = dynamic(() => import('@/components/owner/ReportCharts').then(m => m.ExpensesByCategoryChart), {
-  ssr: false, loading: () => <div className="h-[140px] animate-pulse bg-owner-surface-hover rounded-owner-lg" />,
-})
 
 // Same categories & colors as the Expenses page, so a category reads identically everywhere in the app.
 const CATEGORIES = ['Electricity', 'Water', 'WiFi', 'Cleaning', 'Maintenance', 'Salary', 'Other']
 const CAT_COLOR: Record<string, string> = {
   Electricity: 'bg-yellow-100 text-yellow-700', Water: 'bg-blue-100 text-blue-700',
   WiFi: 'bg-purple-100 text-purple-700', Cleaning: 'bg-green-100 text-green-700',
-  Maintenance: 'bg-red-100 text-red-700', Salary: 'bg-owner-surface-hover text-owner-fg', Other: 'bg-owner-surface-hover text-owner-muted',
+  Maintenance: 'bg-red-100 text-red-700', Salary: 'bg-gray-100 text-gray-700', Other: 'bg-gray-100 text-gray-600',
 }
 
 interface ExpenseRow extends Expense { property_name: string }
@@ -28,8 +22,6 @@ interface ExpenseRow extends Expense { property_name: string }
 export default function ExpenseReportPage() {
   const { active, activeId, properties } = useProperty()
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
-  const [refreshKey, setRefreshKey] = useState(0)
-  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [month, setMonth] = useState<string>('all')
@@ -49,7 +41,7 @@ export default function ExpenseReportPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties, refreshKey])
+  }, [activeId, properties])
 
   const monthOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -102,21 +94,23 @@ export default function ExpenseReportPage() {
   }
 
   if (loading) return (
-    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonTable rows={6} cols={5} /></div>
+    <div className="flex items-center justify-center h-64 text-gray-400">
+      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading expense data…
+    </div>
   )
 
   return (
     <div className="space-y-6">
-      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-owner-muted hover:text-owner-fg transition">
+      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-gray-700 transition">
         <ChevronLeft className="w-4 h-4" /> Reports Dashboard
       </Link>
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-owner-fg">Expense Report</h1>
-          <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
+          <h1 className="text-xl font-extrabold text-gray-900">Expense Report</h1>
+          <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
-        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
+        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Excel
         </button>
       </div>
@@ -124,18 +118,18 @@ export default function ExpenseReportPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <select value={month} onChange={e => setMonth(e.target.value)}
-          className="px-3 py-2 border border-owner-border rounded-owner-lg text-sm bg-owner-surface focus:outline-none focus:border-owner-primary">
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-blue-500">
           <option value="all">All Time</option>
           {monthOptions.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
         </select>
         <div className="flex gap-1.5 flex-wrap">
           <button onClick={() => setCategory('all')}
-            className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${category === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
+            className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${category === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
             All Categories
           </button>
           {CATEGORIES.map(cat => (
             <button key={cat} onClick={() => setCategory(cat)}
-              className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${category === cat ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
+              className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${category === cat ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
               {cat}
             </button>
           ))}
@@ -144,48 +138,41 @@ export default function ExpenseReportPage() {
 
       {/* Summary + category breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
-          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Total Expenses</div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Expenses</div>
           <div className="text-2xl font-extrabold mt-1 text-red-600">{formatINR(total)}</div>
-          <div className="text-xs text-owner-muted-subtle mt-0.5">{filtered.length} record{filtered.length === 1 ? '' : 's'}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{filtered.length} record{filtered.length === 1 ? '' : 's'}</div>
         </div>
-        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs lg:col-span-2">
-          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide mb-2">By Category</div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm lg:col-span-2">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2">By Category</div>
           {byCategory.length === 0 ? (
-            <div className="text-sm text-owner-muted-subtle py-4 text-center">No expenses match this filter</div>
+            <div className="text-sm text-gray-400 py-4 text-center">No expenses match this filter</div>
           ) : (
-            <ExpensesByCategoryChart byCategory={byCategory} />
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={byCategory} layout="vertical" margin={{ left: 0 }}>
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v / 1000}k`} />
+                <YAxis type="category" dataKey="cat" width={80} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v: number) => formatINR(v)} />
+                <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </div>
       </div>
 
       {/* Transactions table */}
-      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs overflow-hidden">
-        <div className="px-5 py-4 font-bold text-sm text-owner-fg border-b border-owner-border">Expense Records</div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 font-bold text-sm text-gray-900 border-b border-gray-100">Expense Records</div>
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
             <TrendingDown className="w-8 h-8" />
             <div className="text-sm">No expenses match this filter</div>
           </div>
         ) : (
-          <>
-            {/* Mobile: stacked card list, no horizontal scroll */}
-            <div className="sm:hidden divide-y divide-owner-border">
-              {filtered.map(e => (
-                <div key={e.id} className="px-5 py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${CAT_COLOR[e.category] ?? 'bg-owner-surface-hover text-owner-muted'}`}>{e.category}</span>
-                    <div className="text-xs text-owner-muted-subtle mt-1">{formatDate(e.expense_date)}{activeId === 'all' && ` · ${e.property_name}`}</div>
-                    {e.notes && <div className="text-xs text-owner-muted mt-1 truncate">{e.notes}</div>}
-                  </div>
-                  <div className="text-sm font-semibold text-owner-fg shrink-0">{formatINR(e.amount)}</div>
-                </div>
-              ))}
-            </div>
-            {/* Desktop/tablet: full table */}
-            <table className="w-full text-sm hidden sm:table">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-owner-muted-subtle uppercase tracking-wide border-b border-owner-border">
+                <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-3 font-semibold">Date</th>
                   {activeId === 'all' && <th className="px-5 py-3 font-semibold">Property</th>}
                   <th className="px-5 py-3 font-semibold">Category</th>
@@ -195,17 +182,17 @@ export default function ExpenseReportPage() {
               </thead>
               <tbody>
                 {filtered.map(e => (
-                  <tr key={e.id} className="border-b border-owner-border last:border-0 hover:bg-owner-surface-hover/50">
-                    <td className="px-5 py-3 text-owner-muted whitespace-nowrap">{formatDate(e.expense_date)}</td>
-                    {activeId === 'all' && <td className="px-5 py-3 text-owner-muted">{e.property_name}</td>}
-                    <td className="px-5 py-3"><span className={`text-xs font-bold px-2.5 py-1 rounded-full ${CAT_COLOR[e.category] ?? 'bg-owner-surface-hover text-owner-muted'}`}>{e.category}</span></td>
-                    <td className="px-5 py-3 text-owner-muted max-w-xs truncate">{e.notes ?? '—'}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-owner-fg">{formatINR(e.amount)}</td>
+                  <tr key={e.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{formatDate(e.expense_date)}</td>
+                    {activeId === 'all' && <td className="px-5 py-3 text-gray-500">{e.property_name}</td>}
+                    <td className="px-5 py-3"><span className={`text-xs font-bold px-2.5 py-1 rounded-full ${CAT_COLOR[e.category] ?? 'bg-gray-100 text-gray-600'}`}>{e.category}</span></td>
+                    <td className="px-5 py-3 text-gray-500 max-w-xs truncate">{e.notes ?? '—'}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatINR(e.amount)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </>
+          </div>
         )}
       </div>
     </div>

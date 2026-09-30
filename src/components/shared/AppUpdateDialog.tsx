@@ -1,6 +1,5 @@
 'use client'
-import { useState } from 'react'
-import { Rocket, ShieldAlert, Loader2 } from 'lucide-react'
+import { Rocket, ShieldAlert } from 'lucide-react'
 import type { AppVersionConfig } from '@/lib/update/types'
 import { startUpdate } from '@/lib/update/trigger'
 import { recordDismissal } from '@/lib/update/dismissal'
@@ -13,23 +12,9 @@ interface Props {
 }
 
 export default function AppUpdateDialog({ mode, installedVersion, config, onDismiss }: Props) {
-  const [installing, setInstalling] = useState(false)
-
   function handleLater() {
     recordDismissal(config.versionCode)
     onDismiss()
-  }
-
-  async function handleUpdateNow() {
-    setInstalling(true)
-    try {
-      await startUpdate(config)
-    } finally {
-      // Only relevant if startUpdate fell through to the browser-download
-      // fallback and returned quickly — if the native installer opened
-      // successfully, this component is about to be backgrounded anyway.
-      setInstalling(false)
-    }
   }
 
   return (
@@ -93,13 +78,10 @@ export default function AppUpdateDialog({ mode, installedVersion, config, onDism
 
         <div className="flex flex-col gap-3">
           <button
-            onClick={handleUpdateNow}
-            disabled={installing}
-            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3.5 text-sm font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-70"
+            onClick={() => startUpdate(config.apkDownloadUrl)}
+            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3.5 text-sm font-semibold text-white active:scale-[0.98] transition-transform"
           >
-            {installing ? (
-              <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" /> Preparing…</span>
-            ) : 'Update Now'}
+            Update Now
           </button>
           {mode === 'optional' && (
             <button

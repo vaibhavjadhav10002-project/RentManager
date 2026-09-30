@@ -7,8 +7,6 @@ import { formatINR, formatDate } from '@/lib/utils'
 import { ChevronLeft, Download, Loader2, IndianRupee } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Payment, PaymentType } from '@/types'
-import { SkeletonCardGrid, SkeletonTable } from '@/components/shared/Skeleton'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 const TYPE_LABEL: Record<PaymentType, string> = { rent: 'Rent', deposit: 'Deposit', advance: 'Advance' }
 const TYPE_BADGE: Record<PaymentType, string> = {
@@ -20,8 +18,6 @@ const TYPE_BADGE: Record<PaymentType, string> = {
 export default function IncomeReportPage() {
   const { active, activeId, properties } = useProperty()
   const [payments, setPayments] = useState<Payment[]>([])
-  const [refreshKey, setRefreshKey] = useState(0)
-  usePullToRefreshHandler(() => setRefreshKey(k => k + 1))
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [month, setMonth] = useState<string>('all') // 'all' or 'YYYY-M'
@@ -41,7 +37,7 @@ export default function IncomeReportPage() {
       setLoading(false)
     }
     load()
-  }, [activeId, properties, refreshKey])
+  }, [activeId, properties])
 
   // Distinct months present in the data, newest first — built from payment_date (reliable),
   // not the free-text for_month field which is only ever filled in for rent.
@@ -71,12 +67,8 @@ export default function IncomeReportPage() {
   const totals = useMemo(() => {
     const byType: Record<PaymentType, number> = { rent: 0, deposit: 0, advance: 0 }
     let total = 0
-    let lateFees = 0
-    filtered.forEach(p => { byType[p.type] += p.amount_received; total += p.amount_received; lateFees += p.late_fee_amount || 0 })
-    // "Rent" here means actual rent collected, with the late-fee portion
-    // (if any was folded into the same payment) broken out separately —
-    // late fees shouldn't inflate the rent-revenue figure.
-    return { byType, total, count: filtered.length, lateFees, rentExclLateFee: byType.rent - lateFees }
+    filtered.forEach(p => { byType[p.type] += p.amount_received; total += p.amount_received })
+    return { byType, total, count: filtered.length }
   }, [filtered])
 
   async function exportExcel() {
@@ -91,7 +83,6 @@ export default function IncomeReportPage() {
           Date: p.payment_date, Tenant: p.tenant?.name ?? '—', Room: p.tenant?.room?.room_number ?? '—',
           Type: TYPE_LABEL[p.type], Month: p.for_month ?? '—', Method: p.method ?? '—',
           Reference: p.reference_number ?? '—', 'Amount Received': p.amount_received,
-          'Late Fee Included': p.late_fee_amount || 0,
         }))
       ), 'Income')
       const propLabel = activeId === 'all' ? 'All-Properties' : (active?.name ?? 'Property').replace(/\s+/g, '-')
@@ -105,21 +96,23 @@ export default function IncomeReportPage() {
   }
 
   if (loading) return (
-    <div className="space-y-4"><SkeletonCardGrid count={4} /><SkeletonTable rows={6} cols={6} /></div>
+    <div className="flex items-center justify-center h-64 text-gray-400">
+      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading income data…
+    </div>
   )
 
   return (
     <div className="space-y-6">
-      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-owner-muted hover:text-owner-fg transition">
+      <Link href="/reports" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 hover:text-gray-700 transition">
         <ChevronLeft className="w-4 h-4" /> Reports Dashboard
       </Link>
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-extrabold text-owner-fg">Income Report</h1>
-          <p className="text-sm text-owner-muted">{activeId === 'all' ? 'All properties' : active?.name}</p>
+          <h1 className="text-xl font-extrabold text-gray-900">Income Report</h1>
+          <p className="text-sm text-gray-500">{activeId === 'all' ? 'All properties' : active?.name}</p>
         </div>
-        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-owner-lg text-sm font-semibold transition disabled:opacity-50">
+        <button onClick={exportExcel} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50">
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Excel
         </button>
       </div>
@@ -127,15 +120,15 @@ export default function IncomeReportPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <select value={month} onChange={e => setMonth(e.target.value)}
-          className="px-3 py-2 border border-owner-border rounded-owner-lg text-sm bg-owner-surface focus:outline-none focus:border-owner-primary">
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-blue-500">
           <option value="all">All Time</option>
           {monthOptions.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
         </select>
         <div className="flex gap-1.5 flex-wrap">
           {(['all', 'rent', 'deposit', 'advance'] as const).map(t => (
             <button key={t} onClick={() => setTypeFilter(t)}
-              className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${
-                typeFilter === t ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'
+              className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${
+                typeFilter === t ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}>
               {t === 'all' ? 'All Types' : TYPE_LABEL[t]}
             </button>
@@ -145,56 +138,38 @@ export default function IncomeReportPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
-          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Total Income</div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Income</div>
           <div className="text-2xl font-extrabold mt-1 text-green-600">{formatINR(totals.total)}</div>
-          <div className="text-xs text-owner-muted-subtle mt-0.5">{totals.count} transaction{totals.count === 1 ? '' : 's'}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{totals.count} transaction{totals.count === 1 ? '' : 's'}</div>
         </div>
-        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
-          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Rent</div>
-          <div className="text-2xl font-extrabold mt-1 text-blue-600">{formatINR(totals.rentExclLateFee)}</div>
-          {totals.lateFees > 0 && <div className="text-xs text-owner-muted-subtle mt-0.5">+ {formatINR(totals.lateFees)} late fees</div>}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Rent</div>
+          <div className="text-2xl font-extrabold mt-1 text-blue-600">{formatINR(totals.byType.rent)}</div>
         </div>
-        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
-          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Deposit</div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Deposit</div>
           <div className="text-2xl font-extrabold mt-1 text-purple-600">{formatINR(totals.byType.deposit)}</div>
         </div>
-        <div className="bg-owner-surface rounded-owner-xl border border-owner-border p-5 shadow-owner-xs">
-          <div className="text-xs text-owner-muted font-semibold uppercase tracking-wide">Advance</div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Advance</div>
           <div className="text-2xl font-extrabold mt-1 text-amber-600">{formatINR(totals.byType.advance)}</div>
         </div>
       </div>
 
       {/* Transactions table */}
-      <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs overflow-hidden">
-        <div className="px-5 py-4 font-bold text-sm text-owner-fg border-b border-owner-border">Transactions</div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 font-bold text-sm text-gray-900 border-b border-gray-100">Transactions</div>
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
             <IndianRupee className="w-8 h-8" />
             <div className="text-sm">No income matches this filter</div>
           </div>
         ) : (
-          <>
-            {/* Mobile: stacked card list, no horizontal scroll */}
-            <div className="sm:hidden divide-y divide-owner-border">
-              {filtered.map(p => (
-                <div key={p.id} className="px-5 py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-owner-fg truncate">{p.tenant?.name ?? '—'}</div>
-                    <div className="text-xs text-owner-muted-subtle mt-0.5">{formatDate(p.payment_date)} · Room {p.tenant?.room?.room_number ?? '—'}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_BADGE[p.type]}`}>{TYPE_LABEL[p.type]}</span>
-                      <span className="text-xs text-owner-muted capitalize">{p.method?.replace('_', ' ') ?? '—'}</span>
-                    </div>
-                  </div>
-                  <div className="text-sm font-semibold text-owner-fg shrink-0">{formatINR(p.amount_received)}</div>
-                </div>
-              ))}
-            </div>
-            {/* Desktop/tablet: full table */}
-            <table className="w-full text-sm hidden sm:table">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-owner-muted-subtle uppercase tracking-wide border-b border-owner-border">
+                <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-3 font-semibold">Date</th>
                   <th className="px-5 py-3 font-semibold">Tenant</th>
                   <th className="px-5 py-3 font-semibold">Room</th>
@@ -205,20 +180,20 @@ export default function IncomeReportPage() {
               </thead>
               <tbody>
                 {filtered.map(p => (
-                  <tr key={p.id} className="border-b border-owner-border last:border-0 hover:bg-owner-surface-hover/50">
-                    <td className="px-5 py-3 text-owner-muted whitespace-nowrap">{formatDate(p.payment_date)}</td>
-                    <td className="px-5 py-3 font-medium text-owner-fg">{p.tenant?.name ?? '—'}</td>
-                    <td className="px-5 py-3 text-owner-muted">{p.tenant?.room?.room_number ?? '—'}</td>
+                  <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{formatDate(p.payment_date)}</td>
+                    <td className="px-5 py-3 font-medium text-gray-800">{p.tenant?.name ?? '—'}</td>
+                    <td className="px-5 py-3 text-gray-500">{p.tenant?.room?.room_number ?? '—'}</td>
                     <td className="px-5 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_BADGE[p.type]}`}>{TYPE_LABEL[p.type]}</span>
                     </td>
-                    <td className="px-5 py-3 text-owner-muted capitalize">{p.method?.replace('_', ' ') ?? '—'}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-owner-fg">{formatINR(p.amount_received)}</td>
+                    <td className="px-5 py-3 text-gray-500 capitalize">{p.method?.replace('_', ' ') ?? '—'}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatINR(p.amount_received)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </>
+          </div>
         )}
       </div>
     </div>

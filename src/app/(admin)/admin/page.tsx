@@ -1,12 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { friendlyErrorMessage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Plus, Loader2, Building2, Users, UserCheck } from 'lucide-react'
 import ForcePasswordChangeModal from '@/components/shared/ForcePasswordChangeModal'
-import { SkeletonList } from '@/components/shared/Skeleton'
-import { usePullToRefreshHandler } from '@/lib/native/pullToRefresh'
 
 export default function AdminPage() {
   const [owners, setOwners] = useState<any[]>([])
@@ -38,7 +35,6 @@ export default function AdminPage() {
   }
 
   useEffect(() => { load() }, [])
-  usePullToRefreshHandler(load)
 
   async function addOwner() {
     if (!form.full_name || !form.email || !form.password) { toast.error('Fill all required fields'); return }
@@ -57,7 +53,7 @@ export default function AdminPage() {
       setModal(false)
       setForm({ full_name: '', email: '', phone: '', password: '' })
       load()
-    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
+    } catch (e: any) { toast.error(e.message) }
     setSaving(false)
   }
 
@@ -104,7 +100,7 @@ export default function AdminPage() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 font-bold text-sm text-gray-900">All PG Owners</div>
           {loading ? (
-            <SkeletonList rows={5} />
+            <div className="flex items-center justify-center h-32 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading…</div>
           ) : owners.length === 0 ? (
             <div className="text-center py-12 text-gray-400 text-sm">No PG owners yet. Add one to get started.</div>
           ) : (

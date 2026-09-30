@@ -1,15 +1,6 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // lucide-react is imported with named imports (`import { X } from
-  // 'lucide-react'`) on nearly every page in this app. Without this, that
-  // pattern can pull in more of the package's module graph than the few
-  // icons actually used per page; this tells Next.js to rewrite those
-  // imports into per-icon paths at build time so each page's bundle only
-  // contains the icons it actually renders.
-  experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },
@@ -29,18 +20,6 @@ const nextConfig: NextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'microphone=(), geolocation=()' },
-        ],
-      },
-      {
-        // Lets any other origin (specifically: the separate Rentivo marketing
-        // website repo/deployment) read this file with a plain client-side
-        // `fetch()`. It's already fully public — anyone can open this URL
-        // directly in a browser — this only affects whether JS on another
-        // site is allowed to read the response, not who can see it.
-        source: '/app-version.json',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Cache-Control', value: 'public, max-age=60, must-revalidate' },
         ],
       },
     ]
