@@ -1,0 +1,11 @@
+Extract this zip INSIDE your project root (the folder that contains package.json and src/).
+Say "replace" when asked. Then check these 8 files exist:
+
+src/app/(owner)/owner-theme.css
+src/app/(owner)/dashboard/page.tsx
+src/app/(owner)/more/page.tsx            <- NEW
+src/components/shared/OwnerShell.tsx
+src/components/shared/OwnerBottomNav.tsx
+src/components/shared/ownerNav.ts
+src/components/shared/MobilePropertyBar.tsx   <- NEW
+src/components/shared/OwnerUserContext.tsx    <- NEW

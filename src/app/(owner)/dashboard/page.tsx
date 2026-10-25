@@ -7,7 +7,7 @@ import { useProperty } from '@/components/shared/PropertyContext'
 import {
   getDashboardStats, getTenants, getPayments, getFinancialHistory, getComplaints, getExpenses,
   getOwnerNotifications, getAgreementsForProperty, getRooms, getLeaveRequests, getRentExtensionRequests,
-  getMoveOutRequests, renewAgreement,
+  getMoveOutRequests, renewAgreement, getWaitingList,
 } from '@/lib/supabase/queries'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
@@ -16,10 +16,13 @@ import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBa
 import {
   BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home, UserPlus, Receipt, Wrench,
   ShieldCheck, BarChart3, Megaphone, Clock, Bell, CalendarClock, Users2, Percent,
+  ChevronRight, CheckCircle2, ShieldAlert, PieChart,
 } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
 import { OwnerStatCard, OwnerCard, OwnerEmptyState, OwnerCalendar, OwnerBadge, OwnerAvatar, OwnerButton } from '@/components/owner/ui'
 import { useActiveExperience } from '@/lib/experience/useActiveExperience'
+import MobilePropertyBar from '@/components/shared/MobilePropertyBar'
+import { useOwnerUser, firstName, initials } from '@/components/shared/OwnerUserContext'
 
 // recharts (~100kB) is loaded as its own async chunk instead of being part
 // of Dashboard's main bundle — this is the first page every owner sees
@@ -74,6 +77,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { activeId, active, properties } = useProperty()
   const activePack = useActiveExperience()
+  const { name: ownerName } = useOwnerUser()
   const packGreetingText = activePack?.greeting ? (activePack.greeting[greetingTimeSlot()] ?? activePack.greeting.default) : null
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [activities, setActivities] = useState<ActivityItem[]>([])
@@ -87,6 +91,8 @@ export default function DashboardPage() {
   const [sharingBreakdown, setSharingBreakdown] = useState<{ sharing_type: string; totalBeds: number; occupiedBeds: number }[]>([])
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
   const [pendingTenantJoinsCount, setPendingTenantJoinsCount] = useState(0)
+  const [kycPendingCount, setKycPendingCount] = useState(0)
+  const [leadsCount, setLeadsCount] = useState(0)
   const [renewModal, setRenewModal] = useState<any>(null)
   const [renewForm, setRenewForm] = useState({ start_date: '', end_date: '', monthly_rent: '' })
   const [renewing, setRenewing] = useState(false)
@@ -100,6 +106,7 @@ export default function DashboardPage() {
     if (propIds.length === 0 || propIds.some(id => !id)) return
 
     getOwnerNotifications(propIds).then(setDashNotifications).catch(() => setDashNotifications([]))
+    Promise.all(propIds.map(id => getWaitingList(id))).then(r => setLeadsCount(r.flat().filter((l: any) => l.status === 'waiting' || l.status === 'contacted').length)).catch(() => setLeadsCount(0))
 
     Promise.all(propIds.map(id => getAgreementsForProperty(id))).then(results => {
       const today = new Date()
@@ -165,6 +172,7 @@ export default function DashboardPage() {
         buildOccupancyAnalytics(tenants, rooms)
         setPendingApprovalsCount(payments.filter((p: any) => p.approval_status === 'pending_approval').length)
         setPendingTenantJoinsCount(tenants.filter(t => t.status === 'pending_approval').length)
+        setKycPendingCount(tenants.filter(t => t.status === 'active' && (t.aadhaar_status === 'pending' || t.pan_status === 'pending')).length)
         setThisMonthExpenses(expenses.filter((e: any) => e.expense_date >= monthStartStr).reduce((s: number, e: any) => s + e.amount, 0))
       } catch {}
       setLoading(false)
@@ -284,6 +292,8 @@ export default function DashboardPage() {
       })
       setPendingTenants([])
       setChartData([])
+      setKycPendingCount(0)
+      setLeadsCount(0)
       setLoading(false)
       return
     }
@@ -356,61 +366,111 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <EnableNotificationsBanner />
-      {/* Header */}
-      <div>
+      {/* Mobile header — greeting, bell, avatar (same data as before; the
+          pack greeting from the experience engine still takes priority) */}
+      <div className="lg:hidden space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-[22px] font-medium text-owner-muted">
+            {packGreetingText ?? `${greeting()}${firstName(ownerName) ? `, ${firstName(ownerName)}` : ''}`}
+          </h1>
+          <div className="flex shrink-0 items-center gap-3">
+            <Link href="/notifications" aria-label="Notifications"
+              className="relative flex h-14 w-14 items-center justify-center rounded-full border border-owner-border bg-owner-surface text-owner-fg active:bg-owner-surface-hover">
+              <Bell className="h-6 w-6" />
+              {dashNotifications.length > 0 && (
+                <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-owner-primary ring-2 ring-owner-surface" />
+              )}
+            </Link>
+            <Link href="/settings" aria-label="Profile and settings"
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-owner-primary text-lg font-bold text-white">
+              {initials(ownerName)}
+            </Link>
+          </div>
+        </div>
+        <MobilePropertyBar />
+      </div>
+
+      {/* Desktop header */}
+      <div className="hidden lg:block">
         <h1 className="text-xl font-extrabold text-owner-fg">Dashboard</h1>
         <p className="text-sm text-owner-muted mt-1">
           {activeId === 'all' ? `All ${properties.length} properties overview` : `${active?.name} — ${active?.city}`}
         </p>
       </div>
 
-      {/* Hero card — greeting + at-a-glance occupancy, built entirely from
-          the `stats` object already fetched below (no new data/queries) */}
-      {stats && (
-        <div
-          className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-indigo-600 p-5 text-white shadow-owner-md relative overflow-hidden"
-          style={activePack?.accentPalette?.primary ? {
-            backgroundImage: `linear-gradient(135deg, hsl(${activePack.accentPalette.primary}), hsl(${activePack.accentPalette.secondary ?? activePack.accentPalette.primary}))`,
-          } : undefined}
-        >
-          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" aria-hidden="true" />
-          <div className="absolute -right-2 -bottom-10 w-24 h-24 rounded-full bg-white/10" aria-hidden="true" />
-          <div className="relative">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-base font-bold">{packGreetingText ?? greeting()} 👋</div>
-                <div className="text-xs text-white/80 mt-0.5">
-                  {activeId === 'all' ? `Across all ${properties.length} properties` : active?.name}
-                  {activePack ? ` · ${activePack.name}` : ''}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className="text-2xl font-extrabold owner-numeric">{stats.totalBeds > 0 ? Math.round((stats.occupiedBeds / stats.totalBeds) * 100) : 0}%</div>
-                <div className="text-[10px] text-white/70 font-semibold uppercase tracking-wide">Occupancy</div>
-              </div>
+      {/* Hero — this month's collection, built from the same `stats` +
+          expenses already fetched (no new queries) */}
+      {stats && (() => {
+        const charged = stats.monthlyRevenue + stats.pendingRent
+        const collectedPct = charged > 0 ? Math.round((stats.monthlyRevenue / charged) * 100) : 0
+        return (
+          <div
+            className="rounded-[32px] bg-owner-primary p-6 text-white shadow-owner-glow"
+            style={activePack?.accentPalette?.primary ? {
+              backgroundImage: `linear-gradient(135deg, hsl(${activePack.accentPalette.primary}), hsl(${activePack.accentPalette.secondary ?? activePack.accentPalette.primary}))`,
+            } : undefined}
+          >
+            <div className="flex items-center justify-between text-white/90">
+              <span className="text-[15px] font-bold uppercase tracking-wide">Total collected</span>
+              <span className="text-[15px] font-medium">{new Date().toLocaleString('en-IN', { month: 'short', year: 'numeric' })}</span>
             </div>
-            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/15">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4" />
+            <div className="mt-5 text-[48px] sm:text-[60px] font-extrabold leading-none tracking-tight owner-numeric">{formatINR(stats.monthlyRevenue)}</div>
+            <div className="mt-3 text-lg text-white/90 owner-numeric">of {formatINR(charged)} charged</div>
+            <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-white/35">
+              <div className="h-full rounded-full bg-white" style={{ width: `${collectedPct}%` }} />
+            </div>
+            <div className="mt-2.5 flex items-center justify-between text-[15px] text-white/90 owner-numeric">
+              <span>{collectedPct}% collected</span>
+              <span>{formatINR(stats.pendingRent)} outstanding</span>
+            </div>
+            <div className="mt-5 flex items-end justify-between gap-3 border-t border-black/20 pt-5">
+              <div className="flex gap-8">
+                <div>
+                  <div className="text-sm font-bold uppercase tracking-wide text-white/85">Net profit</div>
+                  <div className="mt-1 text-[26px] font-extrabold owner-numeric">{formatINR(netProfit)}</div>
                 </div>
                 <div>
-                  <div className="text-sm font-bold owner-numeric">{stats.totalTenants}</div>
-                  <div className="text-[10px] text-white/70">Active Tenants</div>
+                  <div className="text-sm font-bold uppercase tracking-wide text-white/85">Spent</div>
+                  <div className="mt-1 text-[26px] font-extrabold owner-numeric">{formatINR(thisMonthExpenses)}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
-                  <BedDouble className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-bold owner-numeric">{stats.vacantBeds}</div>
-                  <div className="text-[10px] text-white/70">Vacant Beds</div>
-                </div>
-              </div>
+              <Link href="/reports" className="flex shrink-0 items-center gap-1 rounded-xl bg-black/25 px-4 py-3 text-base font-bold text-white active:bg-black/35">
+                View report <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
-        </div>
+        )
+      })()}
+
+      {/* At a glance */}
+      {stats && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-owner-fg">At a glance</h2>
+            <Link href="/reports" className="flex items-center gap-0.5 text-base font-semibold text-owner-primary">See all <ChevronRight className="h-4 w-4" /></Link>
+          </div>
+          <div className="grid grid-cols-4 gap-2.5">
+            {[
+              { href: '/payments', label: 'Collected', value: formatINR(stats.monthlyRevenue), icon: IndianRupee, tone: 'success' as const },
+              { href: '/payments', label: 'Outstanding', value: formatINR(stats.pendingRent), icon: Clock, tone: 'warning' as const },
+              { href: '/rooms', label: 'Occupied', value: `${occupancyPct}%`, icon: PieChart, tone: 'teal' as const },
+              { href: '/tenants', label: 'Tenants', value: String(stats.totalTenants), icon: Users, tone: 'info' as const },
+              { href: '/payments', label: 'Overdue', value: String(overdueCount), icon: AlertTriangle, tone: 'danger' as const },
+              { href: '/tenants', label: 'KYC pending', value: String(kycPendingCount), icon: ShieldAlert, tone: 'info' as const },
+              { href: '/complaints', label: 'Open issues', value: String(stats.openComplaints), icon: Wrench, tone: 'warning' as const },
+              { href: '/waiting-list', label: 'Leads', value: String(leadsCount), icon: UserPlus, tone: 'purple' as const },
+            ].map(t => (
+              <Link key={t.label} href={t.href}
+                className="min-w-0 rounded-3xl border border-owner-border bg-owner-surface p-3 active:bg-owner-surface-hover">
+                <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', TONE_BG[t.tone])}>
+                  <t.icon className={cn('h-[18px] w-[18px]', TONE_FG[t.tone])} />
+                </span>
+                <div className="mt-3 truncate text-lg font-extrabold leading-none text-owner-fg owner-numeric">{t.value}</div>
+                <div className="mt-1 truncate text-xs text-owner-muted">{t.label}</div>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       {properties.length === 0 && (
@@ -420,50 +480,59 @@ export default function DashboardPage() {
         </OwnerCard>
       )}
 
-      {/* Smart Alerts — only the things most likely to need attention right now */}
-      {alerts.length > 0 && (
-        <OwnerCard>
-          <div className="text-xs font-bold text-owner-muted-subtle uppercase tracking-wide mb-3">Needs Your Attention</div>
+      {/* Needs attention — same alert rules as before */}
+      <section>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-2xl font-extrabold text-owner-fg">Needs attention</h2>
+          <span className="text-base text-owner-muted">{new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+        </div>
+        {alerts.length === 0 ? (
+          <div className="flex items-center gap-3 rounded-3xl border border-owner-border bg-owner-surface px-4 py-4 text-owner-muted">
+            <CheckCircle2 className="h-5 w-5 text-owner-success" />
+            <span className="text-sm font-medium">You&apos;re all caught up — nothing needs your attention.</span>
+          </div>
+        ) : (
           <div className="space-y-2">
             {alerts.map((a, i) => a.href ? (
               <Link key={i} href={a.href}
-                className={cn('flex items-center justify-between gap-2 px-3 py-2.5 rounded-owner-lg text-sm font-semibold transition-colors', TONE_BG[a.tone], TONE_FG[a.tone])}>
+                className={cn('flex items-center justify-between gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold', TONE_BG[a.tone], TONE_FG[a.tone])}>
                 <span>{a.text}</span>
-                <span className="text-xs">→</span>
+                <ChevronRight className="h-4 w-4 shrink-0" />
               </Link>
             ) : (
-              <div key={i} className={cn('flex items-center justify-between gap-2 px-3 py-2.5 rounded-owner-lg text-sm font-semibold', TONE_BG[a.tone], TONE_FG[a.tone])}>
+              <div key={i} className={cn('flex items-center justify-between gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold', TONE_BG[a.tone], TONE_FG[a.tone])}>
                 <span>{a.text}</span>
               </div>
             ))}
           </div>
-        </OwnerCard>
-      )}
+        )}
+      </section>
 
-      {/* Quick Actions */}
-      <OwnerCard>
-        <div className="font-bold text-sm text-owner-fg mb-4">Quick Actions</div>
+      {/* Quick actions */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-2xl font-extrabold text-owner-fg">Quick actions</h2>
+          <Link href="/more" className="flex items-center gap-0.5 text-base font-semibold text-owner-primary lg:hidden">See all <ChevronRight className="h-4 w-4" /></Link>
+        </div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
           {[
-            { href: '/tenants', label: 'Add Tenant', icon: UserPlus, tone: 'primary' as const },
-            { href: '/payments', label: 'Record Payment', icon: Receipt, tone: 'success' as const },
-            { href: '/expenses', label: 'Add Expense', icon: TrendingDown, tone: 'warning' as const },
-            { href: '/notices', label: 'Post Notice', icon: Megaphone, tone: 'purple' as const },
+            { href: '/tenants', label: 'Add tenant', icon: UserPlus, tone: 'primary' as const },
+            { href: '/payments', label: 'Record payment', icon: Receipt, tone: 'success' as const },
+            { href: '/expenses', label: 'Add expense', icon: TrendingDown, tone: 'warning' as const },
+            { href: '/notices', label: 'Post notice', icon: Megaphone, tone: 'purple' as const },
             { href: '/approvals', label: 'Approvals', icon: ShieldCheck, tone: 'info' as const },
-            { href: '/reports', label: 'View Reports', icon: BarChart3, tone: 'teal' as const },
+            { href: '/reports', label: 'View reports', icon: BarChart3, tone: 'teal' as const },
           ].map(({ href, label, icon: Icon, tone }) => (
-            <Link key={href} href={href} className="flex flex-col items-center gap-2 py-1 group">
-              <span className={cn(
-                'w-11 h-11 rounded-owner-xl flex items-center justify-center transition-transform group-hover:scale-105',
-                TONE_BG[tone]
-              )}>
-                <Icon className={cn('w-5 h-5', TONE_FG[tone])} />
+            <Link key={href} href={href}
+              className="flex flex-col items-start gap-3 rounded-3xl border border-owner-border bg-owner-surface p-4 active:bg-owner-surface-hover">
+              <span className={cn('flex h-11 w-11 items-center justify-center rounded-2xl', TONE_BG[tone])}>
+                <Icon className={cn('h-5 w-5', TONE_FG[tone])} />
               </span>
-              <span className="text-[11px] font-semibold text-owner-fg text-center leading-tight">{label}</span>
+              <span className="text-sm font-semibold leading-tight text-owner-fg">{label}</span>
             </Link>
           ))}
         </div>
-      </OwnerCard>
+      </section>
 
       {/* Pending Rent (date-sorted) */}
       <OwnerCard>

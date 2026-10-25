@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import { OwnerBottomNav } from './OwnerBottomNav'
-import OwnerMoreSheet from './OwnerMoreSheet'
+import { OwnerUserProvider } from './OwnerUserContext'
 import { PropertyProvider } from './PropertyContext'
 import ForcePasswordChangeModal from './ForcePasswordChangeModal'
 import { OwnerThemeProvider } from '@/components/owner/ui'
@@ -12,10 +13,13 @@ import type { Profile } from '@/types'
 
 function OwnerShellInner({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const pathname = usePathname()
+  // Home and All-features render their own mobile header (greeting / title + property bar).
+  const ownMobileHeader = pathname === '/dashboard' || pathname === '/more'
   const [mustChangePw, setMustChangePw] = useState(profile.must_change_password)
 
   return (
+    <OwnerUserProvider value={{ name: profile.full_name ?? '' }}>
     <PropertyProvider>
       {mustChangePw && (
         <ForcePasswordChangeModal userId={profile.id} onDone={() => setMustChangePw(false)} />
@@ -40,15 +44,17 @@ function OwnerShellInner({ children, profile }: { children: React.ReactNode; pro
           userName={profile.full_name}
         />
         <div className="flex-1 flex flex-col lg:ml-56 min-w-0 h-full">
-          <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-5 pb-28 lg:p-7 lg:pb-7">
+          <div className={ownMobileHeader ? 'hidden lg:block' : ''}>
+            <Topbar onMenuClick={() => setSidebarOpen(true)} />
+          </div>
+          <main id="main-content" className="flex-1 min-h-0 overflow-y-auto p-5 pb-24 lg:p-7 lg:pb-7">
             <PageTransition>{children}</PageTransition>
           </main>
         </div>
-        <OwnerBottomNav onMoreClick={() => setMoreOpen(true)} />
-        <OwnerMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} userName={profile.full_name} />
+        <OwnerBottomNav />
       </div>
     </PropertyProvider>
+    </OwnerUserProvider>
   )
 }
 

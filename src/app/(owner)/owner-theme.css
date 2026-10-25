@@ -35,8 +35,8 @@
   --owner-muted: 220 10% 65%;
   --owner-muted-subtle: 220 9% 46%;
 
-  --owner-primary: 243 75% 61%;
-  --owner-primary-hover: 243 78% 68%;
+  --owner-primary: 16 88% 56%;
+  --owner-primary-hover: 16 90% 62%;
   --owner-primary-foreground: 0 0% 100%;
 
   --owner-success: 142 69% 48%;
@@ -52,9 +52,9 @@
   --owner-accent-teal: 172 66% 45%;
   --owner-accent-teal-subtle: 172 50% 16%;
 
-  --owner-ring: 243 75% 61%;
+  --owner-ring: 16 88% 56%;
   --owner-shadow-color: 224 60% 2%;
-  --owner-glow: 243 75% 61%;
+  --owner-glow: 16 88% 56%;
 
   background-color: hsl(var(--owner-background));
   color: hsl(var(--owner-foreground));
@@ -62,20 +62,20 @@
 }
 
 .owner-shell[data-theme='light'] {
-  --owner-background: 220 25% 97%;
-  --owner-background-subtle: 220 20% 94%;
+  --owner-background: 0 0% 98%;
+  --owner-background-subtle: 0 0% 95%;
   --owner-surface: 0 0% 100%;
   --owner-surface-elevated: 0 0% 100%;
-  --owner-surface-hover: 220 20% 95%;
-  --owner-border: 220 15% 90%;
-  --owner-border-strong: 220 13% 81%;
+  --owner-surface-hover: 0 0% 95%;
+  --owner-border: 0 0% 90%;
+  --owner-border-strong: 0 0% 80%;
 
-  --owner-foreground: 222 47% 12%;
-  --owner-muted: 215 16% 44%;
-  --owner-muted-subtle: 215 14% 58%;
+  --owner-foreground: 0 0% 8%;
+  --owner-muted: 0 0% 42%;
+  --owner-muted-subtle: 0 0% 58%;
 
-  --owner-primary: 243 75% 56%;
-  --owner-primary-hover: 243 75% 50%;
+  --owner-primary: 16 88% 54%;
+  --owner-primary-hover: 16 88% 47%;
   --owner-primary-foreground: 0 0% 100%;
 
   --owner-success: 142 71% 38%;
@@ -91,9 +91,9 @@
   --owner-accent-teal: 172 66% 35%;
   --owner-accent-teal-subtle: 172 60% 93%;
 
-  --owner-ring: 243 75% 56%;
-  --owner-shadow-color: 220 40% 60%;
-  --owner-glow: 243 75% 56%;
+  --owner-ring: 16 88% 54%;
+  --owner-shadow-color: 16 40% 50%;
+  --owner-glow: 16 88% 54%;
 
   color-scheme: light;
 }
@@ -104,7 +104,7 @@
 }
 
 .owner-shell {
-  font-family: var(--font-inter, Inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-owner-sans, var(--font-inter, Inter)), -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .owner-numeric {
