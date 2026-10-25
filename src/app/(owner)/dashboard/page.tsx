@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useProperty } from '@/components/shared/PropertyContext'
 import {
@@ -10,18 +11,30 @@ import {
 } from '@/lib/supabase/queries'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
-import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg, cn, friendlyErrorMessage } from '@/lib/utils'
+import { formatINR, formatDate, computeDueDate, getOverdueDays, whatsappLink, rentReminderMsg, cn, parseDateOnly, friendlyErrorMessage } from '@/lib/utils'
 import EnableNotificationsBanner from '@/components/shared/EnableNotificationsBanner'
 import {
   BedDouble, IndianRupee, AlertTriangle, TrendingDown, Users, Home, UserPlus, Receipt, Wrench,
   ShieldCheck, BarChart3, Megaphone, Clock, Bell, CalendarClock, Users2, Percent,
 } from 'lucide-react'
 import type { DashboardStats, Tenant } from '@/types'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line,
-} from 'recharts'
-import { OwnerStatCard, OwnerCard, OwnerChartTooltip, OwnerEmptyState, OwnerCalendar, OwnerBadge, OwnerAvatar, OwnerButton } from '@/components/owner/ui'
+import { OwnerStatCard, OwnerCard, OwnerEmptyState, OwnerCalendar, OwnerBadge, OwnerAvatar, OwnerButton } from '@/components/owner/ui'
+import { useActiveExperience } from '@/lib/experience/useActiveExperience'
+
+// recharts (~100kB) is loaded as its own async chunk instead of being part
+// of Dashboard's main bundle — this is the first page every owner sees
+// after login, so keeping it light matters most here. Each `loading`
+// skeleton mirrors the chart's real layout so there's no visible jump once
+// the chunk arrives (usually well under a second on a warm cache/network).
+const RevenueChartCard = dynamic(() => import('@/components/owner/DashboardCharts').then(m => m.RevenueChartCard), {
+  ssr: false, loading: () => <OwnerCard className="lg:col-span-2 h-[268px] animate-pulse" />,
+})
+const OccupancyDonutCard = dynamic(() => import('@/components/owner/DashboardCharts').then(m => m.OccupancyDonutCard), {
+  ssr: false, loading: () => <OwnerCard className="h-[268px] animate-pulse" />,
+})
+const OccupancyTrendCard = dynamic(() => import('@/components/owner/DashboardCharts').then(m => m.OccupancyTrendCard), {
+  ssr: false, loading: () => <OwnerCard className="lg:col-span-2 h-[248px] animate-pulse" />,
+})
 
 // Static class lookups for the Quick Actions tiles — kept as full literal
 // strings (not built with template interpolation) so Tailwind's static
@@ -40,16 +53,34 @@ interface ActivityItem {
   text: string; time: string; icon: React.ElementType; tone: keyof typeof TONE_BG
 }
 
+// Pure presentational helper for the hero card — no data fetching, just
+// reads the local clock to pick a time-appropriate greeting.
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good Morning'
+  if (h < 17) return 'Good Afternoon'
+  return 'Good Evening'
+}
+
+function greetingTimeSlot(): 'morning' | 'afternoon' | 'evening' | 'night' {
+  const h = new Date().getHours()
+  if (h < 12) return 'morning'
+  if (h < 17) return 'afternoon'
+  if (h < 21) return 'evening'
+  return 'night'
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { activeId, active, properties } = useProperty()
+  const activePack = useActiveExperience()
+  const packGreetingText = activePack?.greeting ? (activePack.greeting[greetingTimeSlot()] ?? activePack.greeting.default) : null
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [pendingTenants, setPendingTenants] = useState<(Tenant & { dueDate: string; overdueDays: number; remainingDue: number })[]>([])
   const [chartData, setChartData] = useState<{ month: string; revenue: number; expenses: number; profit: number }[]>([])
   const [thisMonthExpenses, setThisMonthExpenses] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [dashNotifications, setDashNotifications] = useState<any[]>([])
   const [expiringAgreements, setExpiringAgreements] = useState<any[]>([])
   const [occupancyTrend, setOccupancyTrend] = useState<{ month: string; occupancyPct: number }[]>([])
@@ -84,7 +115,6 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      setLoadError(null)
       try {
         const propIds = activeId === 'all' ? properties.map(p => p.id) : [activeId]
         getFinancialHistory(propIds).then(setChartData).catch(() => setChartData([]))
@@ -136,14 +166,7 @@ export default function DashboardPage() {
         setPendingApprovalsCount(payments.filter((p: any) => p.approval_status === 'pending_approval').length)
         setPendingTenantJoinsCount(tenants.filter(t => t.status === 'pending_approval').length)
         setThisMonthExpenses(expenses.filter((e: any) => e.expense_date >= monthStartStr).reduce((s: number, e: any) => s + e.amount, 0))
-      } catch (e) {
-        // Previously silently swallowed — the dashboard's stats cards are
-        // already conditionally rendered on `stats` being non-null, so a
-        // failed load didn't crash anything, but the owner just saw a
-        // half-blank dashboard with zero indication of why. Surfacing it
-        // as a proper retry banner instead.
-        setLoadError(friendlyErrorMessage(e))
-      }
+      } catch {}
       setLoading(false)
     }
 
@@ -197,9 +220,9 @@ export default function DashboardPage() {
         const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
         const occupied = tenants.filter(t => {
           if (t.status === 'pending_approval') return false
-          const joined = new Date(t.joining_date)
+          const joined = parseDateOnly(t.joining_date)
           if (joined > monthEnd) return false
-          if (t.leaving_date && new Date(t.leaving_date) < monthStart) return false
+          if (t.leaving_date && parseDateOnly(t.leaving_date) < monthStart) return false
           return true
         }).length
         trend.push({
@@ -295,17 +318,23 @@ export default function DashboardPage() {
         })
       }
       setRenewModal(null)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setRenewing(false)
   }
 
   if (loading) return (
     <div className="space-y-6">
       <div className="h-7 w-40 rounded-owner-md bg-owner-surface-hover animate-pulse" />
+      <div className="h-32 rounded-owner-2xl bg-owner-surface-hover animate-pulse" />
+      <div className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
+      </div>
+      <div className="h-40 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
+      <div className="h-40 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {Array.from({ length: 9 }).map((_, i) => <div key={i} className="h-28 rounded-owner-xl bg-owner-surface-hover animate-pulse" />)}
       </div>
-      <div className="h-24 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 h-52 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
         <div className="h-52 rounded-owner-xl bg-owner-surface-hover animate-pulse" />
@@ -335,6 +364,55 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Hero card — greeting + at-a-glance occupancy, built entirely from
+          the `stats` object already fetched below (no new data/queries) */}
+      {stats && (
+        <div
+          className="rounded-owner-2xl bg-gradient-to-br from-owner-primary to-indigo-600 p-5 text-white shadow-owner-md relative overflow-hidden"
+          style={activePack?.accentPalette?.primary ? {
+            backgroundImage: `linear-gradient(135deg, hsl(${activePack.accentPalette.primary}), hsl(${activePack.accentPalette.secondary ?? activePack.accentPalette.primary}))`,
+          } : undefined}
+        >
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" aria-hidden="true" />
+          <div className="absolute -right-2 -bottom-10 w-24 h-24 rounded-full bg-white/10" aria-hidden="true" />
+          <div className="relative">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-bold">{packGreetingText ?? greeting()} 👋</div>
+                <div className="text-xs text-white/80 mt-0.5">
+                  {activeId === 'all' ? `Across all ${properties.length} properties` : active?.name}
+                  {activePack ? ` · ${activePack.name}` : ''}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-2xl font-extrabold owner-numeric">{stats.totalBeds > 0 ? Math.round((stats.occupiedBeds / stats.totalBeds) * 100) : 0}%</div>
+                <div className="text-[10px] text-white/70 font-semibold uppercase tracking-wide">Occupancy</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/15">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold owner-numeric">{stats.totalTenants}</div>
+                  <div className="text-[10px] text-white/70">Active Tenants</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-owner-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <BedDouble className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold owner-numeric">{stats.vacantBeds}</div>
+                  <div className="text-[10px] text-white/70">Vacant Beds</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {properties.length === 0 && (
         <OwnerCard className="bg-owner-info-subtle border-owner-info/25 text-center">
           <div className="text-sm font-bold text-owner-fg">No properties yet</div>
@@ -362,39 +440,6 @@ export default function DashboardPage() {
         </OwnerCard>
       )}
 
-      {/* Load failure — shown instead of a silently half-blank dashboard
-          with no explanation when the stats fetch fails. */}
-      {!loading && loadError && !stats && (
-        <div className="bg-owner-danger-subtle border border-owner-danger/20 rounded-owner-xl p-4 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-bold text-owner-danger">Couldn't load your dashboard</div>
-            <p className="text-xs text-owner-muted mt-0.5">{loadError}</p>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="shrink-0 px-4 py-2 bg-owner-primary hover:bg-owner-primary-hover text-white rounded-owner-lg text-xs font-semibold"
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      {/* Stat Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
-          <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
-          <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
-          <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
-          <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
-            trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
-          <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
-          <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
-          <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
-          <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
-        </div>
-      )}
-
       {/* Quick Actions */}
       <OwnerCard>
         <div className="font-bold text-sm text-owner-fg mb-4">Quick Actions</div>
@@ -420,72 +465,95 @@ export default function DashboardPage() {
         </div>
       </OwnerCard>
 
+      {/* Pending Rent (date-sorted) */}
+      <OwnerCard>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-bold text-sm text-owner-fg">Pending Rent</div>
+            <div className="text-xs text-owner-muted-subtle">Sorted by due date — oldest first</div>
+          </div>
+          <OwnerBadge tone="primary">{pendingTenants.length} tenants</OwnerBadge>
+        </div>
+        {pendingTenants.length === 0 ? (
+          <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
+        ) : (
+          <div className="space-y-2">
+            {pendingTenants.map(t => (
+              <div key={t.id} className={cn(
+                'flex items-center gap-3 p-3 rounded-owner-lg',
+                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
+              )}>
+                <OwnerAvatar name={t.name} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
+                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
+                    {t.overdueDays}d overdue
+                  </span>
+                </div>
+                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="p-2 bg-owner-success/15 rounded-owner-lg hover:bg-owner-success/25 transition-colors shrink-0" title="WhatsApp Reminder">
+                  <svg className="w-4 h-4 text-owner-success" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+                  </svg>
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </OwnerCard>
+
+      {/* Recent Activities */}
+      <OwnerCard>
+        <h2 className="text-sm font-bold text-owner-fg mb-1">Recent Activities</h2>
+        <p className="text-xs text-owner-muted-subtle mb-3">Latest tenant, payment, expense, complaint and request events — across all your properties</p>
+        {activities.length === 0 ? (
+          <OwnerEmptyState icon={Clock} title="No recent activity" className="py-8" />
+        ) : (
+          <div className="divide-y divide-owner-border">
+            {activities.map(a => (
+              <div key={a.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <div className={cn('w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0', TONE_BG[a.tone])}>
+                  <a.icon className={cn('w-4 h-4', TONE_FG[a.tone])} />
+                </div>
+                <div className="flex-1 min-w-0 text-sm text-owner-fg truncate">{a.text}</div>
+                <div className="text-xs text-owner-muted-subtle shrink-0">{formatDate(a.time)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </OwnerCard>
+
+      {/* Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+          <OwnerStatCard icon={Home} label="Total Rooms" value={String(stats.totalRooms)} tone="info" />
+          <OwnerStatCard icon={Users} label="Total Tenants" value={String(stats.totalTenants)} tone="teal" />
+          <OwnerStatCard icon={BedDouble} label="Occupied Beds" value={String(stats.occupiedBeds)} sub={`of ${stats.totalBeds}`} tone="purple" />
+          <OwnerStatCard icon={BedDouble} label="Vacant Beds" value={String(stats.vacantBeds)} tone="success" />
+          <OwnerStatCard icon={IndianRupee} label="Monthly Revenue" value={formatINR(stats.monthlyRevenue)} tone="primary"
+            trend={stats.revenueTrendPct !== null ? { value: stats.revenueTrendPct, label: 'vs last month' } : undefined} />
+          <OwnerStatCard icon={TrendingDown} label="Pending Rent" value={formatINR(stats.pendingRent)} tone="warning" />
+          <OwnerStatCard icon={AlertTriangle} label="Open Complaints" value={String(stats.openComplaints)} tone="danger" />
+          <OwnerStatCard icon={Percent} label="Collection Rate" value={`${stats.collectionRatePct}%`} sub="of this month's rent" tone="teal" />
+          <OwnerStatCard icon={IndianRupee} label="Avg Rent / Bed" value={formatINR(stats.avgRentPerBed)} sub="occupied beds only" tone="info" />
+        </div>
+      )}
+
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Revenue chart */}
-        <OwnerCard className="lg:col-span-2">
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <div>
-              <div className="font-bold text-sm text-owner-fg">Income vs Expense</div>
-              <div className="text-xs text-owner-muted-subtle mt-0.5">Last 6 months</div>
-            </div>
-            <div className="text-left sm:text-right">
-              <div className="text-xs text-owner-muted-subtle">Net Profit (this month)</div>
-              <div className={cn('text-base font-extrabold owner-numeric', netProfit >= 0 ? 'text-owner-success' : 'text-owner-danger')}>
-                {formatINR(netProfit)}
-              </div>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} barGap={2}>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v / 1000}k`} />
-              <Tooltip content={<OwnerChartTooltip formatter={formatINR} />} cursor={{ fill: 'hsl(var(--owner-surface-hover))' }} />
-              <Bar dataKey="revenue" fill="hsl(var(--owner-primary))" radius={[4, 4, 0, 0]} name="Revenue" />
-              <Bar dataKey="expenses" fill="hsl(var(--owner-accent-purple) / 0.6)" radius={[4, 4, 0, 0]} name="Expenses" />
-              <Bar dataKey="profit" fill="hsl(var(--owner-success))" radius={[4, 4, 0, 0]} name="Profit" />
-            </BarChart>
-          </ResponsiveContainer>
-        </OwnerCard>
-
-        {/* Occupancy donut */}
-        <OwnerCard className="flex flex-col items-center justify-center">
-          <div className="font-bold text-sm text-owner-fg mb-1 self-start">Occupancy</div>
-          <div className="text-xs text-owner-muted-subtle mb-4 self-start">Beds occupied</div>
-          <div className="relative">
-            <PieChart width={140} height={140}>
-              <Pie data={[{ value: occupancyPct }, { value: 100 - occupancyPct }]}
-                cx={65} cy={65} innerRadius={45} outerRadius={65} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                <Cell fill="hsl(var(--owner-primary))" />
-                <Cell fill="hsl(var(--owner-border))" />
-              </Pie>
-            </PieChart>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-2xl font-extrabold text-owner-fg owner-numeric">{occupancyPct}%</div>
-            </div>
-          </div>
-          <div className="text-xs text-owner-muted-subtle mt-1">{stats?.occupiedBeds}/{stats?.totalBeds} beds</div>
-        </OwnerCard>
+        <RevenueChartCard chartData={chartData} netProfit={netProfit} />
+        <OccupancyDonutCard occupancyPct={occupancyPct} occupiedBeds={stats?.occupiedBeds} totalBeds={stats?.totalBeds} />
       </div>
 
       {/* Occupancy Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <OwnerCard className="lg:col-span-2">
-          <div className="font-bold text-sm text-owner-fg mb-1">Occupancy Trend</div>
-          <div className="text-xs text-owner-muted-subtle mb-4">Last 6 months</div>
-          {occupancyTrend.length === 0 || occupancyTrend.every(d => d.occupancyPct === 0) ? (
-            <OwnerEmptyState icon={BedDouble} title="Not enough tenant history yet" className="py-10" />
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={occupancyTrend}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--owner-muted-subtle))' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
-                <Tooltip content={<OwnerChartTooltip formatter={(v: number) => `${v}%`} />} />
-                <Line type="monotone" dataKey="occupancyPct" stroke="hsl(var(--owner-primary))" strokeWidth={2.5} dot={{ r: 3 }} name="Occupancy" />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </OwnerCard>
+        <OccupancyTrendCard occupancyTrend={occupancyTrend} />
 
         <OwnerCard>
           <div className="font-bold text-sm text-owner-fg mb-1">By Sharing Type</div>
@@ -568,70 +636,6 @@ export default function DashboardPage() {
           </div>
         </OwnerCard>
       </div>
-
-      {/* Pending Rent (date-sorted) */}
-      <OwnerCard>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="font-bold text-sm text-owner-fg">Pending Rent</div>
-            <div className="text-xs text-owner-muted-subtle">Sorted by due date — oldest first</div>
-          </div>
-          <OwnerBadge tone="primary">{pendingTenants.length} tenants</OwnerBadge>
-        </div>
-        {pendingTenants.length === 0 ? (
-          <OwnerEmptyState icon={IndianRupee} title="All caught up — no pending rent!" className="py-8" />
-        ) : (
-          <div className="space-y-2">
-            {pendingTenants.map(t => (
-              <div key={t.id} className={cn(
-                'flex items-center gap-3 p-3 rounded-owner-lg',
-                t.overdueDays > 5 ? 'bg-owner-danger-subtle' : 'bg-owner-warning-subtle'
-              )}>
-                <OwnerAvatar name={t.name} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name}</div>
-                  <div className="text-xs text-owner-muted">Room {t.room?.room_number} · Due {t.dueDate}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-bold text-owner-fg owner-numeric">{formatINR(t.remainingDue)}</div>
-                  <span className={cn('text-xs font-bold', t.overdueDays > 5 ? 'text-owner-danger' : 'text-owner-warning')}>
-                    {t.overdueDays}d overdue
-                  </span>
-                </div>
-                <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.remainingDue, active?.name ?? 'PG'))}
-                  target="_blank" rel="noreferrer"
-                  className="p-2 bg-owner-success/15 rounded-owner-lg hover:bg-owner-success/25 transition-colors shrink-0" title="WhatsApp Reminder">
-                  <svg className="w-4 h-4 text-owner-success" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.84L0 24l6.335-1.509A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.66-.493-5.19-1.355l-.372-.22-3.761.896.952-3.658-.243-.387A9.936 9.936 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
-                  </svg>
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </OwnerCard>
-
-      {/* Recent Activities */}
-      <OwnerCard>
-        <h2 className="text-sm font-bold text-owner-fg mb-1">Recent Activities</h2>
-        <p className="text-xs text-owner-muted-subtle mb-3">Latest tenant, payment, expense, complaint and request events — across all your properties</p>
-        {activities.length === 0 ? (
-          <OwnerEmptyState icon={Clock} title="No recent activity" className="py-8" />
-        ) : (
-          <div className="divide-y divide-owner-border">
-            {activities.map(a => (
-              <div key={a.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                <div className={cn('w-9 h-9 rounded-owner-lg flex items-center justify-center shrink-0', TONE_BG[a.tone])}>
-                  <a.icon className={cn('w-4 h-4', TONE_FG[a.tone])} />
-                </div>
-                <div className="flex-1 min-w-0 text-sm text-owner-fg truncate">{a.text}</div>
-                <div className="text-xs text-owner-muted-subtle shrink-0">{formatDate(a.time)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </OwnerCard>
 
       {/* Renew Agreement Modal */}
       {renewModal && (

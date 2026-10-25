@@ -7,12 +7,14 @@ type SupabaseBrowserClient = ReturnType<typeof createBrowserClient>
 // Reuses a single client instance for the lifetime of the tab instead of
 // constructing a brand-new one on every call — `createBrowserClient` does
 // real work (parsing config, wiring up auth-state listeners, cookie
-// handling), and this function is called from many places across the
-// app, several inside handlers that fire on every user interaction.
+// handling), and this function is called 25+ places across the app, many
+// of them inside handlers that fire on every user interaction (every
+// approve/reject, every form submit), so the app was previously building
+// dozens of redundant client instances per session.
 //
-// Cached *per explore-mode state*, not unconditionally: entering/exiting
-// Explore Mode flips a cookie and then does a client-side navigation (no
-// full page reload), so a naive unconditional singleton would keep
+// Cached *per explore-mode state*, not unconditionally: enterExploreMode()/
+// exitExploreMode() flip a cookie and then do a client-side router.push
+// (no full page reload), so a naive unconditional singleton would keep
 // serving the wrong client type (real vs. mock) after switching modes
 // mid-session. Re-checking the cheap cookie read on every call and only
 // reusing the cached client when the mode hasn't changed keeps both the

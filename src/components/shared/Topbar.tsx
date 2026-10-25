@@ -1,11 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, Search, Bell, Sun, Moon, Monitor, ChevronDown, Building2, Layers, Plus, Loader2, Users, BedDouble } from 'lucide-react'
+import { Menu, Search, Bell, ChevronDown, Building2, Layers, Plus, Loader2, Users, BedDouble } from 'lucide-react'
 import { useProperty } from './PropertyContext'
 import { cn } from '@/lib/utils'
 import { getOwnerNotifications, getDashboardStats, getTenants, getRooms } from '@/lib/supabase/queries'
-import { OwnerIconButton, OwnerInput, useOwnerTheme, type OwnerThemePreference } from '@/components/owner/ui'
+import { OwnerIconButton, OwnerInput } from '@/components/owner/ui'
 import AddPropertyModal from './AddPropertyModal'
 import OfflineQueueBadge from './OfflineQueueBadge'
 import type { Tenant, Room } from '@/types'
@@ -14,23 +14,15 @@ interface Props {
   onMenuClick: () => void
 }
 
-const THEME_OPTIONS: { key: OwnerThemePreference; label: string; icon: typeof Sun }[] = [
-  { key: 'light', label: 'Light', icon: Sun },
-  { key: 'dark', label: 'Dark', icon: Moon },
-  { key: 'system', label: 'System', icon: Monitor },
-]
-
 export default function Topbar({ onMenuClick }: Props) {
   const router = useRouter()
   const { properties, activeId, setActiveId, active, refresh } = useProperty()
-  const { preference, resolvedTheme, setPreference } = useOwnerTheme()
   const [propOpen, setPropOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<any[]>([])
   const [occupancy, setOccupancy] = useState<Record<string, number>>({})
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<{ tenants: Tenant[]; rooms: Room[] }>({ tenants: [], rooms: [] })
@@ -95,10 +87,8 @@ export default function Topbar({ onMenuClick }: Props) {
     setActiveId(id)
   }
 
-  const ThemeIcon = resolvedTheme === 'dark' ? Moon : Sun
-
   return (
-    <header className="h-14 bg-owner-surface border-b border-owner-border flex items-center px-4 gap-3 sticky top-0 z-30">
+    <header className="min-h-14 native-safe-top bg-owner-surface border-b border-owner-border flex items-center px-4 gap-3 sticky top-0 z-30">
       {/* Hamburger */}
       <OwnerIconButton aria-label="Open menu" variant="ghost" size="md" onClick={onMenuClick} className="lg:hidden">
         <Menu />
@@ -107,7 +97,7 @@ export default function Topbar({ onMenuClick }: Props) {
       {/* Property Switcher */}
       <div className="relative">
         <button onClick={() => setPropOpen(o => !o)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-owner-bg-subtle border border-owner-border rounded-owner-lg hover:bg-owner-surface-hover transition-colors min-w-[160px]">
+          className="flex items-center gap-2 px-3 py-1.5 bg-owner-bg-subtle border border-owner-border rounded-owner-lg hover:bg-owner-surface-hover transition-colors min-w-0 max-w-[45vw] sm:max-w-none sm:min-w-[160px]">
           <Building2 className="w-4 h-4 text-owner-primary shrink-0" />
           <div className="flex-1 text-left min-w-0">
             <div className="text-xs font-bold text-owner-fg leading-tight truncate">
@@ -224,27 +214,6 @@ export default function Topbar({ onMenuClick }: Props) {
 
       <div className="ml-auto flex items-center gap-1.5">
         <OfflineQueueBadge />
-        {/* Theme toggle */}
-        <div className="relative">
-          <OwnerIconButton aria-label="Change theme" variant="surface" size="md" onClick={() => setThemeMenuOpen(o => !o)}>
-            <ThemeIcon />
-          </OwnerIconButton>
-          {themeMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setThemeMenuOpen(false)} />
-              <div className="absolute top-full right-0 mt-1.5 w-36 bg-owner-surface-elevated rounded-owner-lg shadow-owner-lg border border-owner-border z-50 overflow-hidden animate-owner-fade-in p-1">
-                {THEME_OPTIONS.map(({ key, label, icon: Icon }) => (
-                  <button key={key} onClick={() => { setPreference(key); setThemeMenuOpen(false) }}
-                    className={cn('w-full flex items-center gap-2.5 px-3 py-2 rounded-owner-md text-sm font-medium transition-colors',
-                      preference === key ? 'bg-owner-primary/12 text-owner-primary' : 'text-owner-muted hover:bg-owner-surface-hover hover:text-owner-fg')}>
-                    <Icon className="w-3.5 h-3.5" /> {label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Notifications */}
         <div className="relative">
           <OwnerIconButton aria-label="Notifications" variant="surface" size="md" badge={notifications.length} onClick={() => setNotifOpen(o => !o)}>

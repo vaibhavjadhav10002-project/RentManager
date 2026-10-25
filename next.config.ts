@@ -22,6 +22,18 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy', value: 'microphone=(), geolocation=()' },
         ],
       },
+      {
+        // Lets any other origin (specifically: the separate Rentivo marketing
+        // website repo/deployment) read this file with a plain client-side
+        // `fetch()`. It's already fully public — anyone can open this URL
+        // directly in a browser — this only affects whether JS on another
+        // site is allowed to read the response, not who can see it.
+        source: '/app-version.json',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Cache-Control', value: 'public, max-age=60, must-revalidate' },
+        ],
+      },
     ]
   },
 }

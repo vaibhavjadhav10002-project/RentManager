@@ -8,6 +8,7 @@ import {
 import { toast } from 'sonner'
 import { Archive, RotateCcw, Loader2, UserCheck, Package, Users2 } from 'lucide-react'
 import type { Visitor, Parcel, WaitingListEntry } from '@/types'
+import { SkeletonList } from '@/components/shared/Skeleton'
 
 type Kind = 'visitor' | 'parcel' | 'waiting'
 interface ArchivedItem { id: string; kind: Kind; title: string; subtitle: string; archivedAt: string }
@@ -70,49 +71,48 @@ export default function ArchivePage() {
 
   async function handleRestore(item: ArchivedItem) {
     setActioningId(item.id)
+    const prev = items
+    setItems(its => its.filter(i => i.id !== item.id))
     try {
       if (item.kind === 'visitor') await restoreVisitor(item.id)
       else if (item.kind === 'parcel') await restoreParcel(item.id)
       else await restoreWaitingListEntry(item.id)
       toast.success('Restored')
-      load()
-    } catch (e: any) { toast.error(e.message || 'Failed to restore') }
+    } catch (e: any) { setItems(prev); toast.error(e.message || 'Failed to restore') }
     setActioningId(null)
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
-      <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
-    </div>
+    <SkeletonList rows={5} />
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Archive &amp; Restore</h1>
-        <p className="text-sm text-gray-500">Archived visitors, parcels, and waiting-list entries live here</p>
+        <h1 className="text-xl font-extrabold text-owner-fg">Archive &amp; Restore</h1>
+        <p className="text-sm text-owner-muted">Archived visitors, parcels, and waiting-list entries live here</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
         <button onClick={() => setFilter('all')}
-          className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+          className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === 'all' ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
           All ({items.length})
         </button>
         {(Object.keys(KIND_META) as Kind[]).map(k => (
           <button key={k} onClick={() => setFilter(k)}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${filter === k ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            className={`px-3 py-1.5 rounded-owner-full text-xs font-semibold transition active:scale-[0.97] ${filter === k ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg'}`}>
             {KIND_META[k].label} ({counts[k]})
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs flex flex-col items-center justify-center py-16 text-owner-muted-subtle gap-2">
           <Archive className="w-8 h-8" />
           <div className="text-sm">Nothing archived{filter !== 'all' ? ` in ${KIND_META[filter as Kind].label}` : ''}</div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+        <div className="bg-owner-surface rounded-owner-xl border border-owner-border shadow-owner-xs divide-y divide-owner-border">
           {filtered.map(item => {
             const meta = KIND_META[item.kind]
             return (
@@ -121,13 +121,13 @@ export default function ArchivePage() {
                   <meta.icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-800">{item.title}</div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-sm font-semibold text-owner-fg">{item.title}</div>
+                  <div className="text-xs text-owner-muted-subtle">
                     {item.subtitle} · Archived {new Date(item.archivedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </div>
                 </div>
                 <button onClick={() => handleRestore(item)} disabled={actioningId === item.id}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition disabled:opacity-50 flex-shrink-0">
+                  className="flex items-center gap-1 px-3 py-1.5 bg-owner-primary/10 hover:bg-owner-primary/15 text-owner-primary rounded-owner-md text-xs font-semibold transition disabled:opacity-50 flex-shrink-0">
                   {actioningId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />} Restore
                 </button>
               </div>

@@ -118,6 +118,7 @@ export async function generateAgreementPDF(data: AgreementData) {
 interface ReceiptData {
   tenantName: string
   propertyName: string
+  propertyAddress?: string
   ownerName?: string
   roomNumber?: string
   bedLabel?: string
@@ -165,6 +166,12 @@ export async function generateReceiptPDF(data: ReceiptData) {
   doc.setTextColor(0)
 
   y = 32
+  if (data.propertyAddress) {
+    doc.setFontSize(8).setTextColor(120)
+    doc.text(data.propertyAddress, 32, 26.5, { maxWidth: pageWidth - 46 })
+    doc.setTextColor(0)
+    y = 36
+  }
   doc.setDrawColor(230).line(14, y, pageWidth - 14, y)
   y += 7
   doc.setFontSize(9).setTextColor(120)

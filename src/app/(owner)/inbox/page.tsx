@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
 import { getTenants, getMessageTemplates, ensureDefaultTemplates, addMessageTemplate, updateMessageTemplate, deleteMessageTemplate, getCommunicationSettings, upsertCommunicationSettings, getPayments } from '@/lib/supabase/queries'
 import { CommunicationService, ReminderEngine, extractVariables, isFullyRendered, STANDARD_VARIABLES, type ReminderCandidate } from '@/lib/communication'
-import { formatINR, formatDate, cn } from '@/lib/utils'
+import { formatINR, formatDate, cn, friendlyErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Inbox as InboxIcon, MessageCircle, Bell, FileText, History as HistoryIcon, Plus, Pencil, Trash2, X, Settings2, Sparkles, Search, ExternalLink, CheckCheck, RotateCcw, AlertTriangle } from 'lucide-react'
 import type { MessageTemplate, TemplateCategory, TemplateVariables, CommunicationLogEntry, CommunicationStatus, CommunicationQueueItem } from '@/types'
@@ -101,11 +101,11 @@ export default function InboxPage() {
         </OwnerCard>
       ) : (
         <>
-          <div className="flex gap-1 p-1 bg-owner-surface-hover rounded-owner-lg w-fit flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
             {tabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={cn('flex items-center gap-1.5 px-4 py-1.5 rounded-owner-md text-xs font-semibold transition-colors',
-                  tab === t.key ? 'bg-owner-surface shadow-owner-xs text-owner-fg' : 'text-owner-muted hover:text-owner-fg')}>
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-owner-full text-xs font-semibold transition-colors',
+                  tab === t.key ? 'bg-owner-primary text-owner-primary-fg' : 'bg-owner-surface-hover text-owner-muted hover:text-owner-fg')}>
                 <t.icon className="w-3.5 h-3.5" /> {t.label}
               </button>
             ))}
@@ -339,7 +339,7 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
       else toast.error(`Couldn't queue a reminder for ${tenant.name} — no phone on file`)
       onSent()
     } catch (e: any) {
-      toast.error(e.message)
+      toast.error(friendlyErrorMessage(e))
     }
     setSendingId(null)
   }
@@ -359,7 +359,7 @@ function RemindersTab({ tenants, templates, payments, logs, queue, propertyId, p
       else toast.error('Still no phone number on file for this tenant')
       onSent()
     } catch (e: any) {
-      toast.error(e.message)
+      toast.error(friendlyErrorMessage(e))
     }
     setSendingId(null)
   }
@@ -440,7 +440,7 @@ function TemplatesTab({ templates, onEdit, onReload }: { templates: MessageTempl
     if (t.is_system_default) { toast.error("Default templates can't be deleted — edit or duplicate instead"); return }
     if (!confirm(`Delete "${t.name}"?`)) return
     try { await deleteMessageTemplate(t.id); toast.success('Template deleted'); onReload() }
-    catch (e: any) { toast.error(e.message) }
+    catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   return (
@@ -500,7 +500,7 @@ function TemplateModal({ propertyId, existing, onClose, onSaved }: { propertyId:
         toast.success('Template created')
       }
       onSaved()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -585,7 +585,7 @@ function HistoryTab({ logs }: { logs: CommunicationLogEntry[] }) {
       ) : filtered.map(l => (
         <OwnerCard key={l.id} padding="sm" className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-owner-fg">{l.tenant?.name ?? 'Unknown tenant'}</div>
+            <div className="text-sm font-semibold text-owner-fg truncate">{l.tenant?.name ?? 'Unknown tenant'}</div>
             <div className="text-xs text-owner-muted truncate">{l.rendered_message}</div>
           </div>
           <div className="text-right shrink-0">
@@ -628,7 +628,7 @@ function SettingsModal({ propertyId, onClose, onSaved }: { propertyId: string; o
       toast.success('Communication settings saved')
       onSaved()
       onClose()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 

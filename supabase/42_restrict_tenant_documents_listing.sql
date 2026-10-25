@@ -1,0 +1,27 @@
+-- ============================================================================
+-- SECURITY: stop anyone from LISTING/enumerating KYC documents
+--
+-- 38_fix_qr_join_tenant_insert_rls.sql made the `tenant-documents` bucket
+-- public AND added a SELECT policy on storage.objects for anon+authenticated
+-- covering the whole bucket. That bucket holds Aadhaar/PAN/photos/agreements.
+-- The migration's own comment reasons that UUID filenames make files
+-- unguessable — true for guessing, but the open SELECT policy lets anyone
+-- with the public anon key (it ships in the browser bundle) call the Storage
+-- list API and read every object path, then download each file.
+--
+-- The app only ever does upload() and getPublicUrl() on this bucket (checked
+-- in src/), and public-bucket URLs are served without any SELECT policy, so
+-- this policy is not needed for anything to work. Dropping it removes the
+-- enumeration hole without breaking uploads or existing document links.
+--
+-- NOT fixed here: the bucket is still public, so anyone who already HAS a
+-- document URL can open it. Closing that fully means a private bucket +
+-- signed URLs (code change in the join form, onboarding wizard and every
+-- place documents are displayed) — a separate, larger change.
+--
+-- Rollback if something unexpectedly breaks:
+--   create policy "Public can view tenant documents" on storage.objects
+--     for select to anon, authenticated using (bucket_id = 'tenant-documents');
+-- ============================================================================
+
+drop policy if exists "Public can view tenant documents" on storage.objects;

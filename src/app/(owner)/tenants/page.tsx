@@ -1,12 +1,12 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useProperty } from '@/components/shared/PropertyContext'
-import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms, getPaymentsForTenant, getTenantLeaveRequests, setTenantLeaving, markTenantLeft, getMoveOutChecklist, startMoveOutChecklist, updateMoveOutChecklist, inviteTenant } from '@/lib/supabase/queries'
-import { formatINR, formatDate, whatsappLink, rentReminderMsg, cn, computeFinalSettlement } from '@/lib/utils'
+import { getTenants, getAllTenants, addTenantByOwner, updateTenant, getRooms, getPaymentsForTenant, setTenantLeaving, markTenantLeft, getMoveOutChecklist, startMoveOutChecklist, updateMoveOutChecklist, inviteTenant } from '@/lib/supabase/queries'
+import { formatINR, formatDate, whatsappLink, rentReminderMsg, cn, computeJoiningPaymentStatus, friendlyErrorMessage } from '@/lib/utils'
 import { generateReceiptPDF } from '@/lib/pdf'
 import { sendPushNotification } from '@/lib/push'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Download, LogOut, Calendar, X, Loader2, Trash2, Send, Copy, Check } from 'lucide-react'
+import { Plus, Search, Phone, MessageCircle, Eye, Pencil, Download, LogOut, Calendar, X, Loader2, Trash2, Send, Copy, Check, ChevronRight } from 'lucide-react'
 import type { Tenant } from '@/types'
 import {
   OwnerButton, OwnerIconButton, OwnerBadge, OwnerCard, OwnerAvatar, OwnerInput, OwnerSelect, OwnerTextarea, OwnerEmptyState,
@@ -56,14 +56,6 @@ export default function TenantsPage() {
   })
   const [editSaving, setEditSaving] = useState(false)
 
-  // Final Settlement — only fetched for a tenant who's actually leaving
-  // (or has already left), since it needs their full payment/leave
-  // history to work out outstanding rent, and there's no reason to pay
-  // that fetch cost when editing an active tenant's basic details.
-  const [settlementPayments, setSettlementPayments] = useState<any[]>([])
-  const [settlementLeaves, setSettlementLeaves] = useState<any[]>([])
-  const [settlementLoading, setSettlementLoading] = useState(false)
-
   function openEdit(t: Tenant) {
     setEditTenant(t)
     setEditForm({
@@ -73,41 +65,6 @@ export default function TenantsPage() {
       deposit_refunded: String(t.deposit_refunded ?? 0), deposit_refund_date: t.deposit_refund_date ?? '',
       deposit_deduction_notes: t.deposit_deduction_notes ?? '',
       deposit_deduction_items: (t.deposit_deduction_items ?? []).map(i => ({ label: i.label, amount: String(i.amount) })),
-    })
-    setSettlementPayments([])
-    setSettlementLeaves([])
-    if (t.status === 'leaving' || t.status === 'left') {
-      setSettlementLoading(true)
-      Promise.all([getPaymentsForTenant(t.id), getTenantLeaveRequests(t.id)])
-        .then(([p, l]) => { setSettlementPayments(p ?? []); setSettlementLeaves(l ?? []) })
-        .catch(() => { setSettlementPayments([]); setSettlementLeaves([]) })
-        .finally(() => setSettlementLoading(false))
-    }
-  }
-
-  // Suggested Final Settlement — deposit held minus itemized deductions
-  // (whatever the owner has entered so far) minus rent still outstanding
-  // as of today, pulled live from the same ledger logic the Tenant Portal
-  // uses. This is informational only: it never changes deposit_refunded
-  // or the deduction items on its own — the owner decides whether to fold
-  // the outstanding-rent figure in via the button below, and can still
-  // edit every number by hand exactly as before.
-  const finalSettlement = editTenant && (editTenant.status === 'leaving' || editTenant.status === 'left')
-    ? computeFinalSettlement(
-        editTenant,
-        settlementPayments,
-        settlementLeaves.filter(l => l.status === 'approved'),
-        editForm.deposit_deduction_items.map(it => ({ amount: Number(it.amount) || 0 }))
-      )
-    : null
-
-  function addOutstandingRentAsDeduction() {
-    if (!finalSettlement || finalSettlement.outstandingRent <= 0) return
-    setEditForm(f => {
-      const items = [...f.deposit_deduction_items, { label: 'Outstanding rent (as of today)', amount: String(finalSettlement.outstandingRent) }]
-      const total = items.reduce((s, it) => s + (Number(it.amount) || 0), 0)
-      const suggested = Math.max(0, Number(f.deposit_paid || 0) - total)
-      return { ...f, deposit_deduction_items: items, deposit_refunded: String(suggested) }
     })
   }
 
@@ -144,9 +101,10 @@ export default function TenantsPage() {
     const deductionTotal = deductionItems.reduce((s, it) => s + it.amount, 0)
     if (refundAmt > depositPaidAmt) { toast.error('Refund amount cannot exceed deposit paid'); return }
     // Refund + deductions together can never exceed the deposit actually
-    // held — only checking refund-vs-paid (above) leaves a gap where
-    // itemized deductions plus the refund can together over-allocate more
-    // than the tenant's deposit ever was.
+    // held, even if the refund field was typed in manually rather than
+    // taken from the auto-suggested value. Also enforced at the database
+    // level (trg_prevent_deposit_over_settlement) as a second line of
+    // defense.
     if (refundAmt + deductionTotal > depositPaidAmt) {
       toast.error(`Refund (${formatINR(refundAmt)}) + deductions (${formatINR(deductionTotal)}) exceed deposit paid (${formatINR(depositPaidAmt)})`)
       return
@@ -189,6 +147,22 @@ export default function TenantsPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteResult, setInviteResult] = useState<{ name: string; phone: string; tempPassword: string } | null>(null)
   const [copiedPw, setCopiedPw] = useState(false)
+  const [appUrl, setAppUrl] = useState('')
+  useEffect(() => { setAppUrl(window.location.origin) }, [])
+  // Same /app-version.json the tenant-side download gate reads from —
+  // included in the WhatsApp invite text so the tenant gets the app link
+  // even before they open the onboarding page (see useApkDownloadGate for
+  // the auto-download-on-page-load half of this feature).
+  const [apkUrl, setApkUrl] = useState('')
+  useEffect(() => {
+    fetch('/app-version.json', { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        const url = json?.apkDownloadUrl
+        if (typeof url === 'string' && url && !url.includes('REPLACE-WITH')) setApkUrl(url)
+      })
+      .catch(() => {})
+  }, [])
 
   const effectivePropertyId = activeId === 'all' ? form.property_id : activeId
   useEffect(() => {
@@ -228,7 +202,7 @@ export default function TenantsPage() {
       toast.success(`${noticeModal.name} marked as leaving on ${leavingDate}`)
       setNoticeModal(null); setLeavingDate('')
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleMarkLeft(tenantId: string, name: string) {
@@ -237,7 +211,7 @@ export default function TenantsPage() {
       await markTenantLeft(tenantId)
       toast.success(`${name} marked as left`)
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function openChecklist(t: Tenant) {
@@ -247,7 +221,7 @@ export default function TenantsPage() {
       const existing = await getMoveOutChecklist(t.id)
       const c = existing || await startMoveOutChecklist(t.id, t.property_id)
       setChecklist(c)
-    } catch (e: any) { toast.error(e.message); setChecklistTenant(null) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)); setChecklistTenant(null) }
     setChecklistLoading(false)
   }
 
@@ -259,7 +233,7 @@ export default function TenantsPage() {
     try {
       const updated = await updateMoveOutChecklist(checklist.id, items)
       setChecklist(updated)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
   }
 
   async function handleAdd() {
@@ -295,7 +269,7 @@ export default function TenantsPage() {
       setModalOpen(false)
       setForm({ property_id: '', room_id: '', bed_label: '', name: '', phone: '', email: '', emergency_contact: '', date_of_birth: '', joining_date: '', monthly_rent: '', deposit_amount: '', deposit_paid: '', rent_paid_now: '', notice_period_days: '30', password: '' })
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setSaving(false)
   }
 
@@ -314,6 +288,14 @@ export default function TenantsPage() {
         phone: inviteForm.phone,
       })
       setInviteResult({ name: tenant.name, phone: tenant.phone, tempPassword })
+      // Matches the same auto-open-WhatsApp pattern used when approving a
+      // QR-join tenant (confirmApproveTenant below) — one less manual step
+      // for the owner, and the modal's own "Send via WhatsApp" button below
+      // still works as a fallback/re-send if this gets blocked or dismissed.
+      const loginUrl = `${appUrl}/login`
+      const apkLine = apkUrl ? `\n\n📱 Download the Rentivo app:\n${apkUrl}` : ''
+      const inviteMsg = `Hi ${tenant.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${loginUrl}${apkLine}\n\nMobile Number: ${tenant.phone}\nTemporary Password: ${tempPassword}\n\nYou'll be asked to set your own password on first login.`
+      window.open(whatsappLink(tenant.phone, inviteMsg), '_blank')
       // Phase 8.6 — onboarding notification. Best-effort: the tenant hasn't
       // logged in yet at this point so there's usually no push subscription
       // to deliver to, but this reuses the exact same fire-and-forget
@@ -328,7 +310,7 @@ export default function TenantsPage() {
         })
       }
       load()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(friendlyErrorMessage(e)) }
     setInviting(false)
   }
 
@@ -389,21 +371,23 @@ export default function TenantsPage() {
           </div>
           <div className="space-y-2">
             {onNotice.map(t => (
-              <div key={t.id} className="flex items-center gap-3 bg-owner-surface rounded-owner-lg p-3">
+              <div key={t.id} className="flex flex-wrap items-center gap-2 bg-owner-surface rounded-owner-lg p-3">
                 <OwnerAvatar name={t.name} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-owner-fg">{t.name} <span className="text-owner-muted-subtle font-normal">· Room {t.room?.room_number}</span></div>
+                  <div className="text-sm font-semibold text-owner-fg truncate">{t.name} <span className="text-owner-muted-subtle font-normal">· Room {t.room?.room_number}</span></div>
                   <div className="text-xs text-owner-muted">Leaving on {formatDate(t.leaving_date!)}</div>
                 </div>
-                <OwnerBadge tone={t.daysLeft <= 3 ? 'danger' : 'warning'}>
+                <OwnerBadge tone={t.daysLeft <= 3 ? 'danger' : 'warning'} className="shrink-0">
                   {t.daysLeft > 0 ? `${t.daysLeft}d left` : t.daysLeft === 0 ? 'Leaving today' : `${Math.abs(t.daysLeft)}d overdue`}
                 </OwnerBadge>
-                <OwnerButton onClick={() => openChecklist(t)} variant="secondary" size="sm">
-                  Checklist
-                </OwnerButton>
-                <OwnerButton onClick={() => handleMarkLeft(t.id, t.name)} variant="secondary" size="sm" icon={<LogOut className="w-3.5 h-3.5" />}>
-                  Mark Left
-                </OwnerButton>
+                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                  <OwnerButton onClick={() => openChecklist(t)} variant="secondary" size="sm" className="flex-1 sm:flex-none">
+                    Checklist
+                  </OwnerButton>
+                  <OwnerButton onClick={() => handleMarkLeft(t.id, t.name)} variant="secondary" size="sm" icon={<LogOut className="w-3.5 h-3.5" />} className="flex-1 sm:flex-none">
+                    Mark Left
+                  </OwnerButton>
+                </div>
               </div>
             ))}
           </div>
@@ -415,88 +399,115 @@ export default function TenantsPage() {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-14 rounded-owner-lg bg-owner-surface-hover animate-pulse" />)}
         </div>
+      ) : filtered.length === 0 ? (
+        <OwnerEmptyState icon={Search} title="No tenants found" />
       ) : (
-        <OwnerTable>
-          <OwnerTableHead>
-            <tr>
-              {['Tenant', 'Phone', 'Room/Bed', 'Rent', 'Deposit', 'Joining', 'KYC', 'Status', 'Remind', 'Actions'].map(h => (
-                <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>
-              ))}
-            </tr>
-          </OwnerTableHead>
-          <OwnerTableBody>
-            {filtered.length === 0 ? (
-              <OwnerTableEmptyRow colSpan={10}>
-                <OwnerEmptyState icon={Search} title="No tenants found" />
-              </OwnerTableEmptyRow>
-            ) : filtered.map(t => (
-              <OwnerTableRow key={t.id}>
-                <OwnerTableCell>
-                  <div className="flex items-center gap-2.5">
-                    <OwnerAvatar name={t.name} size="sm" />
-                    <div>
-                      <div className="font-semibold text-owner-fg">{t.name}</div>
-                      <div className="text-xs text-owner-muted-subtle">{t.email || '—'}</div>
-                    </div>
+        <>
+          {/* Mobile: stacked card list, no horizontal scroll */}
+          <div className="sm:hidden space-y-2">
+            {filtered.map(t => (
+              <button key={t.id} onClick={() => openView(t)}
+                className="w-full bg-owner-surface border border-owner-border rounded-owner-lg p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99] active:bg-owner-surface-hover">
+                <OwnerAvatar name={t.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-owner-fg truncate">{t.name}</div>
+                  <div className="text-xs text-owner-muted-subtle mt-0.5 truncate">
+                    {t.room ? `Room ${t.room.room_number}` : 'No room'}{t.bed_label ? ` · ${t.bed_label}` : ''} · {formatINR(t.monthly_rent)}/mo
                   </div>
-                </OwnerTableCell>
-                <OwnerTableCell className="font-mono text-xs">{t.phone}</OwnerTableCell>
-                <OwnerTableCell>
-                  <span className="font-semibold">
-                    {t.room ? `Room ${t.room.room_number}` : '—'}
-                    {t.bed_label ? ` · ${t.bed_label}` : ''}
-                  </span>
-                </OwnerTableCell>
-                <OwnerTableCell className="font-bold text-owner-primary owner-numeric">{formatINR(t.monthly_rent)}</OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="text-xs owner-numeric">
-                    <span className="font-bold text-owner-fg">{formatINR(t.deposit_paid)}</span>
-                    <span className="text-owner-muted-subtle"> / {formatINR(t.deposit_amount)}</span>
-                  </div>
-                  {t.deposit_paid < t.deposit_amount && (
-                    <span className="text-xs text-owner-warning font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</span>
-                  )}
-                </OwnerTableCell>
-                <OwnerTableCell className="text-xs text-owner-muted">{formatDate(t.joining_date)}</OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="flex gap-1">
-                    <OwnerBadge tone={KYC_TONE[t.aadhaar_status]} size="sm">ID</OwnerBadge>
-                    <OwnerBadge tone={KYC_TONE[t.pan_status]} size="sm">PAN</OwnerBadge>
-                  </div>
-                </OwnerTableCell>
-                <OwnerTableCell>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
                   <OwnerBadge tone={STATUS_TONE[t.status]} className="capitalize">
                     {t.status.replace('_', ' ')}
                   </OwnerBadge>
-                </OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="flex gap-1.5">
-                    <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? 'PG'))}
-                      target="_blank" rel="noreferrer"
-                      className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors" title="WhatsApp">
-                      <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
-                    </a>
-                    <a href={`tel:${t.phone}`}
-                      className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors" title="Call">
-                      <Phone className="w-3.5 h-3.5 text-owner-info" />
-                    </a>
-                  </div>
-                </OwnerTableCell>
-                <OwnerTableCell>
-                  <div className="flex gap-1">
-                    <OwnerIconButton aria-label={`View ${t.name}`} variant="ghost" size="sm" onClick={() => openView(t)}><Eye /></OwnerIconButton>
-                    <OwnerIconButton aria-label={`Edit ${t.name}`} variant="ghost" size="sm" onClick={() => openEdit(t)}><Pencil /></OwnerIconButton>
-                    {t.status === 'active' && (
-                      <OwnerIconButton aria-label={`Give notice to ${t.name}`} variant="ghost" size="sm" onClick={() => { setNoticeModal(t); setLeavingDate('') }} className="hover:text-owner-warning" title="Give notice / mark leaving">
-                        <LogOut />
-                      </OwnerIconButton>
-                    )}
-                  </div>
-                </OwnerTableCell>
-              </OwnerTableRow>
+                  {t.deposit_paid < t.deposit_amount && (
+                    <span className="text-[10px] font-semibold text-owner-warning">Deposit due</span>
+                  )}
+                </div>
+                <ChevronRight className="w-4 h-4 text-owner-muted-subtle shrink-0" />
+              </button>
             ))}
-          </OwnerTableBody>
-        </OwnerTable>
+          </div>
+          {/* Desktop/tablet: full table */}
+          <div className="hidden sm:block">
+            <OwnerTable>
+              <OwnerTableHead>
+                <tr>
+                  {['Tenant', 'Phone', 'Room/Bed', 'Rent', 'Deposit', 'Joining', 'KYC', 'Status', 'Remind', 'Actions'].map(h => (
+                    <OwnerTableHeadCell key={h}>{h}</OwnerTableHeadCell>
+                  ))}
+                </tr>
+              </OwnerTableHead>
+              <OwnerTableBody>
+                {filtered.map(t => (
+                  <OwnerTableRow key={t.id}>
+                    <OwnerTableCell>
+                      <div className="flex items-center gap-2.5">
+                        <OwnerAvatar name={t.name} size="sm" />
+                        <div>
+                          <div className="font-semibold text-owner-fg">{t.name}</div>
+                          <div className="text-xs text-owner-muted-subtle">{t.email || '—'}</div>
+                        </div>
+                      </div>
+                    </OwnerTableCell>
+                    <OwnerTableCell className="font-mono text-xs">{t.phone}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <span className="font-semibold">
+                        {t.room ? `Room ${t.room.room_number}` : '—'}
+                        {t.bed_label ? ` · ${t.bed_label}` : ''}
+                      </span>
+                    </OwnerTableCell>
+                    <OwnerTableCell className="font-bold text-owner-primary owner-numeric">{formatINR(t.monthly_rent)}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="text-xs owner-numeric">
+                        <span className="font-bold text-owner-fg">{formatINR(t.deposit_paid)}</span>
+                        <span className="text-owner-muted-subtle"> / {formatINR(t.deposit_amount)}</span>
+                      </div>
+                      {t.deposit_paid < t.deposit_amount && (
+                        <span className="text-xs text-owner-warning font-semibold">₹{(t.deposit_amount - t.deposit_paid).toLocaleString('en-IN')} pending</span>
+                      )}
+                    </OwnerTableCell>
+                    <OwnerTableCell className="text-xs text-owner-muted">{formatDate(t.joining_date)}</OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="flex gap-1">
+                        <OwnerBadge tone={KYC_TONE[t.aadhaar_status]} size="sm">ID</OwnerBadge>
+                        <OwnerBadge tone={KYC_TONE[t.pan_status]} size="sm">PAN</OwnerBadge>
+                      </div>
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <OwnerBadge tone={STATUS_TONE[t.status]} className="capitalize">
+                        {t.status.replace('_', ' ')}
+                      </OwnerBadge>
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="flex gap-1.5">
+                        <a href={whatsappLink(t.phone, rentReminderMsg(t.name, t.monthly_rent, t.property?.name ?? 'PG'))}
+                          target="_blank" rel="noreferrer"
+                          className="p-1.5 bg-owner-success/15 hover:bg-owner-success/25 rounded-owner-md transition-colors" title="WhatsApp">
+                          <MessageCircle className="w-3.5 h-3.5 text-owner-success" />
+                        </a>
+                        <a href={`tel:${t.phone}`}
+                          className="p-1.5 bg-owner-info/15 hover:bg-owner-info/25 rounded-owner-md transition-colors" title="Call">
+                          <Phone className="w-3.5 h-3.5 text-owner-info" />
+                        </a>
+                      </div>
+                    </OwnerTableCell>
+                    <OwnerTableCell>
+                      <div className="flex gap-1">
+                        <OwnerIconButton aria-label={`View ${t.name}`} variant="ghost" size="sm" onClick={() => openView(t)}><Eye /></OwnerIconButton>
+                        <OwnerIconButton aria-label={`Edit ${t.name}`} variant="ghost" size="sm" onClick={() => openEdit(t)}><Pencil /></OwnerIconButton>
+                        {t.status === 'active' && (
+                          <OwnerIconButton aria-label={`Give notice to ${t.name}`} variant="ghost" size="sm" onClick={() => { setNoticeModal(t); setLeavingDate('') }} className="hover:text-owner-warning" title="Give notice / mark leaving">
+                            <LogOut />
+                          </OwnerIconButton>
+                        )}
+                      </div>
+                    </OwnerTableCell>
+                  </OwnerTableRow>
+                ))}
+              </OwnerTableBody>
+            </OwnerTable>
+          </div>
+        </>
       )}
 
       {/* Add Tenant Modal */}
@@ -628,7 +639,15 @@ export default function TenantsPage() {
                 <p className="text-xs text-owner-muted-subtle">
                   This password won&apos;t be shown again — copy it now, or reset it later from the tenant&apos;s profile.
                 </p>
-                <OwnerButton onClick={closeInviteModal} fullWidth>Done</OwnerButton>
+                <a
+                  href={whatsappLink(inviteResult.phone,
+                    `Hi ${inviteResult.name} 👋,\n\nYou've been invited to join Rentivo. Log in here to complete your profile:\n\n${appUrl}/login${apkUrl ? `\n\n📱 Download the Rentivo app:\n${apkUrl}` : ''}\n\nMobile Number: ${inviteResult.phone}\nTemporary Password: ${inviteResult.tempPassword}\n\nYou'll be asked to set your own password on first login.`)}
+                  target="_blank" rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-owner-lg bg-owner-success/10 hover:bg-owner-success/15 text-owner-success text-sm font-semibold transition"
+                >
+                  <MessageCircle className="w-4 h-4" /> Send via WhatsApp
+                </a>
+                <OwnerButton onClick={closeInviteModal} fullWidth variant="secondary">Done</OwnerButton>
               </div>
             ) : (
               <>
@@ -662,51 +681,71 @@ export default function TenantsPage() {
 
       {/* View Tenant Modal */}
       {viewTenant && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-md shadow-owner-lg border border-owner-border animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Tenant Details</h2>
+        <>
+          <div onClick={() => setViewTenant(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={viewTenant.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Tenant Details</div>
+                <div className="font-bold text-owner-fg truncate">{viewTenant.name}</div>
+              </div>
+              <OwnerBadge tone={STATUS_TONE[viewTenant.status]} className="capitalize shrink-0">{viewTenant.status.replace('_', ' ')}</OwnerBadge>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setViewTenant(null)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 space-y-3 text-sm max-h-[75vh] overflow-y-auto">
-              {[
-                ['Name', viewTenant.name],
-                ['Phone', viewTenant.phone],
-                ['Email', viewTenant.email || '—'],
-                ['Emergency Contact', viewTenant.emergency_contact || '—'],
-                ['Room', viewTenant.room ? `Room ${viewTenant.room.room_number}` : '—'],
-                ['Bed', viewTenant.bed_label || '—'],
-                ['Joining Date', formatDate(viewTenant.joining_date)],
-                ['Monthly Rent', formatINR(viewTenant.monthly_rent)],
-                ['Deposit', `${formatINR(viewTenant.deposit_paid)} / ${formatINR(viewTenant.deposit_amount)}`],
-                ['Notice Period', `${viewTenant.notice_period_days} days`],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between border-b border-owner-border pb-2">
-                  <span className="text-owner-muted">{label}</span>
-                  <span className="font-semibold text-owner-fg capitalize">{value}</span>
-                </div>
-              ))}
-              <div className="flex justify-between border-b border-owner-border pb-2">
-                <span className="text-owner-muted">Status</span>
-                <OwnerBadge tone={STATUS_TONE[viewTenant.status]} className="capitalize">{viewTenant.status.replace('_', ' ')}</OwnerBadge>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['Phone', viewTenant.phone],
+                  ['Email', viewTenant.email || '—'],
+                  ['Room', viewTenant.room ? `Room ${viewTenant.room.room_number}` : '—'],
+                  ['Bed', viewTenant.bed_label || '—'],
+                  ['Monthly Rent', formatINR(viewTenant.monthly_rent)],
+                  ['Joining Date', formatDate(viewTenant.joining_date)],
+                  ['Deposit', `${formatINR(viewTenant.deposit_paid)} / ${formatINR(viewTenant.deposit_amount)}`],
+                  ['Notice Period', `${viewTenant.notice_period_days} days`],
+                  ['Emergency Contact', viewTenant.emergency_contact || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-owner-surface-hover rounded-xl p-3">
+                    <div className="text-[10px] text-owner-muted-subtle uppercase font-bold">{label}</div>
+                    <div className="text-sm font-semibold text-owner-fg mt-0.5">{value}</div>
+                  </div>
+                ))}
               </div>
-              <div className="flex justify-between border-b border-owner-border pb-2">
-                <span className="text-owner-muted">Aadhaar KYC</span>
-                <OwnerBadge tone={KYC_TONE[viewTenant.aadhaar_status]} className="capitalize">{viewTenant.aadhaar_status}</OwnerBadge>
-              </div>
-              <div className="flex justify-between border-b border-owner-border pb-2">
-                <span className="text-owner-muted">PAN KYC</span>
-                <OwnerBadge tone={KYC_TONE[viewTenant.pan_status]} className="capitalize">{viewTenant.pan_status}</OwnerBadge>
+              <div className="flex items-center gap-2">
+                <OwnerBadge tone={KYC_TONE[viewTenant.aadhaar_status]} className="capitalize">Aadhaar: {viewTenant.aadhaar_status}</OwnerBadge>
+                <OwnerBadge tone={KYC_TONE[viewTenant.pan_status]} className="capitalize">PAN: {viewTenant.pan_status}</OwnerBadge>
               </div>
 
-              <div className="pt-2">
-                <div className="font-bold text-owner-fg mb-2">Payment History</div>
+              {(() => {
+                const js = computeJoiningPaymentStatus(viewTenant)
+                if (js.totalOutstanding <= 0) return null
+                return (
+                  <div className={cn('rounded-xl p-3 border', js.status === 'overdue' ? 'bg-owner-danger-subtle border-owner-danger/20' : 'bg-owner-warning-subtle border-owner-warning/20')}>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold uppercase tracking-wide text-owner-muted">Joining Payment</div>
+                      <OwnerBadge tone={js.status === 'overdue' ? 'danger' : 'warning'} className="capitalize">{js.status}</OwnerBadge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                      <div>Deposit: {formatINR(js.depositPaid)} / {formatINR(js.depositRequired)}{js.depositOutstanding > 0 && <span className="block text-owner-warning font-semibold">{formatINR(js.depositOutstanding)} outstanding</span>}</div>
+                      <div>Joining Rent: {formatINR(js.rentPaid)} / {formatINR(js.rentRequired)}{js.rentOutstanding > 0 && <span className="block text-owner-warning font-semibold">{formatINR(js.rentOutstanding)} outstanding</span>}</div>
+                    </div>
+                    <div className="text-xs text-owner-muted mt-2">Total outstanding: <span className="font-bold text-owner-fg">{formatINR(js.totalOutstanding)}</span> · Deadline: {formatDate(js.deadline)}</div>
+                  </div>
+                )
+              })()}
+
+              <div>
+                <div className="text-xs font-bold text-owner-muted uppercase tracking-wide mb-2">Rent History</div>
                 {viewTenantPayments.length === 0 ? (
                   <OwnerEmptyState icon={Download} title="No payments recorded yet" className="py-6" />
                 ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  <div className="space-y-1.5">
                     {viewTenantPayments.map(p => (
                       <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-owner-border last:border-0">
                         <div>
@@ -716,6 +755,7 @@ export default function TenantsPage() {
                         {p.approval_status === 'approved' && (
                           <OwnerIconButton aria-label="Download receipt" variant="ghost" size="sm" onClick={() => generateReceiptPDF({
                             tenantName: viewTenant.name, propertyName: viewTenant.property?.name ?? 'PG',
+                            propertyAddress: viewTenant.property?.address ?? undefined,
                             roomNumber: viewTenant.room?.room_number, forMonth: p.for_month ?? undefined, type: p.type,
                             totalDue: p.total_due, amountReceived: p.amount_received, method: p.method ?? undefined,
                             paymentDate: p.payment_date, approvalStatus: p.approval_status, receiptNo: p.id.slice(0, 8).toUpperCase(),
@@ -729,26 +769,55 @@ export default function TenantsPage() {
                 )}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-owner-border">
-              <OwnerButton onClick={() => setViewTenant(null)} variant="secondary" fullWidth>
-                Close
-              </OwnerButton>
+            {/* Actions at bottom — quick-contact row + management actions */}
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 space-y-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <div className="flex gap-2.5">
+                <a href={whatsappLink(viewTenant.phone, rentReminderMsg(viewTenant.name, viewTenant.monthly_rent, viewTenant.property?.name ?? 'PG'))}
+                  target="_blank" rel="noreferrer"
+                  className="flex-1 h-11 flex items-center justify-center gap-1.5 bg-owner-success/15 hover:bg-owner-success/25 active:scale-[0.98] text-owner-success rounded-2xl text-xs font-bold transition">
+                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </a>
+                <a href={`tel:${viewTenant.phone}`}
+                  className="flex-1 h-11 flex items-center justify-center gap-1.5 bg-owner-info/15 hover:bg-owner-info/25 active:scale-[0.98] text-owner-info rounded-2xl text-xs font-bold transition">
+                  <Phone className="w-3.5 h-3.5" /> Call
+                </a>
+              </div>
+              <div className="flex gap-2.5">
+                <button onClick={() => { const t = viewTenant; setViewTenant(null); openEdit(t) }}
+                  className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                  <Pencil className="w-4 h-4" /> Edit Tenant
+                </button>
+                {viewTenant.status === 'active' && (
+                  <button onClick={() => { const t = viewTenant; setViewTenant(null); setNoticeModal(t); setLeavingDate('') }}
+                    className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-warning/15 hover:bg-owner-warning/25 active:scale-[0.98] text-owner-warning rounded-2xl text-sm font-bold transition">
+                    <LogOut className="w-4 h-4" /> Give Notice
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Edit Tenant Modal */}
       {editTenant && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-2xl shadow-owner-lg border border-owner-border my-4 animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Edit Tenant</h2>
+        <>
+          <div onClick={() => setEditTenant(null)} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={editTenant.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Edit Tenant</div>
+                <div className="font-bold text-owner-fg truncate">{editTenant.name}</div>
+              </div>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => setEditTenant(null)}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto max-h-[75vh]">
+            <div className="flex-1 overflow-y-auto px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <OwnerInput
                 label="Mobile Number (login username)"
                 type="tel"
@@ -787,46 +856,6 @@ export default function TenantsPage() {
               {(editForm.status === 'leaving' || editForm.status === 'left') && (
                 <div className="sm:col-span-2 bg-owner-warning-subtle rounded-owner-xl p-4 space-y-3">
                   <div className="text-xs font-bold text-owner-warning">Deposit Refund / Adjustment</div>
-
-                  {/* Final Settlement — auto-calculated suggestion combining
-                      deposit held, outstanding rent (live from the same
-                      ledger logic the Tenant Portal uses), and whatever
-                      deductions are itemized below. Purely informational:
-                      it never edits deposit_refunded or the deduction list
-                      on its own — the owner decides via the button below,
-                      and can always edit every number by hand regardless. */}
-                  {settlementLoading ? (
-                    <div className="text-xs text-owner-muted flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculating final settlement…</div>
-                  ) : finalSettlement && (
-                    <div className="bg-owner-surface rounded-owner-lg p-3 space-y-1.5 border border-owner-border">
-                      <div className="text-xs font-bold text-owner-fg mb-1">Final Settlement (suggested)</div>
-                      <div className="flex justify-between text-xs"><span className="text-owner-muted">Deposit paid</span><span className="font-semibold text-owner-fg">{formatINR(finalSettlement.depositPaid)}</span></div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-owner-muted">Outstanding rent (as of today)</span>
-                        <span className={cn('font-semibold', finalSettlement.outstandingRent > 0 ? 'text-owner-danger' : 'text-owner-fg')}>
-                          {finalSettlement.outstandingRent > 0 ? `− ${formatINR(finalSettlement.outstandingRent)}` : formatINR(0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-xs"><span className="text-owner-muted">Deductions itemized below</span><span className="font-semibold text-owner-fg">{finalSettlement.deductionTotal > 0 ? `− ${formatINR(finalSettlement.deductionTotal)}` : formatINR(0)}</span></div>
-                      <div className="flex justify-between text-xs pt-1.5 border-t border-owner-border">
-                        <span className="font-bold text-owner-fg">Suggested net refund</span>
-                        <span className="font-bold text-owner-success">{formatINR(finalSettlement.suggestedRefund)}</span>
-                      </div>
-                      {finalSettlement.outstandingRent > 0 && (
-                        <button
-                          type="button"
-                          onClick={addOutstandingRentAsDeduction}
-                          className="mt-1 text-xs font-semibold text-owner-primary hover:underline"
-                        >
-                          + Add outstanding rent ({formatINR(finalSettlement.outstandingRent)}) as a deduction line
-                        </button>
-                      )}
-                      <p className="text-[11px] text-owner-muted-subtle pt-1">
-                        This is a suggestion only — the refund amount and deduction items below are still yours to set.
-                      </p>
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <OwnerInput
                       label="Amount Refunded (₹)"
@@ -883,16 +912,18 @@ export default function TenantsPage() {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
-              <OwnerButton onClick={handleEditSave} loading={editSaving} fullWidth>
-                {editSaving ? 'Saving…' : 'Save Changes'}
-              </OwnerButton>
-              <OwnerButton onClick={() => setEditTenant(null)} variant="secondary" fullWidth>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => setEditTenant(null)}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
                 Cancel
-              </OwnerButton>
+              </button>
+              <button onClick={handleEditSave} disabled={editSaving}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition disabled:opacity-50">
+                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Notice-Period Modal — the "Give Notice" button in the table (and
@@ -901,16 +932,24 @@ export default function TenantsPage() {
           This is that missing dialog — zero new business logic, just the
           UI for a handler that was already fully written. */}
       {noticeModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-owner-surface-elevated rounded-owner-2xl w-full max-w-sm shadow-owner-lg border border-owner-border animate-owner-scale-in">
-            <div className="px-6 py-4 border-b border-owner-border flex items-center justify-between">
-              <h2 className="text-base font-bold text-owner-fg">Give Notice</h2>
+        <>
+          <div onClick={() => { setNoticeModal(null); setLeavingDate('') }} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
+            </div>
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={noticeModal.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Give Notice</div>
+                <div className="font-bold text-owner-fg truncate">{noticeModal.name}</div>
+              </div>
               <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => { setNoticeModal(null); setLeavingDate('') }}>
                 <X />
               </OwnerIconButton>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-owner-muted">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <p className="text-sm text-owner-muted bg-owner-surface-hover rounded-xl px-3 py-2.5">
                 Set a leaving date for <span className="font-semibold text-owner-fg">{noticeModal.name}</span>. They&apos;ll be moved to
                 &quot;Leaving&quot; status and appear in the Notice Period tracker until then.
               </p>
@@ -921,12 +960,18 @@ export default function TenantsPage() {
                 onChange={e => setLeavingDate(e.target.value)}
               />
             </div>
-            <div className="px-6 py-4 border-t border-owner-border flex gap-3">
-              <OwnerButton onClick={handleSetNotice} fullWidth>Confirm</OwnerButton>
-              <OwnerButton onClick={() => { setNoticeModal(null); setLeavingDate('') }} variant="secondary" fullWidth>Cancel</OwnerButton>
+            <div className="px-5 py-4 border-t border-owner-border shrink-0 flex gap-2.5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button onClick={() => { setNoticeModal(null); setLeavingDate('') }}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-surface-hover hover:opacity-80 active:scale-[0.98] text-owner-fg rounded-2xl text-sm font-bold transition">
+                Cancel
+              </button>
+              <button onClick={handleSetNotice}
+                className="flex-1 h-12 flex items-center justify-center gap-1.5 bg-owner-primary hover:opacity-90 active:scale-[0.98] text-white rounded-2xl text-sm font-bold transition">
+                Confirm
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Move-Out Checklist (Phase 3.4) — kept in its original literal-Tailwind
@@ -935,29 +980,36 @@ export default function TenantsPage() {
           restyling every ported feature is a larger effort than this merge
           covers. Functions identically to the redesigned surfaces around it. */}
       {checklistTenant && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold">Move-Out Checklist</h2>
-                <p className="text-xs text-gray-400">{checklistTenant.name} · Room {checklistTenant.room?.room_number}</p>
-              </div>
-              <button onClick={() => { setChecklistTenant(null); setChecklist(null) }} aria-label="Close" className="text-gray-400 text-xl font-bold">×</button>
+        <>
+          <div onClick={() => { setChecklistTenant(null); setChecklist(null) }} className="fixed inset-0 bg-black/40 z-50 transition-opacity" />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-owner-surface-elevated rounded-t-3xl shadow-owner-lg max-h-[85vh] flex flex-col animate-owner-scale-in">
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="h-1 w-9 rounded-full bg-owner-border-strong" />
             </div>
-            <div className="p-5">
+            <div className="px-5 pb-4 pt-1 flex items-center gap-3 border-b border-owner-border shrink-0">
+              <OwnerAvatar name={checklistTenant.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-owner-muted uppercase tracking-wide">Move-Out Checklist</div>
+                <div className="font-bold text-owner-fg truncate">{checklistTenant.name} <span className="text-owner-muted-subtle font-normal text-xs">· Room {checklistTenant.room?.room_number}</span></div>
+              </div>
+              <OwnerIconButton aria-label="Close" variant="ghost" size="sm" onClick={() => { setChecklistTenant(null); setChecklist(null) }}>
+                <X />
+              </OwnerIconButton>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               {checklistLoading || !checklist ? (
-                <div className="flex items-center justify-center py-10 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
+                <div className="flex items-center justify-center py-10 text-owner-muted"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
               ) : (
                 <div className="space-y-2">
                   {checklist.items.map((item: any, idx: number) => (
                     <button key={idx} onClick={() => toggleChecklistItem(idx)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition ${item.checked ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}>
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition active:scale-[0.99] ${item.checked ? 'bg-owner-success-subtle border-owner-success/30' : 'bg-owner-surface-hover border-owner-border hover:opacity-80'}`}>
                       <span className="text-lg">{item.checked ? '✅' : '⬜'}</span>
-                      <span className={`text-sm ${item.checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>{item.label}</span>
+                      <span className={`text-sm ${item.checked ? 'text-owner-success line-through' : 'text-owner-fg'}`}>{item.label}</span>
                     </button>
                   ))}
                   {checklist.completed && (
-                    <div className="text-xs text-green-600 font-semibold text-center pt-2">
+                    <div className="text-xs text-owner-success font-semibold text-center pt-2">
                       All items checked — ready to Mark Left when you&apos;re set.
                     </div>
                   )}
@@ -965,7 +1017,7 @@ export default function TenantsPage() {
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

@@ -15,43 +15,39 @@
 
 .tenant-portal {
   /* Dark is the default look — applied whenever data-theme is absent
-     (e.g. for one JS-free paint) or explicitly "dark". Deepened for a
-     richer, moodier feel: surfaces sit a touch darker and the primary
-     accent is a deeper indigo rather than a bright periwinkle, so it
-     reads as "rich dark" rather than "washed out" against the
-     near-black background. */
-  --tenant-background: 228 26% 5%;
-  --tenant-background-subtle: 228 22% 8%;
-  --tenant-surface: 228 20% 10%;
-  --tenant-surface-elevated: 228 18% 13%;
-  --tenant-surface-hover: 228 18% 16%;
-  --tenant-border: 228 16% 17%;
-  --tenant-border-strong: 228 14% 25%;
+     (e.g. for one JS-free paint) or explicitly "dark". */
+  --tenant-background: 228 24% 6%;
+  --tenant-background-subtle: 228 20% 9%;
+  --tenant-surface: 228 18% 11%;
+  --tenant-surface-elevated: 228 16% 14%;
+  --tenant-surface-hover: 228 16% 17%;
+  --tenant-border: 228 14% 18%;
+  --tenant-border-strong: 228 12% 26%;
 
   --tenant-foreground: 220 25% 97%;
   --tenant-muted: 220 10% 66%;
   --tenant-muted-subtle: 220 9% 46%;
 
-  --tenant-primary: 243 72% 54%;
-  --tenant-primary-hover: 243 75% 61%;
+  --tenant-primary: 243 75% 61%;
+  --tenant-primary-hover: 243 78% 68%;
   --tenant-primary-foreground: 0 0% 100%;
 
-  --tenant-success: 142 69% 42%;
-  --tenant-success-subtle: 142 45% 14%;
-  --tenant-warning: 38 90% 48%;
-  --tenant-warning-subtle: 38 55% 14%;
-  --tenant-danger: 0 78% 56%;
-  --tenant-danger-subtle: 0 55% 16%;
-  --tenant-info: 217 88% 57%;
-  --tenant-info-subtle: 217 55% 16%;
-  --tenant-accent-purple: 271 75% 60%;
-  --tenant-accent-purple-subtle: 271 50% 18%;
-  --tenant-accent-teal: 172 66% 38%;
-  --tenant-accent-teal-subtle: 172 50% 14%;
+  --tenant-success: 142 69% 48%;
+  --tenant-success-subtle: 142 45% 16%;
+  --tenant-warning: 38 92% 55%;
+  --tenant-warning-subtle: 38 55% 16%;
+  --tenant-danger: 0 84% 63%;
+  --tenant-danger-subtle: 0 55% 18%;
+  --tenant-info: 217 91% 64%;
+  --tenant-info-subtle: 217 55% 18%;
+  --tenant-accent-purple: 271 81% 68%;
+  --tenant-accent-purple-subtle: 271 50% 20%;
+  --tenant-accent-teal: 172 66% 45%;
+  --tenant-accent-teal-subtle: 172 50% 16%;
 
-  --tenant-ring: 243 72% 54%;
+  --tenant-ring: 243 75% 61%;
   --tenant-shadow-color: 228 60% 2%;
-  --tenant-glow: 243 72% 54%;
+  --tenant-glow: 243 75% 61%;
 
   background-color: hsl(var(--tenant-background));
   color: hsl(var(--tenant-foreground));
@@ -71,26 +67,26 @@
   --tenant-muted: 215 16% 44%;
   --tenant-muted-subtle: 215 14% 58%;
 
-  --tenant-primary: 243 72% 50%;
-  --tenant-primary-hover: 243 75% 44%;
+  --tenant-primary: 243 75% 56%;
+  --tenant-primary-hover: 243 75% 50%;
   --tenant-primary-foreground: 0 0% 100%;
 
-  --tenant-success: 142 71% 34%;
+  --tenant-success: 142 71% 38%;
   --tenant-success-subtle: 142 60% 94%;
-  --tenant-warning: 32 95% 40%;
+  --tenant-warning: 32 95% 44%;
   --tenant-warning-subtle: 38 92% 94%;
-  --tenant-danger: 0 72% 46%;
+  --tenant-danger: 0 72% 51%;
   --tenant-danger-subtle: 0 84% 96%;
-  --tenant-info: 217 91% 50%;
+  --tenant-info: 217 91% 55%;
   --tenant-info-subtle: 217 91% 95%;
-  --tenant-accent-purple: 271 70% 48%;
+  --tenant-accent-purple: 271 70% 54%;
   --tenant-accent-purple-subtle: 271 70% 95%;
-  --tenant-accent-teal: 172 66% 30%;
+  --tenant-accent-teal: 172 66% 35%;
   --tenant-accent-teal-subtle: 172 60% 93%;
 
-  --tenant-ring: 243 72% 50%;
+  --tenant-ring: 243 75% 56%;
   --tenant-shadow-color: 220 40% 60%;
-  --tenant-glow: 243 72% 50%;
+  --tenant-glow: 243 75% 56%;
 
   color-scheme: light;
 }

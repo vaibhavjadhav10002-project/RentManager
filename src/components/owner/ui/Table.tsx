@@ -3,9 +3,17 @@
 import { cn } from '@/lib/utils'
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 
+/**
+ * Desktop/tablet table primitive. No horizontal scroll wrapper by design —
+ * wrap usage in `<div className="hidden sm:block">` and provide a
+ * `sm:hidden` stacked-card list with the same data for mobile. Every
+ * current consumer (Rooms, Expenses, Tenants, Documents, Payments)
+ * follows this pattern; keep new tables consistent with it rather than
+ * re-adding overflow-x-auto here.
+ */
 export function OwnerTable({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto rounded-owner-xl border border-owner-border bg-owner-surface">
+    <div className="w-full rounded-owner-xl border border-owner-border bg-owner-surface">
       <table className={cn('w-full text-sm border-collapse', className)} {...props} />
     </div>
   )

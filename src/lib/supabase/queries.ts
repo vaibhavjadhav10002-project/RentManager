@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import { formatINR, calculateLeaveRentAdjustment, DEFAULT_MOVE_OUT_CHECKLIST } from '@/lib/utils'
+import { formatINR, DEFAULT_MOVE_OUT_CHECKLIST, getRentOutstandingSummary } from '@/lib/utils'
 import type {
   AddRoomInput, AddTenantInput, RecordPaymentInput,
   AddExpenseInput, AddComplaintInput, AddLeaveRequestInput, AddRentExtensionRequestInput, AddMoveOutRequestInput,
@@ -399,6 +399,7 @@ export async function decideProfileUpdateRequest(requestId: string, decision: 'a
   const { data: { user: me } } = await sb.auth.getUser()
   const { data: request, error: fetchError } = await sb.from('profile_update_requests').select('*').eq('id', requestId).single()
   if (fetchError) throw fetchError
+  if (request.status !== 'pending') throw new Error('This profile update request has already been decided')
 
   if (decision === 'approved') {
     const changes = Object.fromEntries(
@@ -410,8 +411,8 @@ export async function decideProfileUpdateRequest(requestId: string, decision: 'a
 
   const { data, error } = await sb.from('profile_update_requests')
     .update({ status: decision, owner_note: ownerNote?.trim() || null, decided_at: new Date().toISOString(), decided_by: me?.id })
-    .eq('id', requestId).select().single()
-  if (error) throw error
+    .eq('id', requestId).eq('status', 'pending').select().single()
+  if (error) throw new Error(error.code === 'PGRST116' ? 'This profile update request has already been decided' : error.message)
   return data
 }
 
@@ -596,10 +597,30 @@ export async function recordPayment(input: RecordPaymentInput) {
 
 export async function approvePayment(paymentId: string) {
   const sb = createClient()
+  // .eq('approval_status','pending_approval') is a state-transition guard —
+  // a payment that's already been decided (approved or rejected) cannot be
+  // re-decided; this also matches the RLS policy's own precondition, so a
+  // stale/double-click request fails cleanly here instead of silently
+  // re-applying downstream effects (like the deposit_paid sync below).
   const { data, error } = await sb
     .from('payments').update({ approval_status: 'approved' })
-    .eq('id', paymentId).select().single()
-  if (error) throw error
+    .eq('id', paymentId).eq('approval_status', 'pending_approval').select().single()
+  if (error) throw new Error(error.code === 'PGRST116' ? 'This payment has already been decided' : error.message)
+
+  // A tenant-submitted *deposit* payment being approved must flow through
+  // to tenants.deposit_paid — otherwise the tenant keeps showing the
+  // deposit as outstanding even after the owner approves it. (Rent/advance
+  // payments need no extra step: monthlyLedger/getRentOutstandingSummary
+  // already derive directly from the payments table.)
+  if (data.type === 'deposit') {
+    const { data: tenantRow, error: tErr } = await sb.from('tenants').select('deposit_paid').eq('id', data.tenant_id).single()
+    if (!tErr && tenantRow) {
+      const { error: updErr } = await sb.from('tenants')
+        .update({ deposit_paid: (tenantRow.deposit_paid ?? 0) + data.amount_received })
+        .eq('id', data.tenant_id)
+      if (updErr) throw updErr
+    }
+  }
   return data
 }
 
@@ -607,8 +628,8 @@ export async function rejectPayment(paymentId: string) {
   const sb = createClient()
   const { data, error } = await sb
     .from('payments').update({ approval_status: 'rejected' })
-    .eq('id', paymentId).select().single()
-  if (error) throw error
+    .eq('id', paymentId).eq('approval_status', 'pending_approval').select().single()
+  if (error) throw new Error(error.code === 'PGRST116' ? 'This payment has already been decided' : error.message)
   return data
 }
 
@@ -705,11 +726,14 @@ export async function addLeaveRequest(input: AddLeaveRequestInput) {
 
 export async function decideLeaveRequest(id: string, status: 'approved' | 'rejected', ownerNote?: string) {
   const sb = createClient()
+  // .eq('status','pending') guards against re-deciding an already-decided
+  // request (approved→rejected, rejected→approved, duplicate approval) —
+  // matches the RLS policy's own precondition.
   const { data, error } = await sb
     .from('leave_requests')
     .update({ status, owner_note: ownerNote || null, decided_at: new Date().toISOString() })
-    .eq('id', id).select().single()
-  if (error) throw error
+    .eq('id', id).eq('status', 'pending').select().single()
+  if (error) throw new Error(error.code === 'PGRST116' ? 'This leave request has already been decided' : error.message)
   return data
 }
 
@@ -748,8 +772,8 @@ export async function decideRentExtensionRequest(id: string, status: 'approved' 
   const { data, error } = await sb
     .from('rent_extension_requests')
     .update({ status, owner_note: ownerNote || null, decided_at: new Date().toISOString() })
-    .eq('id', id).select().single()
-  if (error) throw error
+    .eq('id', id).eq('status', 'pending').select().single()
+  if (error) throw new Error(error.code === 'PGRST116' ? 'This extension request has already been decided' : error.message)
   return data
 }
 
@@ -788,8 +812,8 @@ export async function decideMoveOutRequest(id: string, status: 'approved' | 'rej
   const { data, error } = await sb
     .from('move_out_requests')
     .update({ status, owner_note: ownerNote || null, decided_at: new Date().toISOString() })
-    .eq('id', id).select().single()
-  if (error) throw error
+    .eq('id', id).eq('status', 'pending').select().single()
+  if (error) throw new Error(error.code === 'PGRST116' ? 'This move-out request has already been decided' : error.message)
   // Reuse the existing tenant offboarding flow — an approved move-out
   // request simply puts the tenant on notice with their requested date,
   // same as the owner manually setting notice on the Tenants page.
@@ -899,17 +923,17 @@ export async function getDashboardStats(propertyId: string) {
   // null (not 0%/−100%) when there's no prior-month data to compare against —
   // a brand-new property shouldn't show a misleading "down 100%".
   const revenueTrendPct = lastMonthRevenue > 0 ? Math.round(((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : null
+  // Full oldest-first ledger per tenant (shared with the Tenant Portal via
+  // getRentOutstandingSummary) — not just this month's gap. A tenant who
+  // skipped an old month but has since paid a later one must still surface
+  // here; the owner's headline "pending rent" figure must never disagree
+  // with what the tenant's own portal shows them as owing.
   const pendingRent = (tenants.data ?? [])
     .reduce((sum, t) => {
-      const paidThisMonth = (payments.data ?? [])
-        .filter(p => p.tenant_id === t.id && p.for_month === thisMonth && p.approval_status === 'approved' && p.type === 'rent')
-        .reduce((s, p) => s + p.amount_received, 0)
-      const advanceBalance = (payments.data ?? [])
-        .filter(p => p.tenant_id === t.id && p.type === 'advance' && p.approval_status === 'approved')
-        .reduce((s, p) => s + p.amount_received, 0)
+      const tenantPayments = (payments.data ?? []).filter(p => p.tenant_id === t.id)
       const tenantLeaves = (approvedLeaves.data ?? []).filter(l => l.tenant_id === t.id)
-      const adjustment = calculateLeaveRentAdjustment(thisMonth, t.monthly_rent, tenantLeaves)
-      return sum + Math.max(0, (t.monthly_rent - adjustment) - paidThisMonth - advanceBalance)
+      const { totalPending } = getRentOutstandingSummary(t, tenantPayments, tenantLeaves)
+      return sum + totalPending
     }, 0)
   // Collection rate = what's been collected vs. what was expected this
   // month (collected + still pending) for active tenants.

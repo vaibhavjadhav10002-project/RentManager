@@ -5,7 +5,7 @@
   "minimumSupportedVersionCode": 1,
   "forceUpdate": false,
   "releaseDate": "2026-07-29",
-  "apkDownloadUrl": "https://REPLACE-WITH-YOUR-PRODUCTION-DOMAIN.example/downloads/rentivo-latest.apk",
+  "apkDownloadUrl": "https://github.com/REPLACE-WITH-YOUR-GITHUB-USERNAME/REPLACE-WITH-YOUR-REPO-NAME/releases/latest/download/rentivo-latest.apk",
   "apkSizeMB": 18.4,
   "releaseNotes": [
     "Initial Android release of Rentivo"

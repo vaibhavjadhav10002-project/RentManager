@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import webpush from 'web-push'
+import { sendFcmNotifications } from '@/lib/fcm'
 
 // Node runtime required — web-push uses Node's crypto module, not available on edge.
 export const runtime = 'nodejs'
@@ -121,16 +122,21 @@ export async function POST(req: NextRequest) {
 
     let nativeSent = 0
     if (nativeSubs.length > 0) {
-      // ── FCM/APNs RELAY — INTEGRATION POINT ──────────────────────────
-      // Not implemented: needs FIREBASE_SERVICE_ACCOUNT_JSON (Android)
-      // and APNS_KEY_ID/APNS_TEAM_ID/APNS_PRIVATE_KEY (iOS) as env vars,
-      // which only you can generate from your own Firebase/Apple
-      // Developer accounts. Once added, this is where you'd call the
-      // Firebase Admin SDK / a JWT-signed APNs HTTP/2 request per
-      // `nativeSubs` row (grouped by native_platform). Until then this
-      // silently no-ops rather than throwing, so web push keeps working.
-      if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.APNS_KEY_ID) {
-        console.warn('[push/send] Native relay credentials found but relay not yet implemented — see MOBILE_BUILD_REPORT.md')
+      // Android → real FCM delivery via Firebase Admin SDK (see
+      // src/lib/fcm.ts). iOS/APNs is still unimplemented — needs
+      // APNS_KEY_ID/APNS_TEAM_ID/APNS_PRIVATE_KEY from an Apple Developer
+      // account, which this app doesn't have configured; those tokens are
+      // silently skipped below exactly as before, so nothing regresses.
+      const androidSubs = nativeSubs.filter(s => s.native_platform === 'android')
+      if (androidSubs.length > 0 && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        const { sent, deadTokens } = await sendFcmNotifications(
+          androidSubs.map(s => s.native_token!),
+          { title, body, url, tag }
+        )
+        nativeSent += sent
+        if (deadTokens.length > 0) {
+          await sb.from('push_subscriptions').delete().in('native_token', deadTokens)
+        }
       }
     }
 

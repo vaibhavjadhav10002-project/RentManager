@@ -25,7 +25,7 @@ export async function bootstrapNative() {
     const dark = document.documentElement.classList.contains('dark')
     try {
       await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })
-      await StatusBar.setBackgroundColor({ color: dark ? '#0B0D14' : '#2563EB' })
+      await StatusBar.setBackgroundColor({ color: dark ? '#0f172a' : '#2563EB' })
     } catch {
       // StatusBar plugin has no-ops on some OEM skins — never block app load on this.
     }
@@ -71,7 +71,30 @@ export async function bootstrapNative() {
     }
   })
 
+  // NOTE: deliberately 'none', not 'body'. Capacitor's 'body' resize mode
+  // works by applying a height/position constraint to <body> whenever the
+  // keyboard shows — and on some Android WebView versions that constraint
+  // doesn't reliably get cleared afterwards, leaving the whole app
+  // permanently "stuck"/unscrollable until something else forces a
+  // reflow. 'none' lets the keyboard simply overlap content instead
+  // (our forms are in modals/bottom-sheets that already scroll
+  // internally, so nothing actually needs the page to auto-resize).
   try {
-    await Keyboard.setResizeMode({ mode: 'body' as any })
+    await Keyboard.setResizeMode({ mode: 'none' as any })
   } catch {}
+
+  // Global light haptic on every button/link tap — same reach as the CSS
+  // `:active` scale feedback in globals.css (one listener, every button in
+  // the app picks it up automatically), but this is real hardware
+  // vibration instead of a visual cue. Capturing + passive so it can't
+  // block or interfere with the actual click handler underneath; a bad
+  // tap target (disabled button, aria-disabled) is skipped so users don't
+  // feel a buzz for a tap that visibly did nothing.
+  const { tapHaptic } = await import('./haptics')
+  document.addEventListener('click', (e) => {
+    const target = (e.target as HTMLElement)?.closest('button, a, [role="button"]')
+    if (!target) return
+    if (target.hasAttribute('disabled') || target.getAttribute('aria-disabled') === 'true') return
+    tapHaptic()
+  }, { capture: true, passive: true })
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useActiveExperience } from '@/lib/experience/useActiveExperience'
 
 export type OwnerThemePreference = 'dark' | 'light' | 'system'
 type ResolvedTheme = 'dark' | 'light'
@@ -92,11 +93,24 @@ export function OwnerThemeProvider({
 
   const activeTheme = mounted ? resolvedTheme : initialPreference === 'system' ? 'dark' : initialPreference
 
+  // Same accent-color-override approach as TenantThemeProvider — see the
+  // comment there. Applying it here means the whole Owner Dashboard
+  // (buttons, badges, active sidebar/bottom-nav state, ...) picks up the
+  // active Experience Pack's seasonal color with zero per-screen changes.
+  const activePack = useActiveExperience()
+  const accentStyle = activePack?.accentPalette?.primary
+    ? ({
+        '--owner-primary': activePack.accentPalette.primary,
+        '--owner-primary-hover': activePack.accentPalette.secondary ?? activePack.accentPalette.primary,
+      } as React.CSSProperties)
+    : undefined
+
   return (
     <OwnerThemeContext.Provider value={value}>
       <div
         className={`owner-shell min-h-screen ${activeTheme === 'dark' ? 'dark' : ''}`}
         data-theme={activeTheme}
+        style={accentStyle}
         suppressHydrationWarning
       >
         {children}
